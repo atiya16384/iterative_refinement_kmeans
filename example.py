@@ -1,12 +1,15 @@
 from statistics import mode
 import numpy as np
+from aoclda.sklearn import skpatch
 from sklearn.datasets import make_blobs
 from sklearn.cluster import KMeans
 from sklearn.metrics import adjusted_rand_score
-from aoclda.sklearn import skpatch
+
 from sklearn.metrics import silhouette_score
 from sklearn.metrics import davies_bouldin_score
 import time
+import pandas as pd
+import matplotlib.pyplot as plt
 
 def compare_precision():
     dataset_sizes = [5000, 8000, 10000] # list of different dataset sizes
@@ -37,7 +40,6 @@ def compare_precision():
             init_kmeans = KMeans(n_clusters=n_clusters, init = "k-means++", n_init = 1, random_state=repeat)
             init_kmeans.fit(X.astype(np.float64))
             initial_centers = init_kmeans.cluster_centers_
-
 
             for precison_name, dtype in precisions.items():
                 X_precision = X.astype(dtype) # cast dataset to proper precision
@@ -72,7 +74,6 @@ def compare_precision():
                     continue
 
                 # Begin with single precision
-
                 X_single = X.astype(np.float32)
                 init_single = initial_centers.astype(np.float32)
 
@@ -98,10 +99,6 @@ def compare_precision():
                 mem_MB_hybrid = X_double.nbytes/ 1e6
 
                 # calculate center difference
-
-                center_diff = np.linalg.norm(centers_hybrid - final_centers_double)
-                
-                # Calculate center difference
                 center_diff = np.linalg.norm(centers_hybrid - final_centers_double)
 
                 label = f"Hybrid_Switch@{switch_iter}"
@@ -109,6 +106,93 @@ def compare_precision():
                     n_samples, max_iter, label, switch_iter, elapsed_hybrid, mem_MB_hybrid,
                     ari_hybrid, silhouette_avg_hybrid, db_index_hybrid, inertia_hybrid, center_diff
                 ])
+
+        columns = [
+        'DatasetSize', 'MaxIter', 'Mode', 'SwitchIter', 'Time', 'Memory_MB',
+        'ARI', 'Silhouette', 'DBI', 'Inertia', 'CenterDiff'
+        ]
+
+        # Extract centers separately since they cannot be put in dataframe directly
+        flattened_results = []
+        for row in results:
+            if len(row) == 11:  # Hybrid row with center diff
+                flattened_results.append(row)
+            else:  # Single or Double row (no center diff yet)
+                center_diff_placeholder = np.nan
+                flattened_results.append(row + [center_diff_placeholder])
+
+        results_df = pd.DataFrame(flattened_results, columns=columns)
+        print("\n==== Final Summary Table ====")
+        print(results_df.groupby(['DatasetSize','Mode'])[['Time','ARI','Silhouette']].mean())
+
+        # PLOTS
+
+        # Timing vs Dataset Size
+        plt.figure(figsize=(10, 5))
+        for mode in results_df['Mode'].unique():
+            mean_times = results_df[results_df['Mode'] == mode].groupby('DatasetSize')['Time'].mean()
+            plt.plot(mean_times.index, mean_times.values, marker='o', label=mode)
+        plt.xlabel("Dataset Size")
+        plt.ylabel("Time (s)")
+        plt.title("Timing vs Dataset Size")
+        plt.legend()
+        plt.grid()
+        plt.show()
+
+        # ARI vs Dataset Size
+        plt.figure(figsize=(10, 5))
+        for mode in results_df['Mode'].unique():
+            mean_ari = results_df[results_df['Mode'] == mode].groupby('DatasetSize')['ARI'].mean()
+            plt.plot(mean_ari.index, mean_ari.values, marker='o', label=mode)
+        plt.xlabel("Dataset Size")
+        plt.ylabel("ARI")
+        plt.title("ARI vs Dataset Size")
+        plt.legend()
+        plt.grid()
+        plt.show()
+
+        # Hybrid Switch Analysis (ARI vs Switch Iter)
+        hybrids = results_df[results_df['Mode'].str.contains('Hybrid')]
+        plt.figure(figsize=(10, 5))
+        for ds in dataset_sizes:
+            df_ds = hybrids[hybrids['DatasetSize'] == ds].groupby('SwitchIter').mean()
+            plt.plot(df_ds.index, df_ds['ARI'], marker='o', label=f'Size={ds}')
+        plt.xlabel("Switch Iteration")
+        plt.ylabel("ARI")
+        plt.title("Hybrid: ARI vs Switch Iteration")
+        plt.legend()
+        plt.grid()
+        plt.show()
+
+        # Timing vs Switch Iteration
+        plt.figure(figsize=(10, 5))
+        for ds in dataset_sizes:
+            df_ds = hybrids[hybrids['DatasetSize'] == ds].groupby('SwitchIter').mean()
+            plt.plot(df_ds.index, df_ds['Time'], marker='o', label=f'Size={ds}')
+        plt.xlabel("Switch Iteration")
+        plt.ylabel("Time (s)")
+        plt.title("Hybrid: Time vs Switch Iteration")
+        plt.legend()
+        plt.grid()
+        plt.show()
+
+        # Memory Usage (Single vs Double only)
+        plt.figure(figsize=(10, 5))
+        for mode in ["Single Precision", "Double Precision"]:
+            mem = results_df[results_df['Mode'] == mode].groupby('DatasetSize')['Memory_MB'].mean()
+            plt.plot(mem.index, mem.values, marker='o', label=mode)
+        plt.xlabel("Dataset Size")
+        plt.ylabel("Memory Usage (MB)")
+        plt.title("Memory Usage vs Dataset Size")
+        plt.legend()
+        plt.grid()
+        plt.show()
+
+        # Cluster visualization (optional sample example)
+        X_vis, y_vis = make_blobs(n_samples=500, n_features=2, centers=n_clusters, random_state=42)
+        plt.scatter(X_vis[:, 0], X_vis[:, 1], c=y_vis, s=30, cmap='viridis')
+        plt.title("Example synthetic KMeans data")
+        plt.show()
 
 
 skpatch()       
