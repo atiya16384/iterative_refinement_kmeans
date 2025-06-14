@@ -11,12 +11,12 @@ import matplotlib.pyplot as plt
 from statistics import mode
 
 def compare_precision():
-    dataset_sizes = [5000, 8000, 10000] # list of different dataset sizes
-    max_iter = 300
-    n_clusters = 4
-    n_features = 2
-    n_repeats = 3
-    switch_iters_list = [10, 20, 30, 50, 100, 150, 200] # switch points to test
+    dataset_sizes = [10000, 15000, 20000, 25000, 30000] # list of different dataset sizes
+    max_iter = 120
+    n_clusters = 5
+    n_features = 8
+    n_repeats = 5
+    switch_iters_list = [10, 20, 30, 40, 50, 100] # switch points to test
 
     # Create dictionary of precisions
     precisions = {
@@ -28,7 +28,7 @@ def compare_precision():
 
     for n_samples in dataset_sizes:
         for repeat in range(n_repeats):
-            print(f"Dataset size{n_samples}, Repeat {repeat + 1}")
+            print(f"Dataset size {n_samples}, Repeat {repeat + 1}")
 
             # Generate synthetic data
             X , y_true = make_blobs(n_samples=n_samples, n_features=n_features,centers= n_clusters, random_state=repeat )
@@ -43,7 +43,7 @@ def compare_precision():
                 init_precision = initial_centers.astype(dtype) # cast initial centers to proper precision
                 
                 start_time = time.time()
-                kmeans = KMeans(n_clusters=n_clusters, init=init_precision, n_init=1, max_iter = max_iter, random_state=repeat)
+                kmeans = KMeans(n_clusters=n_clusters, init=init_precision, n_init=1, max_iter = max_iter, random_state=repeat, tol=1e-15)
                 kmeans.fit(X_precision)
                 elapsed = time.time() - start_time
 
@@ -61,7 +61,7 @@ def compare_precision():
 
             # run full double precision again to store the final centers for center different calculation
             centers_double = initial_centers.astype(np.float64)
-            kmeans_double_full = KMeans(n_clusters=n_clusters, init=centers_double, n_init=1, max_iter=max_iter, random_state=repeat)
+            kmeans_double_full = KMeans(n_clusters=n_clusters, init=centers_double, n_init=1, max_iter=max_iter, random_state=repeat, tol=1e-15)
             kmeans_double_full.fit(X.astype(np.float64))
             final_centers_double = kmeans_double_full.cluster_centers_
 
@@ -74,7 +74,7 @@ def compare_precision():
                 X_single = X.astype(np.float32)
                 init_single = initial_centers.astype(np.float32)
 
-                kmeans_partial = KMeans(n_clusters=n_clusters, init=init_single, n_init=1, max_iter=switch_iter, random_state=repeat)
+                kmeans_partial = KMeans(n_clusters=n_clusters, init=init_single, n_init=1, max_iter=switch_iter, random_state=repeat,tol=1e-15 )
                 kmeans_partial.fit(X_single)
                 centers_partial = kmeans_partial.cluster_centers_
 
@@ -82,7 +82,7 @@ def compare_precision():
                 centers_partial_double = centers_partial.astype(np.float64)
                 X_double = X.astype(np.float64)
                 start_time = time.time()
-                kmeans_refine = KMeans(n_clusters = n_clusters, init=centers_partial_double, n_init=1, max_iter = max_iter - switch_iter, random_state=repeat)
+                kmeans_refine = KMeans(n_clusters = n_clusters, init=centers_partial_double, n_init=1, max_iter = max_iter - switch_iter, random_state=repeat, tol = 1e-15)
                 kmeans_refine.fit(X_double)
                 elapsed_hybrid = time.time() - start_time
 
@@ -93,12 +93,12 @@ def compare_precision():
                 silhouette_avg_hybrid = silhouette_score(X_double, labels_hybrid)
                 db_index_hybrid = davies_bouldin_score(X_precision, labels)
                 inertia_hybrid = kmeans_refine.inertia_
-                mem_MB_hybrid = X_double.nbytes/ 1e6
+                mem_MB_hybrid = X_double.nbytes/ 1e6 
 
                 # calculate center difference
-                center_diff = np.linalg.norm(centers_hybrid - final_centers_double)
+                center_diff = np.linalg.norm(centers_hybrid - final_centers_double) 
 
-                label = f"Different_Iterations@{switch_iter}"
+                label = f"firstSingle_thenDouble@{switch_iter}"
                 results.append([
                     n_samples, max_iter, label, switch_iter, elapsed_hybrid, mem_MB_hybrid,
                     ari_hybrid, silhouette_avg_hybrid, db_index_hybrid, inertia_hybrid, center_diff
@@ -108,7 +108,6 @@ def compare_precision():
         'DatasetSize', 'MaxIter', 'Mode', 'SwitchIter', 'Time', 'Memory_MB',
         'ARI', 'Silhouette', 'DBI', 'Inertia', 'CenterDiff'
         ]
-
         # Extract centers separately since they cannot be put in dataframe directly
         flattened_results = []
         for row in results:
@@ -120,32 +119,7 @@ def compare_precision():
 
         results_df = pd.DataFrame(flattened_results, columns=columns)
         print("\n==== Final Summary Table ====")
-        print(results_df.groupby(['DatasetSize','Mode'])[['Time','ARI','Silhouette']].mean())
-
-        # PLOTS
-        # Timing vs Dataset Size
-        plt.figure(figsize=(10, 5))
-        for mode in results_df['Mode'].unique():
-            mean_times = results_df[results_df['Mode'] == mode].groupby('DatasetSize')['Time'].mean()
-            plt.plot(mean_times.index, mean_times.values, marker='o', label=mode)
-        plt.xlabel("Dataset Size")
-        plt.ylabel("Time (s)")
-        plt.title("Timing vs Dataset Size")
-        plt.legend()
-        plt.grid()
-        plt.show()
-
-        # ARI vs Dataset Size
-        plt.figure(figsize=(10, 5))
-        for mode in results_df['Mode'].unique():
-            mean_ari = results_df[results_df['Mode'] == mode].groupby('DatasetSize')['ARI'].mean()
-            plt.plot(mean_ari.index, mean_ari.values, marker='o', label=mode)
-        plt.xlabel("Dataset Size")
-        plt.ylabel("ARI")
-        plt.title("ARI vs Dataset Size")
-        plt.legend()
-        plt.grid()
-        plt.show()
+        print(results_df.groupby(['DatasetSize','Mode'])[['Time','ARI','Silhouette', 'Inertia','Memory_MB']].mean())
 
 skpatch()       
 compare_precision()
