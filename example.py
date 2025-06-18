@@ -11,7 +11,6 @@ warnings.filterwarnings("ignore")
 
 # Apply AOCL patch before any KMeans usage
 skpatch()
-
 # CONFIGURATION PARAMETERS
 
 dataset_sizes = [10000, 20000, 50000, 100000, 200000, 500000]
@@ -25,7 +24,6 @@ precisions = {
     "Single Precision": np.float32,
     "Double Precision": np.float64
 }
-
 
 def generate_data(n_samples, n_features, n_clusters, random_state):
     X, y_true = make_blobs(n_samples=n_samples, n_features=n_features, centers=n_clusters, random_state=random_state)
@@ -43,12 +41,13 @@ def run_full_double(X, initial_centers, n_clusters, max_iter, repeat, y_true):
     kmeans = KMeans(n_clusters=n_clusters, init=initial_centers, n_init=1, max_iter=max_iter, random_state=repeat)
     kmeans.fit(X.astype(precisions["Double Precision"]))
     elapsed = time.time() - start_time
+    speedup = elapsed / elapsed_hybrid
     labels = kmeans.labels_
     centers = kmeans.cluster_centers_
     inertia = kmeans.inertia_
     ari, silhouette, dbi, inertia = evaluate_metrics(X, labels, y_true, inertia)
-    mem_MB = X.astype(precisions["Double Precision"]).nbytes / 1e6
-    return centers, labels, inertia, elapsed, mem_MB, ari, silhouette, dbi
+    mem_MB_double = X.astype(np.float64).nbytes / 1e6
+    return centers, labels, inertia, elapsed, mem_MB, ari, silhouette, dbi, speedup, mem_MB_double
 
 # Hybrid precison loop 
 def run_adaptive_hybrid(X, initial_centers, n_clusters, max_iter, repeat, y_true):
@@ -86,6 +85,7 @@ def run_adaptive_hybrid(X, initial_centers, n_clusters, max_iter, repeat, y_true
                             max_iter=max_iter - iter_num, random_state=repeat)
     kmeans_refine.fit(X_double)
     elapsed = time.time() - start_time
+    speedup = elapsed / elapsed_hybrid
 
     labels_final = kmeans_refine.labels_
     centers_final = kmeans_refine.cluster_centers_
@@ -93,10 +93,12 @@ def run_adaptive_hybrid(X, initial_centers, n_clusters, max_iter, repeat, y_true
 
     ari, silhouette, dbi, inertia = evaluate_metrics(X, labels_final, y_true, inertia)
     mem_MB = X_double.nbytes / 1e6
+    # Memory used: full double + partial single precision copies
+    mem_MB_hybrid = (X.astype(np.float64).nbytes + X.astype(np.float32).nbytes) / 1e6
+
     center_diff = np.linalg.norm(centers_final - centers_double)
 
-    return iter_num, elapsed, mem_MB, ari, silhouette, dbi, inertia, center_diff, labels_final, centers_final
-
+    return iter_num, elapsed, mem_MB, ari, silhouette, dbi, inertia, center_diff, labels_final, centers_final, mem_MB_hybrid, speedup
 
 # Main loop
 results = []
@@ -135,6 +137,9 @@ for n_samples in dataset_sizes:
                     plt.title("Double Precision Clusters")
                     plt.show()
                 
+                # Normalize X before processing
+                X = (X - np.mean(X, axis=0)) / np.std(X, axis=0)
+
                  # Adaptive hybrid run
                 iter_num, elapsed_hybrid, mem_MB_hybrid, ari_hybrid, silhouette_hybrid, dbi_hybrid, inertia_hybrid, center_diff, labels_hybrid, centers_hybrid = run_adaptive_hybrid(
                     X, initial_centers, n_clusters, max_iter, repeat, y_true
@@ -142,7 +147,6 @@ for n_samples in dataset_sizes:
 
                 results.append([n_samples, n_clusters, n_features, "AdaptiveHybrid", iter_num, elapsed_hybrid, mem_MB_hybrid,
                                 ari_hybrid, silhouette_hybrid, dbi_hybrid, inertia_hybrid, center_diff])
-
 
 # Data frame and output
 columns = ['DatasetSize', 'NumClusters', 'NumFeatures', 'Mode', 'SwitchIter',
