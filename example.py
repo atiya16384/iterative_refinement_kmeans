@@ -51,48 +51,63 @@ def run_full_double(X, initial_centers, n_clusters, max_iter, repeat, y_true):
 
 # Hybrid precison loop 
 def run_adaptive_hybrid(X, initial_centers, n_clusters, max_iter, repeat, y_true):
+    # Define tolerance to decide when to switch to double precision
     tol_single_precision = 1e-7
 
     # Convert data to single precision for fast computation
     X_single = X.astype(np.float32)
+    # convert dataset and initial centroids to single precision
     centers = initial_centers.astype(np.float32)
 
     for iter_num in range(max_iter):
         # Assignment step (distance calculation in single precision)
+        # calcuate the distance of each point to centroid using euclidian distance and assign to nearest cluster.
         distances = np.linalg.norm(X_single[:, None, :] - centers[None, :, :], axis=2)
         labels = np.argmin(distances, axis=1)
 
         # Update step (centroid update in double precision)
+        # for each cluster, compute the mean of all assigned 
+        
         new_centers = np.array([
+            # Although data is in float32, we compute the mean in float64 for better accuracy.
             X_single[labels == k].astype(np.float64).mean(axis=0) 
             for k in range(n_clusters)
+            # We cast back to float32.
         ], dtype=np.float64).astype(np.float32)
 
-        # Compute centroid shift to monitor convergence
+        # Calculate how much centroids moved (shift)
         shift = np.linalg.norm(new_centers - centers)
         centers = new_centers
 
+        # # If the shift is below the tolerance, we assume we're close enough to final convergence.
         if shift < tol_single_precision:
             print(f"Switching to double after {iter_num+1} iterations. Shift={shift}")
             break
 
     # Switch to double precision refinement
+    # Convert both the data and the centroids to float64
     centers_double = centers.astype(np.float64)
     X_double = X.astype(np.float64)
 
     start_time = time.time()
+
+    # Run standard sckit-learn k-means starting from the current centroids.
+    # This helps refine the solution in full double precision for high accuracy
     kmeans_refine = KMeans(n_clusters=n_clusters, init=centers_double, n_init=1,
                             max_iter=max_iter - iter_num, random_state=repeat)
     kmeans_refine.fit(X_double)
     elapsed = time.time() - start_time
     speedup = elapsed / elapsed_hybrid
 
+    # Ectract final labels, final cluster centers, final inertia.
     labels_final = kmeans_refine.labels_
     centers_final = kmeans_refine.cluster_centers_
     inertia = kmeans_refine.inertia_
 
+    # Evaluate with these metrics
     ari, silhouette, dbi, inertia = evaluate_metrics(X, labels_final, y_true, inertia)
     mem_MB = X_double.nbytes / 1e6
+    
     # Memory used: full double + partial single precision copies
     mem_MB_hybrid = (X.astype(np.float64).nbytes + X.astype(np.float32).nbytes) / 1e6
 
