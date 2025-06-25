@@ -2,20 +2,22 @@ import numpy as np
 import time
 import matplotlib.pyplot as plt
 import pandas as pd
+from aoclda.sklearn import skpatch
+skpatch() # Apply AOCL patch before any KMeans usage
 from sklearn.datasets import make_blobs
 from sklearn.metrics import adjusted_rand_score, silhouette_score, davies_bouldin_score
 from sklearn.cluster import KMeans
-from aoclda.sklearn import skpatch
 import warnings
 warnings.filterwarnings("ignore")
+from scipy.spatial import Voronoi, voronoi_plot_2d
+import sys
+import os
 
-# Apply AOCL patch before any KMeans usage
-skpatch()
-# CONFIGURATION PARAMETERS
 
-dataset_sizes = [10000, 20000, 50000, 100000, 200000, 500000]
-n_clusters_list = [5, 8]
-n_features_list = [2, 4]  # We keep 2 here for proper plotting
+# CONFIGURATION PARAMETERS 
+dataset_sizes = [10000]
+n_clusters_list = [4, 5,6, 7, 8]
+n_features_list = [2, 4, 6, 8]  # We keep 2 here for proper plotting 
 max_iter = 120
 n_repeats = 3
 
@@ -50,78 +52,67 @@ def run_full_double(X, initial_centers, n_clusters, max_iter, repeat, y_true):
     return centers, labels, inertia, elapsed, ari, silhouette, dbi, mem_MB_double
 
 # Hybrid precison loop 
-def run_adaptive_hybrid(X, initial_centers, n_clusters, max_iter, repeat, y_true):
-    # Define tolerance to decide when to switch to double precision
-    tol_single_precision = 1e-7
-    # Convert data to single precision for fast computation
+
+def run_adaptive_hybrid( X, initial_centers, n_clusters, max_iter, repeat, y_true, tol_single=1e-7, single_iter_cap=300):
+    # single floating point type
     X_single = X.astype(np.float32)
-    # convert dataset and initial centroids to single precision
-    centers = initial_centers.astype(np.float32) 
+    # Define the initial centers
+    initial_centers_32 = initial_centers.astype(np.float32)
+    
+    # K=means algorithm for single precision
+    kmeans_single = KMeans(
+        n_clusters=n_clusters,
+        init=initial_centers_32,
+        n_init=1,
+        max_iter=min(single_iter_cap, max_iter),
+        tol=tol_single,
+        random_state=repeat,
+    )
+    # start time 
+    start_time_single = time.time()
+    kmeans_single.fit(X_single)
+    end_time_single = time.time() - start_time_single
+    iters_single = kmeans_single.n_iter_
+    centers32 = kmeans_single.cluster_centers_
 
-   # kmeans_single= KMeans(n_clusters=n_clusters, init=centers, n_init=1,
-                       #     max_iter=max_iter - iter_num, random_state=repeat)
-    #kmeans_single.fit(X_single)
+    # stop early if we already converged or we have reached the total tolerance
+    if iters_single >= max_iter or kmeans_single.n_iter_ < tol_single:
+        labels_final = kmeans_single.labels_
+        centers_final = centers32.astype(np.float64)  # cast for consistency
+        inertia = kmeans_single.inertia_
+        ari, sil, dbi, inertia = evaluate_metrics(X, labels_final, y_true, inertia)
+        mem_MB = X_single.nbytes / 1e6
+        return (iters_single, start_time_single, mem_MB, ari, sil, dbi,
+                inertia, 0.0, labels_final, centers_final, mem_MB)
 
-    for iter_num in range(max_iter):
-        # Assignment step (distance calculation in single precision)
-        # calcuate the distance of each point to centroid using euclidean distance and assign to nearest cluster.
-        distances = np.linalg.norm(X_single[:, None, :] - centers[None, :, :], axis=2)
-        labels = np.argmin(distances, axis=1)
-
-        # Update step (centroid update in double precision)
-        # for each cluster, compute the mean of all assigned 
-        new_centers = []
-        for k in range(n_clusters):
-            cluster_points = X_single[labels == k]
-            if len(cluster_points) == 0:
-                # Reinitialize empty cluster to a random data point
-                random_idx = np.random.choice(len(X_single))
-                new_centers.append(X_single[random_idx].astype(np.float64))
-            else:
-                new_centers.append(cluster_points.astype(np.float64).mean(axis=0))
-
-        new_centers = np.array(new_centers, dtype=np.float64).astype(np.float32)
-        # Calculate how much centroids moved (shift)
-        shift = np.linalg.norm(new_centers - centers)/ new_centers
-        centers = new_centers
-
-        # # If the shift is below the tolerance, we assume we're close enough to final convergence.
-        if shift < tol_single_precision:
-            print(f"Switching to double after {iter_num+1} iterations. Shift={shift}")
-            break
-
-    # Switch to double precision refinement
-    # Convert both the data and the centroids to float64
-    centers_double = centers.astype(np.float64)
+    remaining_iter = max_iter - iters_single
     X_double = X.astype(np.float64)
+    initial_centers_64 = centers32.astype(np.float64)
 
-    start_time = time.time()
-    print(np.isnan(X_double))
-    print(np.isnan(centers_double))
-    
-    # Run standard sckit-learn k-means starting from the current centroids.
-    # This helps refine the solution in full double precision for high accuracy
-    kmeans_refine = KMeans(n_clusters=n_clusters, init=centers_double, n_init=1,
-                            max_iter=max_iter - iter_num, random_state=repeat)
-    kmeans_refine.fit(X_double)
-    elapsed = time.time() - start_time
-   # speedup = elapsed / elapsed_hybrid
+    kmeans_double = KMeans(
+        n_clusters=n_clusters,
+        init=initial_centers_64,
+        n_init=1,
+        max_iter=remaining_iter,
+        tol=1e-7,  # tighter tol for final polish
+        random_state=repeat,
+    )
+    start_time_double = time.time()
+    kmeans_double.fit(X_double)
+    end_time_double = time.time() - start_time_double
 
-    # Extract final labels, final cluster centers, final inertia.
-    labels_final = kmeans_refine.labels_
-    centers_final = kmeans_refine.cluster_centers_
-    inertia = kmeans_refine.inertia_
+    labels_final = kmeans_double.labels_
+    centers_final = kmeans_double.cluster_centers_
+    inertia = kmeans_double.inertia_
 
-    # Evaluate with these metrics
-    ari, silhouette, dbi, inertia = evaluate_metrics(X, labels_final, y_true, inertia)
-    mem_MB = X_double.nbytes / 1e6
-    
-    # Memory used: full double + partial single precision copies
-    mem_MB_hybrid = (X.astype(np.float64).nbytes + X.astype(np.float32).nbytes) / 1e6
+    ari, sil, dbi, inertia = evaluate_metrics(X, labels_final, y_true, inertia)
+    mem_MB_double = X_double.nbytes / 1e6
+    mem_MB_total = mem_MB_double + X_single.nbytes / 1e6
+    center_diff = np.linalg.norm(centers_final - initial_centers_64)
 
-    center_diff = np.linalg.norm(centers_final - centers_double)
-
-    return iter_num, elapsed, mem_MB, ari, silhouette, dbi, inertia, center_diff, labels_final, centers_final, mem_MB_hybrid,
+    total_time = end_time_single + end_time_double
+    total_iters = iters_single + kmeans_double.n_iter_
+    return (total_iters, total_time, mem_MB_total, ari, sil, dbi, inertia, center_diff, labels_final, centers_final, mem_MB_total)
 
 # Main loop
 results = []
@@ -135,16 +126,23 @@ for n_samples in dataset_sizes:
                 # Generate data
                 X, y_true = generate_data(n_samples, n_features, n_clusters, repeat)
 
+                # Define the decision boundaries of the clusters.
+                x_min, x_max = X[:, 0].min() -1 , X[:, 0].max() + 1
+                y_min, y_max = X[:, 1].min() -1 , X[:, 1].max() + 1
+
+                xx, yy =np.meshgrid(np.arange(x_min, x_max,0.02 ), np.arange(y_min, y_max, 0.02 ))
                 # Visualize raw data (only if n_features=2)
                 if n_features == 2:
+                    plt.figure(figsize=(8,6))
                     plt.scatter(X[:, 0], X[:, 1], c=y_true, cmap='viridis', s=10)
                     plt.title(f"Generated Data - Samples {n_samples}")
                     plt.show()
-                    plt.savefig()
 
                 # Compute initial centers once
                 init_kmeans = KMeans(n_clusters=n_clusters, init='k-means++', n_init=1, random_state=repeat)
                 init_kmeans.fit(X.astype(precisions["Double Precision"]))
+                #init_Z_kmeans = init_kmeans.predict(np.c_[xx.ravel(), yy.ravel()])
+                #init_Z_kmeans = init_Z_kmeans.reshape(xx.shape)
                 initial_centers = init_kmeans.cluster_centers_
 
                 # Full double precision run
@@ -155,7 +153,9 @@ for n_samples in dataset_sizes:
                 results.append([n_samples, n_clusters, n_features, "Double", 0, elapsed, mem_MB_double,
                                 ari, silhouette, dbi, inertia, 0])
 
-                if n_features == 2:
+                if (n_features == 2):
+                    plt.figure(figsize=(8,6))
+                    # plt.contour(xx, yy, init_Z_kmeans, alpha = 0.6)
                     plt.scatter(X[:, 0], X[:, 1], c=labels_double, cmap='viridis', s=10)
                     plt.scatter(centers_double[:, 0], centers_double[:, 1], c='red', marker='x', s=100)
                     plt.title("Double Precision Clusters")
@@ -163,6 +163,7 @@ for n_samples in dataset_sizes:
                 
                 # Normalize X before processing
                 X = (X - np.mean(X, axis=0)) / np.std(X, axis=0)
+                
 
                  # Adaptive hybrid run
                 iter_num, elapsed_hybrid, mem_MB_hybrid, ari_hybrid, silhouette_hybrid, dbi_hybrid, inertia_hybrid, center_diff, labels_hybrid, centers_hybrid, mem_MB_hybrid = run_adaptive_hybrid(
@@ -180,8 +181,9 @@ results_df = pd.DataFrame(results, columns=columns)
 
 # Print summary
 print("\n==== SUMMARY ====")
-print(results_df.groupby(['DatasetSize','NumClusters','NumFeatures','Mode'])[['Time','ARI','Silhouette']].mean())
+print(results_df.groupby(['DatasetSize','NumClusters','NumFeatures','Mode', 'SwitchIter', 'CenterDiff' ])[['Time','Memory_MB','ARI','Silhouette', 'Inertia']].mean())
 
 # Save results to CSV file
 results_df.to_csv("hybrid_kmeans_results.csv", index=False)
 print("\nResults saved to 'hybrid_kmeans_results.csv'")
+print(os.getcwd())
