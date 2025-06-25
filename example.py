@@ -13,11 +13,10 @@ from scipy.spatial import Voronoi, voronoi_plot_2d
 import sys
 import os
 
-
 # CONFIGURATION PARAMETERS 
 dataset_sizes = [10000]
-n_clusters_list = [4, 5,6, 7, 8]
-n_features_list = [2, 4, 6, 8]  # We keep 2 here for proper plotting 
+n_clusters_list = [5, 8]
+n_features_list = [2, 4]  # We keep 2 here for proper plotting 
 max_iter = 120
 n_repeats = 3
 
@@ -67,6 +66,7 @@ def run_adaptive_hybrid( X, initial_centers, n_clusters, max_iter, repeat, y_tru
         max_iter=min(single_iter_cap, max_iter),
         tol=tol_single,
         random_state=repeat,
+        algorithm = 'lloyd'
     )
     # start time 
     start_time_single = time.time()
@@ -96,6 +96,7 @@ def run_adaptive_hybrid( X, initial_centers, n_clusters, max_iter, repeat, y_tru
         max_iter=remaining_iter,
         tol=1e-7,  # tighter tol for final polish
         random_state=repeat,
+        algorithm= 'lloyd'
     )
     start_time_double = time.time()
     kmeans_double.fit(X_double)
