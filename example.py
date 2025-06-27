@@ -40,7 +40,6 @@ def evaluate_metrics(X, labels, y_true, inertia):
 def run_full_double(X, initial_centers, n_clusters, max_iter, repeat, y_true):
     start_time = time.time()
     kmeans = KMeans(n_clusters=n_clusters, init=initial_centers, n_init=1, max_iter=max_iter, random_state=0)
-    kmeans.fit(X.astype(precisions["Double Precision"]))
     elapsed = time.time() - start_time
    # speedup = elapsed / elapsed_hybrid
     labels = kmeans.labels_
@@ -53,26 +52,29 @@ def run_full_double(X, initial_centers, n_clusters, max_iter, repeat, y_true):
 # Hybrid precison loop 
 def run_adaptive_hybrid( X, initial_centers, n_clusters, max_iter, repeat, y_true, tol_single=1e-7, single_iter_cap=300):
     # single floating point type
+
+    start_time_single = time.time()
     X_single = X.astype(np.float32)
     # Define the initial centers
     initial_centers_32 = initial_centers.astype(np.float32)
     
+
     # K=means algorithm for single precision
     kmeans_single = KMeans(n_clusters=n_clusters, init=initial_centers_32, n_init=1, max_iter=min(single_iter_cap, max_iter), tol=tol_single,random_state=0, algorithm = 'lloyd'
     )
     # start time 
-    start_time_single = time.time()
     kmeans_single.fit(X_single)
     end_time_single = time.time() - start_time_single
+
     iters_single = kmeans_single.n_iter_
     centers32 = kmeans_single.cluster_centers_
 
     remaining_iter = max_iter - iters_single
+    start_time_double = time.time()
     X_double = X.astype(np.float64)
     initial_centers_64 = centers32.astype(np.float64)
 
     kmeans_double = KMeans( n_clusters=n_clusters, init=initial_centers_64, n_init=1, max_iter=remaining_iter, tol=1e-7, random_state=repeat, algorithm= 'lloyd')
-    start_time_double = time.time()
     kmeans_double.fit(X_double)
     end_time_double = time.time() - start_time_double
 
