@@ -27,7 +27,7 @@ precisions = {
 }
 
 def generate_data(n_samples, n_features, n_clusters, random_state):
-    X, y_true = make_blobs(n_samples=n_samples, n_features=n_features, centers=n_clusters, random_state=random_state)
+    X, y_true = make_blobs(n_samples=n_samples, n_features=n_features, centers=n_clusters, random_state=random_state,  dtype=np.float64, )
     return X, y_true
 
 def evaluate_metrics(X, labels, y_true, inertia):
@@ -40,6 +40,7 @@ def evaluate_metrics(X, labels, y_true, inertia):
 def run_full_double(X, initial_centers, n_clusters, max_iter, repeat, y_true):
     start_time = time.time()
     kmeans = KMeans(n_clusters=n_clusters, init=initial_centers, n_init=1, max_iter=max_iter, random_state=0)
+    kmeans.fit(X)
     elapsed = time.time() - start_time
    # speedup = elapsed / elapsed_hybrid
     labels = kmeans.labels_
@@ -106,7 +107,6 @@ for n_samples in dataset_sizes:
 
                 # Compute initial centers once
                 init_kmeans = KMeans(n_clusters=n_clusters, init='k-means++', n_init=1, random_state=0, max_iter =1)
-                init_kmeans.fit(X.astype(precisions["Double Precision"]))
                 #init_Z_kmeans = init_kmeans.predict(np.c_[xx.ravel(), yy.ravel()])
                 #init_Z_kmeans = init_Z_kmeans.reshape(xx.shape)
                 initial_centers = init_kmeans.cluster_centers_
@@ -118,10 +118,6 @@ for n_samples in dataset_sizes:
 
                 results.append([n_samples, n_clusters, n_features, "Double", 0, elapsed, mem_MB_double,
                                 ari, silhouette, dbi, inertia, 0])
-
-                
-                # # Normalize X before processing
-                # X = (X - np.mean(X, axis=0)) / np.std(X, axis=0)
 
                  # Adaptive hybrid run
                 iter_num, elapsed_hybrid, mem_MB_hybrid, ari_hybrid, silhouette_hybrid, dbi_hybrid, inertia_hybrid, center_diff, labels_hybrid, centers_hybrid, mem_MB_hybrid = run_adaptive_hybrid(
