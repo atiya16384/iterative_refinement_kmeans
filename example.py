@@ -14,7 +14,7 @@ import sys
 import os
 
 # CONFIGURATION PARAMETERS 
-dataset_sizes = [10000, 20000, 500000, 100000, 200000]
+dataset_sizes = [10000, 20000, 500000, 100000]
 n_clusters_list = [5, 8]
 n_features_list = [2, 4]  # We keep 2 here for proper plotting 
 max_iter = 120
