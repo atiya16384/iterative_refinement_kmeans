@@ -13,7 +13,6 @@ from scipy.spatial import Voronoi, voronoi_plot_2d
 import sys
 import os
 
-
 # CONFIGURATION PARAMETERS 
 dataset_sizes = [10000, 20000, 500000, 100000, 200000]
 n_clusters_list = [5, 8]
@@ -111,7 +110,7 @@ for n_samples in dataset_sizes:
                 print(f"Samples={n_samples}, Clusters={n_clusters}, Features={n_features}, Repeat={repeat+1}")
 
                 # Generate data
-                X, y_true = generate_data(n_samples, n_features, n_clusters, seed = 0)
+                X, y_true = generate_data(n_samples, n_features, n_clusters, random_state = repeat )
                 # Visualize raw data (only if n_features=2)
 
                 # Compute initial centers once
