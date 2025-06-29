@@ -13,12 +13,23 @@ from scipy.spatial import Voronoi, voronoi_plot_2d
 import sys
 import os
 
+
 # CONFIGURATION PARAMETERS 
-dataset_sizes = [1000]
-n_clusters_list = [5]
-n_features_list = [2]  # We keep 2 here for proper plotting 
+dataset_sizes = [10000, 20000, 500000, 100000, 200000]
+n_clusters_list = [5, 8]
+n_features_list = [2, 4]  # We keep 2 here for proper plotting 
 max_iter = 120
+
+tol_fixed_A = 1e-16
+max_iter_A = 300
+cap_grid = [0, 50, 100, 150, 200, 250, 300]
+
+max_iter_B = 1000
+tol_double_B = 1e-7
+tol_single_grid = [1e-1, 1e-3, 1e-5, 1e-7, 1e-9]
+
 n_repeats = 3
+
 
 # Define dictionary of precisions
 precisions = {
@@ -27,7 +38,7 @@ precisions = {
 }
 
 def generate_data(n_samples, n_features, n_clusters, random_state):
-    X, y_true = make_blobs(n_samples=n_samples, n_features=n_features, centers=n_clusters, random_state=random_state,  dtype=np.float64, )
+    X, y_true = make_blobs(n_samples=n_samples, n_features=n_features, centers=n_clusters, random_state=random_state, dtype=np.float64)
     return X, y_true
 
 def evaluate_metrics(X, labels, y_true, inertia):
@@ -37,9 +48,9 @@ def evaluate_metrics(X, labels, y_true, inertia):
     return ari, silhouette_avg, db_index, inertia
 
 # FULL DOUBLE PRECISION RUN
-def run_full_double(X, initial_centers, n_clusters, max_iter, repeat, y_true):
+def run_full_double(X, initial_centers, n_clusters, max_iter, tol, y_true):
     start_time = time.time()
-    kmeans = KMeans(n_clusters=n_clusters, init=initial_centers, n_init=1, max_iter=max_iter, random_state=0)
+    kmeans = KMeans(n_clusters=n_clusters, init=initial_centers, n_init=1, max_iter=max_iter,tol=tol, algorithm='lloyd', random_state=0)
     kmeans.fit(X)
     elapsed = time.time() - start_time
    # speedup = elapsed / elapsed_hybrid
@@ -51,15 +62,13 @@ def run_full_double(X, initial_centers, n_clusters, max_iter, repeat, y_true):
     return centers, labels, inertia, elapsed, ari, silhouette, dbi, mem_MB_double
 
 # Hybrid precison loop 
-def run_adaptive_hybrid( X, initial_centers, n_clusters, max_iter, repeat, y_true, tol_single=1e-7, single_iter_cap=300):
+def run_adaptive_hybrid(X, initial_centers, n_clusters, max_iter_total, tol_single, tol_double, single_iter_cap, repeat, y_true, seed=0):
     # single floating point type
-
     start_time_single = time.time()
     X_single = X.astype(np.float32)
     # Define the initial centers
     initial_centers_32 = initial_centers.astype(np.float32)
     
-
     # K=means algorithm for single precision
     kmeans_single = KMeans(n_clusters=n_clusters, init=initial_centers_32, n_init=1, max_iter=min(single_iter_cap, max_iter), tol=tol_single,random_state=0, algorithm = 'lloyd'
     )
@@ -75,7 +84,7 @@ def run_adaptive_hybrid( X, initial_centers, n_clusters, max_iter, repeat, y_tru
     X_double = X.astype(np.float64)
     initial_centers_64 = centers32.astype(np.float64)
 
-    kmeans_double = KMeans( n_clusters=n_clusters, init=initial_centers_64, n_init=1, max_iter=remaining_iter, tol=1e-7, random_state=repeat, algorithm= 'lloyd')
+    kmeans_double = KMeans( n_clusters=n_clusters, init=initial_centers_64, n_init=1, max_iter=remaining_iter, tol=tol_double, random_state=seed, algorithm= 'lloyd')
     kmeans_double.fit(X_double)
     end_time_double = time.time() - start_time_double
 
@@ -102,33 +111,57 @@ for n_samples in dataset_sizes:
                 print(f"Samples={n_samples}, Clusters={n_clusters}, Features={n_features}, Repeat={repeat+1}")
 
                 # Generate data
-                X, y_true = generate_data(n_samples, n_features, n_clusters, repeat)
+                X, y_true = generate_data(n_samples, n_features, n_clusters, seed = 0)
                 # Visualize raw data (only if n_features=2)
 
                 # Compute initial centers once
                 init_kmeans = KMeans(n_clusters=n_clusters, init='k-means++', n_init=1, random_state=0, max_iter =1)
                 #init_Z_kmeans = init_kmeans.predict(np.c_[xx.ravel(), yy.ravel()])
                 #init_Z_kmeans = init_Z_kmeans.reshape(xx.shape)
+                initial_fit = init_kmeans.fit(X)
                 initial_centers = init_kmeans.cluster_centers_
 
-                # Full double precision run
-                centers_double, labels_double, inertia, elapsed, mem_MB_double, ari, silhouette, dbi = run_full_double(
-                    X, initial_centers, n_clusters, max_iter, repeat, y_true
-                )
+                for cap in cap_grid:
+                    for rep in range(n_repeats):
 
-                results.append([n_samples, n_clusters, n_features, "Double", 0, elapsed, mem_MB_double,
-                                ari, silhouette, dbi, inertia, 0])
+                        # Full double precision run
+                        centers_double, labels_double, inertia, elapsed, mem_MB_double, ari, silhouette, dbi = run_full_double(
+                            X, initial_centers, n_clusters, max_iter, tol_fixed_A, y_true
+                        )
 
-                 # Adaptive hybrid run
-                iter_num, elapsed_hybrid, mem_MB_hybrid, ari_hybrid, silhouette_hybrid, dbi_hybrid, inertia_hybrid, center_diff, labels_hybrid, centers_hybrid, mem_MB_hybrid = run_adaptive_hybrid(
-                    X, initial_centers, n_clusters, max_iter, repeat, y_true
-                )
+                        results.append([n_samples, n_clusters, n_features, "A", cap, "Double", max_iter_A, elapsed, mem_MB_double, 
+                                        ari, silhouette, dbi, inertia, 0])
 
-                results.append([n_samples, n_clusters, n_features, "AdaptiveHybrid", iter_num, elapsed_hybrid, mem_MB_hybrid,
-                                ari_hybrid, silhouette_hybrid, dbi_hybrid, inertia_hybrid, center_diff])
+                        # Adaptive hybrid run
+                        iter_num, elapsed_hybrid, mem_MB_hybrid, ari_hybrid, silhouette_hybrid, dbi_hybrid, inertia_hybrid, center_diff, labels_hybrid, centers_hybrid, mem_MB_hybrid = run_adaptive_hybrid(
+                        X, initial_centers, n_clusters, max_iter_A, cap, tol_fixed_A, y_true, seed = rep
+                        )
+
+                        results.append([n_samples, n_clusters, n_features, "A", cap, "AdaptiveHybrid", iter_num, elapsed_hybrid, mem_MB_hybrid,
+                                        ari_hybrid, silhouette_hybrid, dbi_hybrid, inertia_hybrid, center_diff])
+                        
+                for tol_s in tol_single_grid:
+                    for rep in range(n_repeats):
+                               # Full double precision run
+                        centers_double, labels_double, inertia, elapsed, mem_MB_double, ari, silhouette, dbi = run_full_double(
+                            X, initial_centers, n_clusters, max_iter_B, tol_double_B, y_true
+                        )
+
+                        results.append([n_samples, n_clusters, n_features, "B", tol_s, "Double", max_iter_B, elapsed, mem_MB_double, max_iter_B,
+                                        ari, silhouette, dbi, inertia, 0])
+
+                        # Adaptive hybrid run
+                        iter_num, elapsed_hybrid, mem_MB_hybrid, ari_hybrid, silhouette_hybrid, dbi_hybrid, inertia_hybrid, center_diff, labels_hybrid, centers_hybrid, mem_MB_hybrid = run_adaptive_hybrid(
+                        X, initial_centers, n_clusters, max_iter_B, 300, tol_s, tol_double_B, y_true, seed = rep
+                        )
+
+                        results.append([n_samples, n_clusters, n_features, "B", tol_s, "AdaptiveHybrid", max_iter_B, iter_num, elapsed_hybrid, mem_MB_hybrid,
+                                        ari_hybrid, silhouette_hybrid, dbi_hybrid, inertia_hybrid, center_diff])
+
+
 
 # Data frame and output
-columns = ['DatasetSize', 'NumClusters', 'NumFeatures', 'Mode', 'SwitchIter',
+columns = ['DatasetSize', 'NumClusters', 'NumFeatures', 'Suite', 'SweepVal' 'Mode', 'SwitchIter',
            'Time', 'Memory_MB', 'ARI', 'Silhouette', 'DBI', 'Inertia', 'CenterDiff']
 
 results_df = pd.DataFrame(results, columns=columns)
