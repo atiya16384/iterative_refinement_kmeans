@@ -133,9 +133,9 @@ for n_samples in dataset_sizes:
 
                         # Adaptive hybrid run
                         iter_num, elapsed_hybrid, mem_MB_hybrid, ari_hybrid, silhouette_hybrid, dbi_hybrid, inertia_hybrid, center_diff, labels_hybrid, centers_hybrid, mem_MB_hybrid = run_adaptive_hybrid(
-                        X, initial_centers, n_clusters, max_iter_A, single_iter_cap=cap, tol_single=tol_fixed_A, tol_double=tol_fixed_A,y_true=y_true, seed = rep
+                          X, initial_centers, n_clusters, max_iter_total=max_iter_A, single_iter_cap=cap, tol_single=tol_fixed_A, tol_double=tol_fixed_A, y_true=y_true, seed=rep
                         )
-
+                        
                         results.append([n_samples, n_clusters, n_features, "A", cap, "AdaptiveHybrid", iter_num, elapsed_hybrid, mem_MB_hybrid,
                                         ari_hybrid, silhouette_hybrid, dbi_hybrid, inertia_hybrid, center_diff])
                         
@@ -151,7 +151,7 @@ for n_samples in dataset_sizes:
 
                         # Adaptive hybrid run
                         iter_num, elapsed_hybrid, mem_MB_hybrid, ari_hybrid, silhouette_hybrid, dbi_hybrid, inertia_hybrid, center_diff, labels_hybrid, centers_hybrid, mem_MB_hybrid = run_adaptive_hybrid(
-                        X, initial_centers, n_clusters, max_iter_B, 300, tol_single=tol_s, tol_double= tol_double_B, y_true=y_true, seed = rep
+                                X, initial_centers, n_clusters, max_iter_total=max_iter_B, single_iter_cap=300, tol_single=tol_s, tol_double=tol_double_B, y_true=y_true, seed=rep
                         )
 
                         results.append([n_samples, n_clusters, n_features, "B", tol_s, "AdaptiveHybrid", max_iter_B, iter_num, elapsed_hybrid, mem_MB_hybrid,
