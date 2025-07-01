@@ -37,6 +37,7 @@ tol_double_B = 1e-7
 tol_single_grid = [1e-1, 1e-3, 1e-5, 1e-7, 1e-9]
 
 n_repeats = 3
+rng_gloabl = np.random.default_rng(0)
 
 # Real-dataset
 real_datasets = {}
@@ -161,7 +162,6 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
                     X = X_ns[:, :n_features]
                     y=y_ns
                 
-
                 # Compute initial centers once
                 init_kmeans = KMeans(n_clusters=n_clusters, init='k-means++', n_init=1, random_state=0,  max_iter =1)
                 #init_Z_kmeans = init_kmeans.predict(np.c_[xx.ravel(), yy.ravel()])
@@ -210,12 +210,18 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
 all_rows = []
 all_rows += run_one_dataset("SYNTH", np.empty((1,1)), None)
 
+# real datasets
+for tag, loader_fn in real_datasets.items():
+    print("loading")
+    X_real, y_real = loader_fn()
+    all_rows += run_one_dataset(tag, X_real, y_real)
+
 
 # Data frame and output
 columns = ['DatasetSize', 'NumClusters', 'NumFeatures', 'Suite', 'SweepVal', 'Mode', 'SwitchIter',
            'Time', 'Memory_MB', 'ARI', 'Silhouette', 'DBI', 'Inertia', 'CenterDiff']
 
-results_df = pd.DataFrame(results, columns=columns)
+results_df = pd.DataFrame(all_rows, columns=columns)
 
 # Print summary
 print("\n==== SUMMARY ====")
@@ -223,5 +229,9 @@ print(results_df.groupby(['DatasetSize','NumClusters','NumFeatures','Mode', 'Swi
 
 # Save results to CSV file
 results_df.to_csv("hybrid_kmeans_results.csv", index=False)
+for tag in results_df.DatasetName.unique():
+    results_df[results_df.DatasetName == tag].to_csv(f"results_{tag}.csv", index=False)
+print("CSVS written:", list(results_df.DatasetName.unique()))
+
 print("\nResults saved to 'hybrid_kmeans_results.csv'")
 print(os.getcwd())
