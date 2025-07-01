@@ -14,7 +14,7 @@ import sys
 import os
 
 # CONFIGURATION PARAMETERS 
-dataset_sizes = [10000, 20000, 500000, 100000]
+dataset_sizes = [10000, 20000, 50000, 80000, 100000]
 n_clusters_list = [5, 8]
 n_features_list = [2, 4]  # We keep 2 here for proper plotting 
 max_iter = 120
@@ -37,8 +37,8 @@ precisions = {
 }
 
 def generate_data(n_samples, n_features, n_clusters, random_state):
-    X, y_true = make_blobs(n_samples=n_samples, n_features=n_features, centers=n_clusters, random_state=random_state, dtype=np.float64)
-    return X, y_true
+    X, y_true = make_blobs(n_samples=n_samples, n_features=n_features, centers=n_clusters, random_state=random_state)
+    return X.astype(np.float64), y_true
 
 def evaluate_metrics(X, labels, y_true, inertia):
     ari = adjusted_rand_score(y_true, labels)
