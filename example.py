@@ -29,7 +29,6 @@ tol_single_grid = [1e-1, 1e-3, 1e-5, 1e-7, 1e-9]
 
 n_repeats = 3
 
-
 # Define dictionary of precisions
 precisions = {
     "Single Precision": np.float32,
@@ -67,9 +66,9 @@ def run_adaptive_hybrid(X, initial_centers, n_clusters, max_iter_total, tol_sing
     X_single = X.astype(np.float32)
     # Define the initial centers
     initial_centers_32 = initial_centers.astype(np.float32)
-    
+    max_iter_single=max(1,min(single_iter_cap, max_iter_total))
     # K=means algorithm for single precision
-    kmeans_single = KMeans(n_clusters=n_clusters, init=initial_centers_32, n_init=1, max_iter=min(single_iter_cap, max_iter_total), tol=tol_single,random_state=0, algorithm = 'lloyd'
+    kmeans_single = KMeans(n_clusters=n_clusters, init=initial_centers_32, n_init=1, max_iter=max_iter_single, tol=tol_single,random_state=0, algorithm = 'lloyd'
     )
     # start time 
     kmeans_single.fit(X_single)
@@ -78,7 +77,8 @@ def run_adaptive_hybrid(X, initial_centers, n_clusters, max_iter_total, tol_sing
     iters_single = kmeans_single.n_iter_
     centers32 = kmeans_single.cluster_centers_
 
-    remaining_iter = max_iter - iters_single
+    remaining_iter = max_iter_total - iters_single
+    remaining_iter = max(1, remaining_iter)
     start_time_double = time.time()
     X_double = X.astype(np.float64)
     initial_centers_64 = centers32.astype(np.float64)
@@ -133,9 +133,9 @@ for n_samples in dataset_sizes:
 
                         # Adaptive hybrid run
                         iter_num, elapsed_hybrid, mem_MB_hybrid, ari_hybrid, silhouette_hybrid, dbi_hybrid, inertia_hybrid, center_diff, labels_hybrid, centers_hybrid, mem_MB_hybrid = run_adaptive_hybrid(
-                          X, initial_centers, n_clusters, max_iter_total=max_iter_A, single_iter_cap=cap, tol_single=tol_fixed_A, tol_double=tol_fixed_A, y_true=y_true, seed=rep
+                        X, initial_centers, n_clusters, max_iter_A, single_iter_cap=cap, tol_single=tol_fixed_A, tol_double=tol_fixed_A,y_true=y_true, seed = rep
                         )
-                        
+
                         results.append([n_samples, n_clusters, n_features, "A", cap, "AdaptiveHybrid", iter_num, elapsed_hybrid, mem_MB_hybrid,
                                         ari_hybrid, silhouette_hybrid, dbi_hybrid, inertia_hybrid, center_diff])
                         
@@ -151,12 +151,11 @@ for n_samples in dataset_sizes:
 
                         # Adaptive hybrid run
                         iter_num, elapsed_hybrid, mem_MB_hybrid, ari_hybrid, silhouette_hybrid, dbi_hybrid, inertia_hybrid, center_diff, labels_hybrid, centers_hybrid, mem_MB_hybrid = run_adaptive_hybrid(
-                                X, initial_centers, n_clusters, max_iter_total=max_iter_B, single_iter_cap=300, tol_single=tol_s, tol_double=tol_double_B, y_true=y_true, seed=rep
+                        X, initial_centers, n_clusters, max_iter_B, tol_single=tol_s, tol_double= tol_double_B,single_iter_cap=300, y_true=y_true, seed = rep
                         )
 
                         results.append([n_samples, n_clusters, n_features, "B", tol_s, "AdaptiveHybrid", max_iter_B, iter_num, elapsed_hybrid, mem_MB_hybrid,
                                         ari_hybrid, silhouette_hybrid, dbi_hybrid, inertia_hybrid, center_diff])
-
 
 
 # Data frame and output
