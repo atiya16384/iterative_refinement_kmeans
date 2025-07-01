@@ -13,14 +13,13 @@ from scipy.spatial import Voronoi, voronoi_plot_2d
 import sys
 import os
 
-
 try:
     from sklbench.datasets.loader import (
         load_hepmass,
         load_higgs
     )
 except ImportError as e:
-    raise SytemExit() from e
+    raise SystemExit() from e
 
 # CONFIGURATION PARAMETERS 
 dataset_sizes = [10000, 20000, 50000, 80000, 100000]
@@ -37,7 +36,7 @@ tol_double_B = 1e-7
 tol_single_grid = [1e-1, 1e-3, 1e-5, 1e-7, 1e-9]
 
 n_repeats = 3
-rng_gloabl = np.random.default_rng(0)
+rng_global = np.random.default_rng(0)
 
 # Real-dataset
 real_datasets = {}
@@ -46,7 +45,6 @@ if load_hepmass and load_higgs:
         "HEPMASS_1M": load_hepmass,
         "HIGGS_1M": load_higgs,
     }
-
 
 # Define dictionary of precisions
 precisions = {
@@ -64,9 +62,9 @@ def evaluate_metrics(X, labels, y_true, inertia):
     db_index = davies_bouldin_score(X, labels)
     return ari, silhouette_avg, db_index, inertia
 
-def plot_clusters(X, labels, centers, title=""):
+def plot_clusters(X, labels, centers, title="", do_plot = True):
     """Quick 2-D scatter + Voronoi-ish decision boundary."""
-    if X.shape[1] != 2:
+    if not do_plot or X.shape[1] != 2:
         print("⤷  Skipping plot (data not 2-D)")
         return
 
@@ -157,7 +155,7 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
                 if X_ns.shape[1] < n_features and ds_name != "SYNTH":
                     continue
                 if ds_name == "SYNTH":
-                     X, y_true = generate_data(n_samples, n_features, n_clusters, random_state = repeat )
+                     X, y_true = generate_data(n_samples, n_features, n_clusters, random_state = rep )
                 else:
                     X = X_ns[:, :n_features]
                     y=y_ns
@@ -169,6 +167,7 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
                 initial_fit = init_kmeans.fit(X)
                 initial_centers = init_kmeans.cluster_centers_
 
+                option = "A"
                 for cap in cap_grid:
                     for rep in range(n_repeats):
 
@@ -188,6 +187,13 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
                         rows.append([n_samples, n_clusters, n_features, "A", cap, "AdaptiveHybrid", iter_num, elapsed_hybrid, mem_MB_hybrid,
                                         ari_hybrid, silhouette_hybrid, dbi_hybrid, inertia_hybrid, center_diff])
                         
+                        # plot clusters
+                        if n_features == 2 and rep ==0:
+                            title = (f"{ds_name} * n={n_samples} * k={n_clusters}"
+                                     f"{'cap='+str(cap) if option =='A' else 'tol='+str(tol_s)}")
+                            plot_clusters(X, labels_hybrid, centers_hybrid, title)
+                    
+                option = "B"
                 for tol_s in tol_single_grid:
                     for rep in range(n_repeats):
                                # Full double precision run
@@ -205,6 +211,12 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
 
                         rows.append([n_samples, n_clusters, n_features, "B", tol_s, "AdaptiveHybrid", max_iter_B, iter_num, elapsed_hybrid, mem_MB_hybrid,
                                         ari_hybrid, silhouette_hybrid, dbi_hybrid, inertia_hybrid, center_diff])
+                        
+                        # plot clusters
+                        if n_features == 2 and rep ==0:
+                            title = (f"{ds_name} * n={n_samples} * k={n_clusters}"
+                                     f"{'cap='+str(cap) if option =='A' else 'tol='+str(tol_s)}")
+                            plot_clusters(X, labels_hybrid, centers_hybrid, title)
     return rows
 
 all_rows = []
