@@ -45,6 +45,30 @@ def evaluate_metrics(X, labels, y_true, inertia):
     db_index = davies_bouldin_score(X, labels)
     return ari, silhouette_avg, db_index, inertia
 
+def plot_clusters(X, labels, centers, title=""):
+    """Quick 2-D scatter + Voronoi-ish decision boundary."""
+    if X.shape[1] != 2:
+        print("⤷  Skipping plot (data not 2-D)")
+        return
+
+    # decision boundary mesh
+    h = 0.02
+    x_min, x_max = X[:,0].min()-1, X[:,0].max()+1
+    y_min, y_max = X[:,1].min()-1, X[:,1].max()+1
+    xx, yy = np.meshgrid(np.arange(x_min, x_max, h),
+                         np.arange(y_min, y_max, h))
+    Z = KMeans(n_clusters=len(centers), init=centers,
+               n_init=1, max_iter=1).predict(np.c_[xx.ravel(), yy.ravel()])
+    Z = Z.reshape(xx.shape)
+
+    plt.figure(figsize=(6,5))
+    plt.contourf(xx, yy, Z, alpha=0.3, cmap="Pastel2")
+    plt.scatter(X[:,0], X[:,1], c=labels, s=5, cmap="Dark2")
+    plt.scatter(centers[:,0], centers[:,1], c="k", s=80, marker="x")
+    plt.title(title)
+    plt.tight_layout()
+    plt.show()
+
 # FULL DOUBLE PRECISION RUN
 def run_full_double(X, initial_centers, n_clusters, max_iter, tol, y_true):
     start_time = time.time()
