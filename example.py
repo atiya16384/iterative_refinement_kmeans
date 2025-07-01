@@ -13,6 +13,15 @@ from scipy.spatial import Voronoi, voronoi_plot_2d
 import sys
 import os
 
+
+try:
+    from sklbench.datasets.loader import (
+        load_hepmass,
+        load_higgs
+    )
+except ImportError as e:
+    raise SytemExit() from e
+
 # CONFIGURATION PARAMETERS 
 dataset_sizes = [10000, 20000, 50000, 80000, 100000]
 n_clusters_list = [5, 8]
@@ -180,7 +189,6 @@ for n_samples in dataset_sizes:
 
                         results.append([n_samples, n_clusters, n_features, "B", tol_s, "AdaptiveHybrid", max_iter_B, iter_num, elapsed_hybrid, mem_MB_hybrid,
                                         ari_hybrid, silhouette_hybrid, dbi_hybrid, inertia_hybrid, center_diff])
-
 
 # Data frame and output
 columns = ['DatasetSize', 'NumClusters', 'NumFeatures', 'Suite', 'SweepVal', 'Mode', 'SwitchIter',
