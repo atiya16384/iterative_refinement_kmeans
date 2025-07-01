@@ -38,6 +38,15 @@ tol_single_grid = [1e-1, 1e-3, 1e-5, 1e-7, 1e-9]
 
 n_repeats = 3
 
+# Real-dataset
+real_datasets = {}
+if load_hepmass and load_higgs:
+    real_datasets = {
+        "HEPMASS_1M": load_hepmass,
+        "HIGGS_1M": load_higgs,
+    }
+
+
 # Define dictionary of precisions
 precisions = {
     "Single Precision": np.float32,
@@ -133,18 +142,25 @@ def run_adaptive_hybrid(X, initial_centers, n_clusters, max_iter_total, tol_sing
     total_iters = iters_single + kmeans_double.n_iter_
     return (total_iters, total_time, mem_MB_total, ari, sil, dbi, inertia, center_diff, labels_final, centers_final, mem_MB_total)
 
-# Main loop
-results = []
 
-for n_samples in dataset_sizes:
-    for n_clusters in n_clusters_list:
-        for n_features in n_features_list:
-            for repeat in range(n_repeats):
-                print(f"Samples={n_samples}, Clusters={n_clusters}, Features={n_features}, Repeat={repeat+1}")
-
-                # Generate data
-                X, y_true = generate_data(n_samples, n_features, n_clusters, random_state = repeat )
-                # Visualize raw data (only if n_features=2)
+def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
+    rows = []
+    for n_samples in dataset_sizes:
+        if n_samples > len(X_full):
+            continue
+        sel = rng_global.choice(len(X_full), n_samples, replace=False)
+        X_ns = X_full[sel]
+        y_ns = None if y_full is None else y_full[sel]
+        for n_clusters in n_clusters_list:
+            for n_features in n_features_list:
+                if X_ns.shape[1] < n_features and ds_name != "SYNTH":
+                    continue
+                if ds_name == "SYNTH":
+                     X, y_true = generate_data(n_samples, n_features, n_clusters, random_state = repeat )
+                else:
+                    X = X_ns[:, :n_features]
+                    y=y_ns
+                
 
                 # Compute initial centers once
                 init_kmeans = KMeans(n_clusters=n_clusters, init='k-means++', n_init=1, random_state=0,  max_iter =1)
@@ -161,7 +177,7 @@ for n_samples in dataset_sizes:
                             X, initial_centers, n_clusters, max_iter, tol_fixed_A, y_true
                         )
 
-                        results.append([n_samples, n_clusters, n_features, "A", cap, "Double", max_iter_A, elapsed, mem_MB_double, 
+                        rows.append([n_samples, n_clusters, n_features, "A", cap, "Double", max_iter_A, elapsed, mem_MB_double, 
                                         ari, silhouette, dbi, inertia, 0])
 
                         # Adaptive hybrid run
@@ -169,7 +185,7 @@ for n_samples in dataset_sizes:
                         X, initial_centers, n_clusters, max_iter_A, single_iter_cap=cap, tol_single=tol_fixed_A, tol_double=tol_fixed_A,y_true=y_true, seed = rep
                         )
 
-                        results.append([n_samples, n_clusters, n_features, "A", cap, "AdaptiveHybrid", iter_num, elapsed_hybrid, mem_MB_hybrid,
+                        rows.append([n_samples, n_clusters, n_features, "A", cap, "AdaptiveHybrid", iter_num, elapsed_hybrid, mem_MB_hybrid,
                                         ari_hybrid, silhouette_hybrid, dbi_hybrid, inertia_hybrid, center_diff])
                         
                 for tol_s in tol_single_grid:
@@ -179,7 +195,7 @@ for n_samples in dataset_sizes:
                             X, initial_centers, n_clusters, max_iter_B, tol_double_B, y_true
                         )
 
-                        results.append([n_samples, n_clusters, n_features, "B", tol_s, "Double", max_iter_B, elapsed, mem_MB_double, max_iter_B,
+                        rows.append([n_samples, n_clusters, n_features, "B", tol_s, "Double", max_iter_B, elapsed, mem_MB_double, max_iter_B,
                                         ari, silhouette, dbi, inertia, 0])
 
                         # Adaptive hybrid run
@@ -187,8 +203,13 @@ for n_samples in dataset_sizes:
                         X, initial_centers, n_clusters, max_iter_B, tol_single=tol_s, tol_double= tol_double_B,single_iter_cap=300, y_true=y_true, seed = rep
                         )
 
-                        results.append([n_samples, n_clusters, n_features, "B", tol_s, "AdaptiveHybrid", max_iter_B, iter_num, elapsed_hybrid, mem_MB_hybrid,
+                        rows.append([n_samples, n_clusters, n_features, "B", tol_s, "AdaptiveHybrid", max_iter_B, iter_num, elapsed_hybrid, mem_MB_hybrid,
                                         ari_hybrid, silhouette_hybrid, dbi_hybrid, inertia_hybrid, center_diff])
+    return rows
+
+all_rows = []
+all_rows += run_one_dataset("SYNTH", np.empty((1,1)), None)
+
 
 # Data frame and output
 columns = ['DatasetSize', 'NumClusters', 'NumFeatures', 'Suite', 'SweepVal', 'Mode', 'SwitchIter',
