@@ -41,7 +41,6 @@ real_datasets = {
 }
 
 
-
 # Define dictionary of precisions
 precisions = {
     "Single Precision": np.float32,
@@ -59,7 +58,7 @@ def evaluate_metrics(X, labels, y_true, inertia):
     db_index = davies_bouldin_score(X, labels)
     return ari, silhouette_avg, db_index, inertia
 
-# ── helpers to read the two local CSVs ───────────────────────────────
+
 import pathlib
 DATA_DIR = pathlib.Path(".")          # change if the CSVs live elsewhere
 
@@ -170,7 +169,7 @@ def run_one_dataset(ds_name: str, n_clusters, X_full: np.ndarray, y_full):
                 if X_ns.shape[1] < n_features and ds_name != "SYNTH":
                     continue
                 if ds_name == "SYNTH":
-                     X, y_true = generate_data(n_samples, n_features, n_clusters, random_state = rep)           
+                       X, y_true = X_full, y_full          
                 else:
                     X = X_ns[:, :n_features]
                     y=y_ns
@@ -235,17 +234,25 @@ def run_one_dataset(ds_name: str, n_clusters, X_full: np.ndarray, y_full):
     return rows
 
 all_rows = []
-all_rows += run_one_dataset("SYNTH", 8, np.empty((1,1)), None)
-all_rows += run_one_dataset("SYNTH", 30, np.empty((1,1)), None )
+
+# synthetic k=5
+X_syn5, y_syn5 = generate_data(120_000, 30, 5, random_state=0)
+all_rows += run_one_dataset("SYNTH_K5", X_syn5, y_syn5)
+
+# synthetic k=30
+X_syn30, y_syn30 = generate_data(120_000, 30, 30, random_state=1)
+all_rows += run_one_dataset("SYNTH_K30", X_syn30, y_syn30)
+
+
 
 # real datasets
-for tag, loader_fn in real_datasets.items():
-    print("loading")
-    X_real, y_real = loader_fn()
+for tag, loader in real_datasets.items():
+    print(f"loading {tag} …")
+    X_real, y_real = loader()
     all_rows += run_one_dataset(tag, X_real, y_real)
 
 # Data frame and output
-columns = ['DatasetSize', 'NumClusters', 'NumFeatures', 'Suite', 'SweepVal', 'Mode', 'SwitchIter',
+columns = ['DatasetName', 'DatasetSize', 'NumClusters', 'NumFeatures', 'Suite', 'SweepVal', 'Mode', 'SwitchIter',
            'Time', 'Memory_MB', 'ARI', 'Silhouette', 'DBI', 'Inertia', 'CenterDiff']
 
 results_df = pd.DataFrame(all_rows, columns=columns)
