@@ -35,12 +35,11 @@ load_3D_Road_Network= pd.read_csv(load_3D_Road_Network_data)
 
 
 # Real-dataset
-real_datasets = {}
-if load_3D_Road_Network and SUSY:
-    real_datasets = {
-        "3D_ROAD_NETWORK_1M": load_3D_Road_Network,
-        "HIGGS_1M": load_higgs,
-    }
+real_datasets = {
+    "3D_ROAD": load_3d_road,
+    "SUSY":    load_susy,
+}
+
 
 
 # Define dictionary of precisions
