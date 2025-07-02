@@ -12,6 +12,25 @@ warnings.filterwarnings("ignore")
 from scipy.spatial import Voronoi, voronoi_plot_2d
 import sys
 import os
+import pathlib
+
+DATA_DIR = pathlib.Path(".")          # change if the CSVs live elsewhere
+
+def load_3d_road(n_rows=1_000_000):
+
+    path = DATA_DIR / "3D_spatial_network.csv"
+    X = pd.read_csv(path, sep=r"\s+|,", engine="python",  # auto detect space or comma
+                    header=None, usecols=[0, 1, 2],
+                    nrows=n_rows, dtype=np.float64).to_numpy()
+    return X, None
+    
+def load_susy(n_rows=1_000_000):
+
+    path = DATA_DIR / "SUSY.csv"
+    df = pd.read_csv(path, header=None, nrows=n_rows,
+                     dtype=np.float64, names=[f"c{i}" for i in range(9)])
+    X = df.iloc[:, 1:].to_numpy()     # drop label col
+    return X, None
 
 # CONFIGURATION PARAMETERS 
 dataset_sizes = [100000, 200000]
@@ -30,16 +49,12 @@ tol_single_grid = [1e-1, 1e-3, 1e-5, 1e-7, 1e-9]
 n_repeats = 3
 rng_global = np.random.default_rng(0)
 
-load_3D_Road_Network_data = '3D_spatial_network.txt'
-load_3D_Road_Network= pd.read_csv(load_3D_Road_Network_data)
-
 
 # Real-dataset
 real_datasets = {
     "3D_ROAD": load_3d_road,
     "SUSY":    load_susy,
 }
-
 
 # Define dictionary of precisions
 precisions = {
@@ -57,26 +72,6 @@ def evaluate_metrics(X, labels, y_true, inertia):
     silhouette_avg = silhouette_score(X, labels)
     db_index = davies_bouldin_score(X, labels)
     return ari, silhouette_avg, db_index, inertia
-
-
-import pathlib
-DATA_DIR = pathlib.Path(".")          # change if the CSVs live elsewhere
-
-def load_3d_road(n_rows=1_000_000):
-
-    path = DATA_DIR / "3D_spatial_network.csv"
-    X = pd.read_csv(path, sep=r"\s+|,", engine="python",  # auto detect space or comma
-                    header=None, usecols=[0, 1, 2],
-                    nrows=n_rows, dtype=np.float64).to_numpy()
-    return X, None
-    
-def load_susy(n_rows=1_000_000):
-
-    path = DATA_DIR / "SUSY.csv"
-    df = pd.read_csv(path, header=None, nrows=n_rows,
-                     dtype=np.float64, names=[f"c{i}" for i in range(9)])
-    X = df.iloc[:, 1:].to_numpy()     # drop label col
-    return X, None
 
 def plot_clusters(X, labels, centers, title="", do_plot = True):
     if not do_plot or X.shape[1] != 2:
