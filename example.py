@@ -60,6 +60,26 @@ def evaluate_metrics(X, labels, y_true, inertia):
     db_index = davies_bouldin_score(X, labels)
     return ari, silhouette_avg, db_index, inertia
 
+# ── helpers to read the two local CSVs ───────────────────────────────
+import pathlib
+DATA_DIR = pathlib.Path(".")          # change if the CSVs live elsewhere
+
+def load_3d_road(n_rows=1_000_000):
+
+    path = DATA_DIR / "3D_spatial_network.csv"
+    X = pd.read_csv(path, sep=r"\s+|,", engine="python",  # auto detect space or comma
+                    header=None, usecols=[0, 1, 2],
+                    nrows=n_rows, dtype=np.float64).to_numpy()
+    return X, None
+    
+def load_susy(n_rows=1_000_000):
+
+    path = DATA_DIR / "SUSY.csv"
+    df = pd.read_csv(path, header=None, nrows=n_rows,
+                     dtype=np.float64, names=[f"c{i}" for i in range(9)])
+    X = df.iloc[:, 1:].to_numpy()     # drop label col
+    return X, None
+
 def plot_clusters(X, labels, centers, title="", do_plot = True):
     if not do_plot or X.shape[1] != 2:
         print("⤷  Skipping plot (data not 2-D)")
