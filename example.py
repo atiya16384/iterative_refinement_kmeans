@@ -154,26 +154,29 @@ def run_adaptive_hybrid(X, initial_centers, n_clusters, max_iter_total, tol_sing
     total_time = end_time_single + end_time_double
     total_iters = iters_single + kmeans_double.n_iter_
     return (total_iters, total_time, mem_MB_total, ari, sil, dbi, inertia, center_diff, labels_final, centers_final, mem_MB_total)
-
-def run_one_dataset(ds_name: str, n_clusters, X_full: np.ndarray, y_full):
+    
+def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
     rows = []
+
     for n_samples in dataset_sizes:
         if n_samples > len(X_full):
-            continue
-        sel = rng_global.choice(len(X_full), n_samples, replace=False)
-        X_ns = X_full[sel]
-        y_ns = None if y_full is None else y_full[sel]
+            continue                                    # can’t subsample
+
+        sel      = rng_global.choice(len(X_full), n_samples, replace=False)
+        X_ns     = X_full[sel]
+        y_ns     = None if y_full is None else y_full[sel]
+
         for n_clusters in n_clusters_list:
             for n_features in n_features_list:
-                if X_ns.shape[1] < n_features and ds_name != "SYNTH":
-                    continue  
-                if ds_name == "SYNTH":          # synthetic blobs we generated
-                    X_cur       = X_full
-                    y_true_cur  = y_full
-                else:                           # real data (no labels) OR sub-sampled synth
-                    X_cur       = X_ns[:, :n_features]
-                    y_true_cur  = y_ns          # will be None for real data
 
+                if X_ns.shape[1] < n_features and ds_name != "SYNTH":
+                    continue                            # real set doesn’t have that many cols
+
+                # ---- pick the working slice ----
+                if ds_name.startswith("SYNTH"):
+                    X_cur, y_true_cur = X_full, y_full
+                else:
+                    X_cur, y_true_cur = X_ns[:, :n_features], y_ns
                 # Compute initial centers once
                 init_kmeans = KMeans(n_clusters=n_clusters, init='k-means++', n_init=1, random_state=0,  max_iter =1)
                 #init_Z_kmeans = init_kmeans.predict(np.c_[xx.ravel(), yy.ravel()])
@@ -241,12 +244,28 @@ all_rows += run_one_dataset("SYNTH_K5", X_syn5, y_syn5)
 X_syn30, y_syn30 = generate_data(120_000, 30, 30, random_state=1)
 all_rows += run_one_dataset("SYNTH_K30", X_syn30, y_syn30)
 
+# synthetic blobs:
+#   * k = 5  , 30
+#   * n = 100k , 200k   (→ bigger than max sub-sample size)
+
+synth_specs = [
+    ("SYNTH_K5_n100k" , 100_000, 30,  5, 0),
+    ("SYNTH_K30_n100k", 100_000, 30, 30, 1),
+    ("SYNTH_K5_n200k" , 200_000, 30,  5, 2),
+    ("SYNTH_K30_n200k", 200_000, 30, 30, 3),
+]
+
+all_rows = []
+
+for tag, n, d, k, seed in synth_specs:
+    X, y = generate_data(n, d, k, random_state=seed)
+    all_rows += run_one_dataset(tag, X, y)
 
 
 # real datasets
 for tag, loader in real_datasets.items():
     print(f"loading {tag} …")
-    X_real, y_real = loader()
+    X_real, y_real = loader(n_rows=max(dataset_sizes))
     all_rows += run_one_dataset(tag, X_real, y_real)
 
 # Data frame and output
