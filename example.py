@@ -68,9 +68,13 @@ def generate_data(n_samples, n_features, n_clusters, random_state):
     return X.astype(np.float64), y_true
 
 def evaluate_metrics(X, labels, y_true, inertia):
-    ari = adjusted_rand_score(y_true, labels)
+    if y_true is None:
+        ari = np.nan                 # ARI undefined
+    else:
+        ari = adjusted_rand_score(y_true, labels)
+
     silhouette_avg = silhouette_score(X, labels)
-    db_index = davies_bouldin_score(X, labels)
+    db_index       = davies_bouldin_score(X, labels)
     return ari, silhouette_avg, db_index, inertia
 
 def plot_clusters(X, labels, centers, title="", do_plot = True):
