@@ -236,18 +236,6 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
 
 all_rows = []
 
-# synthetic k=5
-X_syn5, y_syn5 = generate_data(120_000, 30, 5, random_state=0)
-all_rows += run_one_dataset("SYNTH_K5", X_syn5, y_syn5)
-
-# synthetic k=30
-X_syn30, y_syn30 = generate_data(120_000, 30, 30, random_state=1)
-all_rows += run_one_dataset("SYNTH_K30", X_syn30, y_syn30)
-
-# synthetic blobs:
-#   * k = 5  , 30
-#   * n = 100k , 200k   (→ bigger than max sub-sample size)
-
 synth_specs = [
     ("SYNTH_K5_n100k" , 100_000, 30,  5, 0),
     ("SYNTH_K30_n100k", 100_000, 30, 30, 1),
