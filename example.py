@@ -187,7 +187,7 @@ def run_one_dataset(ds_name: str, n_clusters, X_full: np.ndarray, y_full):
 
                         # Full double precision run
                         centers_double, labels_double, inertia, elapsed, mem_MB_double, ari, silhouette, dbi = run_full_double(
-                            X, initial_centers, n_clusters, max_iter, tol_fixed_A, y_true
+                            X_cur, initial_centers, n_clusters, max_iter, tol_fixed_A, y_true_cur
                         )
 
                         rows.append([n_samples, n_clusters, n_features, "A", cap, "Double", max_iter_A, elapsed, mem_MB_double, 
@@ -195,24 +195,23 @@ def run_one_dataset(ds_name: str, n_clusters, X_full: np.ndarray, y_full):
 
                         # Adaptive hybrid run
                         iter_num, elapsed_hybrid, mem_MB_hybrid, ari_hybrid, silhouette_hybrid, dbi_hybrid, inertia_hybrid, center_diff, labels_hybrid, centers_hybrid, mem_MB_hybrid = run_adaptive_hybrid(
-                        X, initial_centers, n_clusters, max_iter_A, single_iter_cap=cap, tol_single=tol_fixed_A, tol_double=tol_fixed_A,y_true=y_true, seed = rep
+                        X_cur, initial_centers, n_clusters, max_iter_A, single_iter_cap=cap, tol_single=tol_fixed_A, tol_double=tol_fixed_A, y_true_cur=y_true_cur, seed = rep
                         )
 
                         rows.append([n_samples, n_clusters, n_features, "A", cap, "AdaptiveHybrid", iter_num, elapsed_hybrid, mem_MB_hybrid,
                                         ari_hybrid, silhouette_hybrid, dbi_hybrid, inertia_hybrid, center_diff])
                         
                         # plot clusters
-                        if n_features == 2 and rep ==0:
-                            title = (f"{ds_name} * n={n_samples} * k={n_clusters}"
-                                     f"{'cap='+str(cap) if option =='A' else 'tol='+str(tol_s)}")
-                            plot_clusters(X, labels_hybrid, centers_hybrid, title)
+                        if n_features == 2 and rep == 0:
+                            title = f"{ds_name}: n={n_samples}, k={n_clusters}, cap={cap}"
+                            plot_clusters(X_cur, labels_h, centers_h, title)
                     
                 option = "B"
                 for tol_s in tol_single_grid:
                     for rep in range(n_repeats):
                                # Full double precision run
                         centers_double, labels_double, inertia, elapsed, mem_MB_double, ari, silhouette, dbi = run_full_double(
-                            X, initial_centers, n_clusters, max_iter_B, tol_double_B, y_true
+                            X_cur, initial_centers, n_clusters, max_iter_B, tol_double_B, y_true_cur
                         )
 
                         rows.append([n_samples, n_clusters, n_features, "B", tol_s, "Double", max_iter_B, elapsed, mem_MB_double, max_iter_B,
@@ -220,17 +219,16 @@ def run_one_dataset(ds_name: str, n_clusters, X_full: np.ndarray, y_full):
 
                         # Adaptive hybrid run
                         iter_num, elapsed_hybrid, mem_MB_hybrid, ari_hybrid, silhouette_hybrid, dbi_hybrid, inertia_hybrid, center_diff, labels_hybrid, centers_hybrid, mem_MB_hybrid = run_adaptive_hybrid(
-                        X, initial_centers, n_clusters, max_iter_B, tol_single=tol_s, tol_double= tol_double_B,single_iter_cap=300, y_true=y_true, seed = rep
+                        X_cur, initial_centers, n_clusters, max_iter_B, tol_single=tol_s, tol_double= tol_double_B,single_iter_cap=300, y_true_cur=y_true_cur, seed = rep
                         )
 
                         rows.append([n_samples, n_clusters, n_features, "B", tol_s, "AdaptiveHybrid", max_iter_B, iter_num, elapsed_hybrid, mem_MB_hybrid,
                                         ari_hybrid, silhouette_hybrid, dbi_hybrid, inertia_hybrid, center_diff])
                         
                         # plot clusters
-                        if n_features == 2 and rep ==0:
-                            title = (f"{ds_name} * n={n_samples} * k={n_clusters}"
-                                     f"{'cap='+str(cap) if option =='B' else 'tol='+str(tol_s)}")
-                            plot_clusters(X, labels_hybrid, centers_hybrid, title)
+                        if n_features == 2 and rep == 0:
+                            title = f"{ds_name}: n={n_samples}, k={n_clusters}, tol={tol_s}"
+                            plot_clusters(X_cur, labels_h, centers_h, title)
     return rows
 
 all_rows = []
