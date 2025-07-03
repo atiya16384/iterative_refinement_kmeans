@@ -166,13 +166,14 @@ def run_one_dataset(ds_name: str, n_clusters, X_full: np.ndarray, y_full):
         for n_clusters in n_clusters_list:
             for n_features in n_features_list:
                 if X_ns.shape[1] < n_features and ds_name != "SYNTH":
-                    continue
-                if ds_name == "SYNTH":
-                       X, y_true = X_full, y_full          
-                else:
-                    X = X_ns[:, :n_features]
-                    y=y_ns
-                
+                    continue  
+                if ds_name == "SYNTH":          # synthetic blobs we generated
+                    X_cur       = X_full
+                    y_true_cur  = y_full
+                else:                           # real data (no labels) OR sub-sampled synth
+                    X_cur       = X_ns[:, :n_features]
+                    y_true_cur  = y_ns          # will be None for real data
+
                 # Compute initial centers once
                 init_kmeans = KMeans(n_clusters=n_clusters, init='k-means++', n_init=1, random_state=0,  max_iter =1)
                 #init_Z_kmeans = init_kmeans.predict(np.c_[xx.ravel(), yy.ravel()])
