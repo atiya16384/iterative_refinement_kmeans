@@ -198,7 +198,7 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
 
                         # Adaptive hybrid run
                         iter_num, elapsed_hybrid, mem_MB_hybrid, ari_hybrid, silhouette_hybrid, dbi_hybrid, inertia_hybrid, center_diff, labels_hybrid, centers_hybrid, mem_MB_hybrid = run_adaptive_hybrid(
-                        X_cur, initial_centers, n_clusters, max_iter_A, single_iter_cap=cap, tol_single=tol_fixed_A, tol_double=tol_fixed_A, y_true_cur=y_true_cur, seed = rep
+                        X_cur, initial_centers, n_clusters, max_iter_A, cap, tol_fixed_A,tol_fixed_A, y_true_cur, seed = rep
                         )
 
                         rows.append([n_samples, n_clusters, n_features, "A", cap, "AdaptiveHybrid", iter_num, elapsed_hybrid, mem_MB_hybrid,
@@ -222,7 +222,7 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
 
                         # Adaptive hybrid run
                         iter_num, elapsed_hybrid, mem_MB_hybrid, ari_hybrid, silhouette_hybrid, dbi_hybrid, inertia_hybrid, center_diff, labels_hybrid, centers_hybrid, mem_MB_hybrid = run_adaptive_hybrid(
-                        X_cur, initial_centers, n_clusters, max_iter_B, tol_single=tol_s, tol_double= tol_double_B,single_iter_cap=300, y_true_cur=y_true_cur, seed = rep
+                        X_cur, initial_centers, n_clusters, max_iter_B, tol_s, tol_double_B, 300, y_true_cur, seed = rep
                         )
 
                         rows.append([n_samples, n_clusters, n_features, "B", tol_s, "AdaptiveHybrid", max_iter_B, iter_num, elapsed_hybrid, mem_MB_hybrid,
