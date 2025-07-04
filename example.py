@@ -181,7 +181,7 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
                 init_kmeans = KMeans(n_clusters=n_clusters, init='k-means++', n_init=1, random_state=0,  max_iter =1)
                 #init_Z_kmeans = init_kmeans.predict(np.c_[xx.ravel(), yy.ravel()])
                 #init_Z_kmeans = init_Z_kmeans.reshape(xx.shape)
-                initial_fit = init_kmeans.fit(X)
+                initial_fit = init_kmeans.fit(X_cur)
                 initial_centers = init_kmeans.cluster_centers_
 
                 option = "A"
@@ -207,7 +207,7 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
                         # plot clusters
                         if n_features == 2 and rep == 0:
                             title = f"{ds_name}: n={n_samples}, k={n_clusters}, cap={cap}"
-                            plot_clusters(X_cur, labels_h, centers_h, title)
+                            plot_clusters(X_cur, labels_hybrid, centers_hybrid, title)
                     
                 option = "B"
                 for tol_s in tol_single_grid:
@@ -231,7 +231,7 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
                         # plot clusters
                         if n_features == 2 and rep == 0:
                             title = f"{ds_name}: n={n_samples}, k={n_clusters}, tol={tol_s}"
-                            plot_clusters(X_cur, labels_h, centers_h, title)
+                            plot_clusters(X_cur, labels_hybrid, centers_hybrid, title)
     return rows
 
 all_rows = []
