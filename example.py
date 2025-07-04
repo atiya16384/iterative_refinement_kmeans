@@ -33,7 +33,7 @@ def load_susy(n_rows=1_000_000):
     return X, None
 
 # CONFIGURATION PARAMETERS 
-dataset_sizes = [100000, 200000]
+dataset_sizes = [100000]
 n_clusters_list = [5, 8]
 n_features_list = [3, 30]  # We keep 2 here for proper plotting 
 max_iter = 120
@@ -198,7 +198,7 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
 
                         # Adaptive hybrid run
                         iter_num, elapsed_hybrid, mem_MB_hybrid, ari_hybrid, silhouette_hybrid, dbi_hybrid, inertia_hybrid, center_diff, labels_hybrid, centers_hybrid, mem_MB_hybrid = run_adaptive_hybrid(
-                        X_cur, initial_centers, n_clusters, max_iter_A, cap, tol_fixed_A,tol_fixed_A, y_true_cur, seed = rep
+                        X_cur, initial_centers, n_clusters, max_iter_total = max_iter_A, single_iter_cap=cap, tol_single = tol_fixed_A, tol_double=tol_fixed_A, y_true = y_true_cur, seed = rep
                         )
 
                         rows.append([n_samples, n_clusters, n_features, "A", cap, "AdaptiveHybrid", iter_num, elapsed_hybrid, mem_MB_hybrid,
@@ -222,7 +222,7 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
 
                         # Adaptive hybrid run
                         iter_num, elapsed_hybrid, mem_MB_hybrid, ari_hybrid, silhouette_hybrid, dbi_hybrid, inertia_hybrid, center_diff, labels_hybrid, centers_hybrid, mem_MB_hybrid = run_adaptive_hybrid(
-                        X_cur, initial_centers, n_clusters, max_iter_B, tol_s, tol_double_B, 300, y_true_cur, seed = rep
+                        X_cur, initial_centers, n_clusters, max_iter_total=max_iter_B, tol_single = tol_s, tol_double = tol_double_B, single_iter_cap=300, y_true= y_true_cur, seed = rep
                         )
 
                         rows.append([n_samples, n_clusters, n_features, "B", tol_s, "AdaptiveHybrid", max_iter_B, iter_num, elapsed_hybrid, mem_MB_hybrid,
@@ -239,8 +239,8 @@ all_rows = []
 synth_specs = [
     ("SYNTH_K5_n100k" , 100_000, 30,  5, 0),
     ("SYNTH_K30_n100k", 100_000, 30, 30, 1),
-    ("SYNTH_K5_n200k" , 200_000, 30,  5, 2),
-    ("SYNTH_K30_n200k", 200_000, 30, 30, 3),
+    # ("SYNTH_K5_n200k" , 200_000, 30,  5, 2),
+    # ("SYNTH_K30_n200k", 200_000, 30, 30, 3),
 ]
 
 all_rows = []
@@ -248,7 +248,6 @@ all_rows = []
 for tag, n, d, k, seed in synth_specs:
     X, y = generate_data(n, d, k, random_state=seed)
     all_rows += run_one_dataset(tag, X, y)
-
 
 # real datasets
 for tag, loader in real_datasets.items():
