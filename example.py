@@ -14,7 +14,6 @@ import sys
 import os
 import pathlib
 
-
 DATA_DIR = pathlib.Path(".")          # change if the CSVs live elsewhere
 
 def load_3d_road(n_rows=1_000_000):
@@ -159,7 +158,7 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
     rows = []
     #  MAKE PRINT STATEMENTS
 
-     print(f"\n=== Starting dataset: {ds_name}  |  total rows={len(X_full):,} ===",
+    print(f"\n=== Starting dataset: {ds_name}  |  total rows={len(X_full):,} ===",
           flush=True)
 
     for n_samples in dataset_sizes:
@@ -174,16 +173,14 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
             for n_features in n_features_list:
 
                 if X_ns.shape[1] < n_features and ds_name != "SYNTH":
-                    continue                            # real set doesn’t have that many cols
+                    continue                         
 
-                # ---- pick the working slice ----
                 if ds_name.startswith("SYNTH"):
                     X_cur, y_true_cur = X_full, y_full
                 else:
                     X_cur, y_true_cur = X_ns[:, :n_features], y_ns
-                # Compute initial centers once
 
-                print(f"    → n={n_samples:,}  k={n_clusters}  d={n_features}  "f"({ds_name})", flush=True)
+                print(f" → n={n_samples:,}  k={n_clusters}  d={n_features}  "f"({ds_name})", flush=True)
 
                 init_kmeans = KMeans(n_clusters=n_clusters, init='k-means++', n_init=1, random_state=0,  max_iter =1)
                 initial_fit = init_kmeans.fit(X_cur)
@@ -200,7 +197,8 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
 
                         rows.append([n_samples, n_clusters, n_features, "A", cap, "Double", max_iter_A, elapsed, mem_MB_double, 
                                         ari, silhouette, dbi, inertia, 0])
-
+                    
+                        print(f" [Hybrid] {rows}", flush=True) 
                         # Adaptive hybrid run
                         iter_num, elapsed_hybrid, mem_MB_hybrid, ari_hybrid, silhouette_hybrid, dbi_hybrid, inertia_hybrid, center_diff, labels_hybrid, centers_hybrid, mem_MB_hybrid = run_adaptive_hybrid(
                         X_cur, initial_centers, n_clusters, max_iter_total = max_iter_A, single_iter_cap=cap, tol_single = tol_fixed_A, tol_double=tol_fixed_A, y_true = y_true_cur, seed = rep
@@ -209,6 +207,7 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
                         rows.append([n_samples, n_clusters, n_features, "A", cap, "AdaptiveHybrid", iter_num, elapsed_hybrid, mem_MB_hybrid,
                                         ari_hybrid, silhouette_hybrid, dbi_hybrid, inertia_hybrid, center_diff])
                         
+                        print(f" [Double] {rows}", flush=True) 
                         # plot clusters
                         if n_features == 2 and rep == 0:
                             title = f"{ds_name}: n={n_samples}, k={n_clusters}, cap={cap}"
@@ -224,7 +223,7 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
 
                         rows.append([n_samples, n_clusters, n_features, "B", tol_s, "Double", max_iter_B, elapsed, mem_MB_double, max_iter_B,
                                         ari, silhouette, dbi, inertia, 0])
-
+                        print(f" [Double] {rows}", flush=True) 
                         # Adaptive hybrid run
                         iter_num, elapsed_hybrid, mem_MB_hybrid, ari_hybrid, silhouette_hybrid, dbi_hybrid, inertia_hybrid, center_diff, labels_hybrid, centers_hybrid, mem_MB_hybrid = run_adaptive_hybrid(
                         X_cur, initial_centers, n_clusters, max_iter_total=max_iter_B, tol_single = tol_s, tol_double = tol_double_B, single_iter_cap=300, y_true= y_true_cur, seed = rep
@@ -232,6 +231,8 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
 
                         rows.append([n_samples, n_clusters, n_features, "B", tol_s, "AdaptiveHybrid", max_iter_B, iter_num, elapsed_hybrid, mem_MB_hybrid,
                                         ari_hybrid, silhouette_hybrid, dbi_hybrid, inertia_hybrid, center_diff])
+                        
+                        print(f" [Hybrid] {rows}", flush=True) 
                         
                         # plot clusters
                         if n_features == 2 and rep == 0:
@@ -252,7 +253,7 @@ all_rows = []
 
 for tag, n, d, k, seed in synth_specs:
     X, y = generate_data(n, d, k, random_state=seed)
-     print(f"[SYNTH] {tag:14s}  shape={X.shape}  any_NaN={np.isnan(X).any()}",
+    print(f"[SYNTH] {tag:14s}  shape={X.shape}  any_NaN={np.isnan(X).any()}",
           flush=True)
     all_rows += run_one_dataset(tag, X, y)
 
