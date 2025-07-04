@@ -157,7 +157,10 @@ def run_adaptive_hybrid(X, initial_centers, n_clusters, max_iter_total, tol_sing
     
 def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
     rows = []
-    #  MAKE PRINT STATEEMENTS
+    #  MAKE PRINT STATEMENTS
+
+     print(f"\n=== Starting dataset: {ds_name}  |  total rows={len(X_full):,} ===",
+          flush=True)
 
     for n_samples in dataset_sizes:
         if n_samples > len(X_full):
@@ -179,9 +182,10 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
                 else:
                     X_cur, y_true_cur = X_ns[:, :n_features], y_ns
                 # Compute initial centers once
+
+                print(f"    → n={n_samples:,}  k={n_clusters}  d={n_features}  "f"({ds_name})", flush=True)
+
                 init_kmeans = KMeans(n_clusters=n_clusters, init='k-means++', n_init=1, random_state=0,  max_iter =1)
-                #init_Z_kmeans = init_kmeans.predict(np.c_[xx.ravel(), yy.ravel()])
-                #init_Z_kmeans = init_Z_kmeans.reshape(xx.shape)
                 initial_fit = init_kmeans.fit(X_cur)
                 initial_centers = init_kmeans.cluster_centers_
 
@@ -248,6 +252,8 @@ all_rows = []
 
 for tag, n, d, k, seed in synth_specs:
     X, y = generate_data(n, d, k, random_state=seed)
+     print(f"[SYNTH] {tag:14s}  shape={X.shape}  any_NaN={np.isnan(X).any()}",
+          flush=True)
     all_rows += run_one_dataset(tag, X, y)
 
 # real datasets
