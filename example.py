@@ -14,6 +14,7 @@ import sys
 import os
 import pathlib
 
+
 DATA_DIR = pathlib.Path(".")          # change if the CSVs live elsewhere
 
 def load_3d_road(n_rows=1_000_000):
@@ -40,15 +41,14 @@ max_iter = 120
 
 tol_fixed_A = 1e-16
 max_iter_A = 300
-cap_grid = [0, 50, 100, 150, 200, 250, 300]
+cap_grid = [0, 50]
 
 max_iter_B = 1000
 tol_double_B = 1e-7
-tol_single_grid = [1e-1, 1e-3, 1e-5, 1e-7, 1e-9]
+tol_single_grid = [1e-1, 1e-3]
 
 n_repeats = 3
 rng_global = np.random.default_rng(0)
-
 
 # Real-dataset
 real_datasets = {
@@ -157,6 +157,7 @@ def run_adaptive_hybrid(X, initial_centers, n_clusters, max_iter_total, tol_sing
     
 def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
     rows = []
+    #  MAKE PRINT STATEEMENTS
 
     for n_samples in dataset_sizes:
         if n_samples > len(X_full):
@@ -252,7 +253,7 @@ for tag, n, d, k, seed in synth_specs:
 # real datasets
 for tag, loader in real_datasets.items():
     print(f"loading {tag} …")
-    X_real, y_real = loader(n_rows=max(dataset_sizes))
+    X_real, y_real = loader()
     all_rows += run_one_dataset(tag, X_real, y_real)
 
 # Data frame and output
