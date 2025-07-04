@@ -5,7 +5,7 @@ import pandas as pd
 from aoclda.sklearn import skpatch
 skpatch() # Apply AOCL patch before any KMeans usage
 from sklearn.datasets import make_blobs
-from sklearn.metrics import adjusted_rand_score, silhouette_score, davies_bouldin_score
+from sklearn.metrics import adjusted_rand_score, davies_bouldin_score
 from sklearn.cluster import KMeans
 import warnings
 warnings.filterwarnings("ignore")
@@ -72,9 +72,8 @@ def evaluate_metrics(X, labels, y_true, inertia):
     else:
         ari = adjusted_rand_score(y_true, labels)
 
-    silhouette_avg = silhouette_score(X, labels)
     db_index       = davies_bouldin_score(X, labels)
-    return ari, silhouette_avg, db_index, inertia
+    return ari, db_index, inertia
 
 def plot_clusters(X, labels, centers, title="", do_plot = True):
     if not do_plot or X.shape[1] != 2:
@@ -109,9 +108,9 @@ def run_full_double(X, initial_centers, n_clusters, max_iter, tol, y_true):
     labels = kmeans.labels_
     centers = kmeans.cluster_centers_
     inertia = kmeans.inertia_
-    ari, silhouette, dbi, inertia = evaluate_metrics(X, labels, y_true, inertia)
+    ari, dbi, inertia = evaluate_metrics(X, labels, y_true, inertia)
     mem_MB_double = X.astype(np.float64).nbytes / 1e6
-    return centers, labels, inertia, elapsed, ari, silhouette, dbi, mem_MB_double
+    return centers, labels, inertia, elapsed, ari, dbi, mem_MB_double
 
 # Hybrid precison loop 
 def run_adaptive_hybrid(X, initial_centers, n_clusters, max_iter_total, tol_single, tol_double, single_iter_cap, y_true, seed=0):
@@ -145,25 +144,24 @@ def run_adaptive_hybrid(X, initial_centers, n_clusters, max_iter_total, tol_sing
     centers_final = kmeans_double.cluster_centers_
     inertia = kmeans_double.inertia_
 
-    ari, sil, dbi, inertia = evaluate_metrics(X, labels_final, y_true, inertia)
+    ari, dbi, inertia = evaluate_metrics(X, labels_final, y_true, inertia)
     mem_MB_double = X_double.nbytes / 1e6
     mem_MB_total = mem_MB_double + X_single.nbytes / 1e6
     center_diff = np.linalg.norm(centers_final - initial_centers_64)
 
     total_time = end_time_single + end_time_double
     total_iters = iters_single + kmeans_double.n_iter_
-    return (total_iters, total_time, mem_MB_total, ari, sil, dbi, inertia, center_diff, labels_final, centers_final, mem_MB_total)
+    return (total_iters, total_time, mem_MB_total, ari, dbi, inertia, center_diff, labels_final, centers_final, mem_MB_total)
     
 def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
     rows = []
-    #  MAKE PRINT STATEMENTS
 
     print(f"\n=== Starting dataset: {ds_name}  |  total rows={len(X_full):,} ===",
           flush=True)
 
     for n_samples in dataset_sizes:
         if n_samples > len(X_full):
-            continue                                    # can’t subsample
+            continue                                   
 
         sel      = rng_global.choice(len(X_full), n_samples, replace=False)
         X_ns     = X_full[sel]
@@ -191,21 +189,21 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
                     for rep in range(n_repeats):
 
                         # Full double precision run
-                        centers_double, labels_double, inertia, elapsed, mem_MB_double, ari, silhouette, dbi = run_full_double(
+                        centers_double, labels_double, inertia, elapsed, mem_MB_double, ari,  dbi = run_full_double(
                             X_cur, initial_centers, n_clusters, max_iter, tol_fixed_A, y_true_cur
                         )
 
                         rows.append([n_samples, n_clusters, n_features, "A", cap, "Double", max_iter_A, elapsed, mem_MB_double, 
-                                        ari, silhouette, dbi, inertia, 0])
+                                        ari,  dbi, inertia, 0])
                     
                         print(f" [Double] {rows}", flush=True) 
                         # Adaptive hybrid run
-                        iter_num, elapsed_hybrid, mem_MB_hybrid, ari_hybrid, silhouette_hybrid, dbi_hybrid, inertia_hybrid, center_diff, labels_hybrid, centers_hybrid, mem_MB_hybrid = run_adaptive_hybrid(
+                        iter_num, elapsed_hybrid, mem_MB_hybrid, ari_hybrid, dbi_hybrid, inertia_hybrid, center_diff, labels_hybrid, centers_hybrid, mem_MB_hybrid = run_adaptive_hybrid(
                         X_cur, initial_centers, n_clusters, max_iter_total = max_iter_A, single_iter_cap=cap, tol_single = tol_fixed_A, tol_double=tol_fixed_A, y_true = y_true_cur, seed = rep
                         )
 
                         rows.append([n_samples, n_clusters, n_features, "A", cap, "AdaptiveHybrid", iter_num, elapsed_hybrid, mem_MB_hybrid,
-                                        ari_hybrid, silhouette_hybrid, dbi_hybrid, inertia_hybrid, center_diff])
+                                        ari_hybrid, dbi_hybrid, inertia_hybrid, center_diff])
                         
                         print(f" [Hybrid] {rows}", flush=True) 
                         # plot clusters
@@ -217,20 +215,20 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
                 for tol_s in tol_single_grid:
                     for rep in range(n_repeats):
                                # Full double precision run
-                        centers_double, labels_double, inertia, elapsed, mem_MB_double, ari, silhouette, dbi = run_full_double(
+                        centers_double, labels_double, inertia, elapsed, mem_MB_double, ari, dbi = run_full_double(
                             X_cur, initial_centers, n_clusters, max_iter_B, tol_double_B, y_true_cur
                         )
 
                         rows.append([n_samples, n_clusters, n_features, "B", tol_s, "Double", max_iter_B, elapsed, mem_MB_double, max_iter_B,
-                                        ari, silhouette, dbi, inertia, 0])
+                                        ari, dbi, inertia, 0])
                         print(f" [Double] {rows}", flush=True) 
                         # Adaptive hybrid run
-                        iter_num, elapsed_hybrid, mem_MB_hybrid, ari_hybrid, silhouette_hybrid, dbi_hybrid, inertia_hybrid, center_diff, labels_hybrid, centers_hybrid, mem_MB_hybrid = run_adaptive_hybrid(
+                        iter_num, elapsed_hybrid, mem_MB_hybrid, ari_hybrid, dbi_hybrid, inertia_hybrid, center_diff, labels_hybrid, centers_hybrid, mem_MB_hybrid = run_adaptive_hybrid(
                         X_cur, initial_centers, n_clusters, max_iter_total=max_iter_B, tol_single = tol_s, tol_double = tol_double_B, single_iter_cap=300, y_true= y_true_cur, seed = rep
                         )
 
                         rows.append([n_samples, n_clusters, n_features, "B", tol_s, "AdaptiveHybrid", max_iter_B, iter_num, elapsed_hybrid, mem_MB_hybrid,
-                                        ari_hybrid, silhouette_hybrid, dbi_hybrid, inertia_hybrid, center_diff])
+                                        ari_hybrid, dbi_hybrid, inertia_hybrid, center_diff])
                         
                         print(f" [Hybrid] {rows}", flush=True) 
 
@@ -265,13 +263,13 @@ for tag, loader in real_datasets.items():
 
 # Data frame and output
 columns = ['DatasetName', 'DatasetSize', 'NumClusters', 'NumFeatures', 'Suite', 'SweepVal', 'Mode', 'SwitchIter',
-           'Time', 'Memory_MB', 'ARI', 'Silhouette', 'DBI', 'Inertia', 'CenterDiff']
+           'Time', 'Memory_MB', 'ARI',  'DBI', 'Inertia', 'CenterDiff']
 
 results_df = pd.DataFrame(all_rows, columns=columns)
 
 # Print summary
 print("\n==== SUMMARY ====")
-print(results_df.groupby(['DatasetSize','NumClusters','NumFeatures','Mode', 'SwitchIter', 'CenterDiff' ])[['Time','Memory_MB','ARI','Silhouette', 'Inertia']].mean())
+print(results_df.groupby(['DatasetSize','NumClusters','NumFeatures','Mode', 'SwitchIter', 'CenterDiff' ])[['Time','Memory_MB','ARI', 'Inertia']].mean())
 
 # Save results to CSV file
 results_df.to_csv("hybrid_kmeans_results.csv", index=False)
