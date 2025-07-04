@@ -198,7 +198,7 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
                         rows.append([n_samples, n_clusters, n_features, "A", cap, "Double", max_iter_A, elapsed, mem_MB_double, 
                                         ari, silhouette, dbi, inertia, 0])
                     
-                        print(f" [Hybrid] {rows}", flush=True) 
+                        print(f" [Double] {rows}", flush=True) 
                         # Adaptive hybrid run
                         iter_num, elapsed_hybrid, mem_MB_hybrid, ari_hybrid, silhouette_hybrid, dbi_hybrid, inertia_hybrid, center_diff, labels_hybrid, centers_hybrid, mem_MB_hybrid = run_adaptive_hybrid(
                         X_cur, initial_centers, n_clusters, max_iter_total = max_iter_A, single_iter_cap=cap, tol_single = tol_fixed_A, tol_double=tol_fixed_A, y_true = y_true_cur, seed = rep
@@ -207,7 +207,7 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
                         rows.append([n_samples, n_clusters, n_features, "A", cap, "AdaptiveHybrid", iter_num, elapsed_hybrid, mem_MB_hybrid,
                                         ari_hybrid, silhouette_hybrid, dbi_hybrid, inertia_hybrid, center_diff])
                         
-                        print(f" [Double] {rows}", flush=True) 
+                        print(f" [Hybrid] {rows}", flush=True) 
                         # plot clusters
                         if n_features == 2 and rep == 0:
                             title = f"{ds_name}: n={n_samples}, k={n_clusters}, cap={cap}"
@@ -233,7 +233,7 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
                                         ari_hybrid, silhouette_hybrid, dbi_hybrid, inertia_hybrid, center_diff])
                         
                         print(f" [Hybrid] {rows}", flush=True) 
-                        
+
                         # plot clusters
                         if n_features == 2 and rep == 0:
                             title = f"{ds_name}: n={n_samples}, k={n_clusters}, tol={tol_s}"
