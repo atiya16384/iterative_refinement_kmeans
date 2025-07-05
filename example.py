@@ -155,28 +155,30 @@ def run_adaptive_hybrid(X, initial_centers, n_clusters, max_iter_total, tol_sing
     
 def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
     rows = []
-
+    if ds_name.startswith("SYNTH"):
+        sample_sizes = dataset_sizes
+    else:
+        sample_sizes = [len(X_full)]
+    
     print(f"\n=== Starting dataset: {ds_name}  |  total rows={len(X_full):,} ===",
           flush=True)
 
-    for n_samples in dataset_sizes:
-        if n_samples > len(X_full):
-            continue                                   
-
-        sel      = rng_global.choice(len(X_full), n_samples, replace=False)
-        X_ns     = X_full[sel]
-        y_ns     = None if y_full is None else y_full[sel]
+    for n_samples in sample_sizes:
+        if n_samples < len(X_full):
+            sel      = rng_global.choice(len(X_full), n_samples, replace=False)
+            X_ns     = X_full[sel]
+            y_ns     = None if y_full is None else y_full[sel]
+        else:
+            X_ns, y_ns = X_full, y_full
 
         for n_clusters in n_clusters_list:
             for n_features in n_features_list:
 
-                if X_ns.shape[1] < n_features and ds_name != "SYNTH":
-                    continue                         
+                if X_ns.shape[1] < n_features and not ds_name.startswith("SYNTH"):
+                    continue            
 
-                if ds_name.startswith("SYNTH"):
-                    X_cur, y_true_cur = X_full, y_full
-                else:
-                    X_cur, y_true_cur = X_ns[:, :n_features], y_ns
+                X_cur = X_ns[:, :n_features]   
+                y_true_cur = y_ns          
 
                 print(f" → n={n_samples:,}  k={n_clusters}  d={n_features}  "f"({ds_name})", flush=True)
 
@@ -187,22 +189,21 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
                 option = "A"
                 for cap in cap_grid:
                     for rep in range(n_repeats):
-
                         # Full double precision run
                         centers_double, labels_double, inertia, elapsed, mem_MB_double, ari,  dbi = run_full_double(
-                            X_cur, initial_centers, n_clusters, max_iter, tol_fixed_A, y_true_cur
-                        )
+                        X_cur, initial_centers, n_clusters, max_iter, tol_fixed_A, y_true_cur
+                            )
 
-                        rows.append([n_samples, n_clusters, n_features, "A", cap, "Double", max_iter_A, elapsed, mem_MB_double, 
+                        rows.append([ds_name, n_samples, n_clusters, n_features, "A", cap, "Double", max_iter_A, elapsed, mem_MB_double, 
                                         ari,  dbi, inertia, 0])
                     
                         print(f" [Double] {rows}", flush=True) 
                         # Adaptive hybrid run
                         iter_num, elapsed_hybrid, mem_MB_hybrid, ari_hybrid, dbi_hybrid, inertia_hybrid, center_diff, labels_hybrid, centers_hybrid, mem_MB_hybrid = run_adaptive_hybrid(
                         X_cur, initial_centers, n_clusters, max_iter_total = max_iter_A, single_iter_cap=cap, tol_single = tol_fixed_A, tol_double=tol_fixed_A, y_true = y_true_cur, seed = rep
-                        )
+                            )
 
-                        rows.append([n_samples, n_clusters, n_features, "A", cap, "AdaptiveHybrid", iter_num, elapsed_hybrid, mem_MB_hybrid,
+                        rows.append([ds_name, n_samples, n_clusters, n_features, "A", cap, "AdaptiveHybrid", iter_num, elapsed_hybrid, mem_MB_hybrid,
                                         ari_hybrid, dbi_hybrid, inertia_hybrid, center_diff])
                         
                         print(f" [Hybrid] {rows}", flush=True) 
@@ -211,31 +212,31 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
                             title = f"{ds_name}: n={n_samples}, k={n_clusters}, cap={cap}"
                             plot_clusters(X_cur, labels_hybrid, centers_hybrid, title)
                     
-                option = "B"
-                for tol_s in tol_single_grid:
-                    for rep in range(n_repeats):
+                    option = "B"
+                    for tol_s in tol_single_grid:
+                        for rep in range(n_repeats):
                                # Full double precision run
-                        centers_double, labels_double, inertia, elapsed, mem_MB_double, ari, dbi = run_full_double(
-                            X_cur, initial_centers, n_clusters, max_iter_B, tol_double_B, y_true_cur
-                        )
+                            centers_double, labels_double, inertia, elapsed, mem_MB_double, ari, dbi = run_full_double(
+                                X_cur, initial_centers, n_clusters, max_iter_B, tol_double_B, y_true_cur
+                            )
 
-                        rows.append([n_samples, n_clusters, n_features, "B", tol_s, "Double", max_iter_B, elapsed, mem_MB_double, max_iter_B,
+                            rows.append([ds_name, n_samples, n_clusters, n_features, "B", tol_s, "Double", elapsed, mem_MB_double, max_iter_B,
                                         ari, dbi, inertia, 0])
-                        print(f" [Double] {rows}", flush=True) 
-                        # Adaptive hybrid run
-                        iter_num, elapsed_hybrid, mem_MB_hybrid, ari_hybrid, dbi_hybrid, inertia_hybrid, center_diff, labels_hybrid, centers_hybrid, mem_MB_hybrid = run_adaptive_hybrid(
-                        X_cur, initial_centers, n_clusters, max_iter_total=max_iter_B, tol_single = tol_s, tol_double = tol_double_B, single_iter_cap=300, y_true= y_true_cur, seed = rep
-                        )
+                            print(f" [Double] {rows}", flush=True) 
+                            # Adaptive hybrid run
+                            iter_num, elapsed_hybrid, mem_MB_hybrid, ari_hybrid, dbi_hybrid, inertia_hybrid, center_diff, labels_hybrid, centers_hybrid, mem_MB_hybrid = run_adaptive_hybrid(
+                            X_cur, initial_centers, n_clusters, max_iter_total=max_iter_B, tol_single = tol_s, tol_double = tol_double_B, single_iter_cap=300, y_true= y_true_cur, seed = rep
+                            )
 
-                        rows.append([n_samples, n_clusters, n_features, "B", tol_s, "AdaptiveHybrid", max_iter_B, iter_num, elapsed_hybrid, mem_MB_hybrid,
+                            rows.append([ds_name, n_samples, n_clusters, n_features, "B", tol_s, "AdaptiveHybrid", iter_num, elapsed_hybrid, mem_MB_hybrid,
                                         ari_hybrid, dbi_hybrid, inertia_hybrid, center_diff])
                         
-                        print(f" [Hybrid] {rows}", flush=True) 
+                            print(f" [Hybrid] {rows}", flush=True) 
 
-                        # plot clusters
-                        if n_features == 2 and rep == 0:
-                            title = f"{ds_name}: n={n_samples}, k={n_clusters}, tol={tol_s}"
-                            plot_clusters(X_cur, labels_hybrid, centers_hybrid, title)
+                            # plot clusters
+                            if n_features == 2 and rep == 0:
+                                title = f"{ds_name}: n={n_samples}, k={n_clusters}, tol={tol_s}"
+                                plot_clusters(X_cur, labels_hybrid, centers_hybrid, title)
     return rows
 
 all_rows = []
