@@ -221,9 +221,10 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
                         print(f" [Hybrid] {rows}", flush=True) 
                         # plot clusters
                         if n_features == 2 and rep == 0:
-                            title = f"{ds_name}: n={n_samples}, k={n_clusters}, cap={cap}"
-                            plot_clusters(X_cur, labels_hybrid, centers_hybrid, title)
-                    
+                            filename = f"{ds_name}_n{n_samples}_k{n_clusters}_{option}_{cap if option == 'A' else tol_s}"
+                            title = f"{ds_name}: n={n_samples}, k={n_clusters}, cap/tol={cap if option == 'A' else tol_s}"
+                            plot_clusters(X_cur, labels_hybrid, centers_hybrid, title, filename=filename)
+
                     option = "B"
                     for tol_s in tol_single_grid:
                         for rep in range(n_repeats):
@@ -246,9 +247,10 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
                             print(f" [Hybrid] {rows}", flush=True) 
 
                             # plot clusters
-                            if n_features == 2 and rep == 0:
-                                title = f"{ds_name}: n={n_samples}, k={n_clusters}, tol={tol_s}"
-                                plot_clusters(X_cur, labels_hybrid, centers_hybrid, title)
+                           if n_features == 2 and rep == 0:
+                                filename = f"{ds_name}_n{n_samples}_k{n_clusters}_{option}_{cap if option == 'A' else tol_s}"
+                                title = f"{ds_name}: n={n_samples}, k={n_clusters}, cap/tol={cap if option == 'A' else tol_s}"
+                                plot_clusters(X_cur, labels_hybrid, centers_hybrid, title, filename=filename)
 
     return rows
 
