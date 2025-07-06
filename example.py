@@ -14,12 +14,17 @@ import sys
 import os
 import pathlib
 
-DATA_DIR = pathlib.Path(".")          # change if the CSVs live elsewhere
+DATA_DIR = pathlib.Path(".")         
+RESULTS_DIR = pathlib.PATH("Results")
+RESULTS_DIR.mkdir(exist_ok=True)
+
+PLOTS_DIR= pathlib.PATH("ClusterPlots")
+PLOTS_DIR.mkdir(exist_ok = True)
 
 def load_3d_road(n_rows=1_000_000):
 
     path = DATA_DIR / "3D_spatial_network.csv"
-    X = pd.read_csv(path, sep=r"\s+|,", engine="python",  # auto detect space or comma
+    X = pd.read_csv(path, sep=r"\s+|,", engine="python",  
                     header=None, usecols=[0, 1, 2],
                     nrows=n_rows, dtype=np.float64).to_numpy()
     return X, None
@@ -35,16 +40,16 @@ def load_susy(n_rows=1_000_000):
 # CONFIGURATION PARAMETERS 
 dataset_sizes = [100000]
 n_clusters_list = [5, 8]
-n_features_list = [3, 30]  # We keep 2 here for proper plotting 
+n_features_list = [2, 3, 30]  # We keep 2 here for proper plotting 
 max_iter = 120
 
 tol_fixed_A = 1e-16
 max_iter_A = 300
-cap_grid = [0, 50]
+cap_grid = [0, 50, 100, 150, 200, 250, 300]
 
 max_iter_B = 1000
 tol_double_B = 1e-7
-tol_single_grid = [1e-1, 1e-3]
+tol_single_grid = [1e-1, 1e-3, 1e-5, 1e-7, 1e-9]
 
 n_repeats = 3
 rng_global = np.random.default_rng(0)
@@ -75,7 +80,7 @@ def evaluate_metrics(X, labels, y_true, inertia):
     db_index       = davies_bouldin_score(X, labels)
     return ari, db_index, inertia
 
-def plot_clusters(X, labels, centers, title="", do_plot = True):
+def plot_clusters(X, labels, centers, title="", do_plot = True, filename = None):
     if not do_plot or X.shape[1] != 2:
         print("⤷  Skipping plot (data not 2-D)")
         return
@@ -96,7 +101,14 @@ def plot_clusters(X, labels, centers, title="", do_plot = True):
     plt.scatter(centers[:,0], centers[:,1], c="k", s=80, marker="x")
     plt.title(title)
     plt.tight_layout()
-    plt.show()
+
+    if filename:
+        plot_path = PLOTS_DIR / f"{filename}.png"
+        plt.savefig(plot_path)
+        print(f" Plot saved to {plot_path}")
+    plt.close()
+
+    # plt.show()
 
 # FULL DOUBLE PRECISION RUN
 def run_full_double(X, initial_centers, n_clusters, max_iter, tol, y_true):
@@ -237,6 +249,7 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
                             if n_features == 2 and rep == 0:
                                 title = f"{ds_name}: n={n_samples}, k={n_clusters}, tol={tol_s}"
                                 plot_clusters(X_cur, labels_hybrid, centers_hybrid, title)
+
     return rows
 
 all_rows = []
@@ -273,10 +286,10 @@ print("\n==== SUMMARY ====")
 print(results_df.groupby(['DatasetSize','NumClusters','NumFeatures','Mode', 'SwitchIter', 'CenterDiff' ])[['Time','Memory_MB','ARI', 'Inertia']].mean())
 
 # Save results to CSV file
-results_df.to_csv("hybrid_kmeans_results.csv", index=False)
+results_df.to_csv(RESULTS_DIR / "hybrid_kmeans_results.csv", index=False)
 for tag in results_df.DatasetName.unique():
     results_df[results_df.DatasetName == tag].to_csv(f"results_{tag}.csv", index=False)
 print("CSVS written:", list(results_df.DatasetName.unique()))
 
-print("\nResults saved to 'hybrid_kmeans_results.csv'")
+print("\nResults saved to 'results/hybrid_kmeans_results.csv'")
 print(os.getcwd())
