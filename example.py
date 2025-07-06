@@ -80,35 +80,45 @@ def evaluate_metrics(X, labels, y_true, inertia):
     db_index       = davies_bouldin_score(X, labels)
     return ari, db_index, inertia
 
-def plot_clusters(X, labels, centers, title="", do_plot = True, filename = None):
-    if not do_plot or X.shape[1] != 2:
-        print("⤷  Skipping plot (data not 2-D)")
+def plot_clusters(X, labels, centers, title="", save_path=None):
+    # -- 1. guard: 2-D only
+    if X.shape[1] != 2:
         return
 
-    # decision boundary mesh
+    # -- 2. guard: don’t build a silly-large grid
+    span_x = X[:, 0].ptp()          # ptp() = max-min
+    span_y = X[:, 1].ptp()
+    MAX_CELLS = 300 * 300           # ≈ 90 k cells  → few MB
     h = 0.02
-    x_min, x_max = X[:,0].min()-1, X[:,0].max()+1
-    y_min, y_max = X[:,1].min()-1, X[:,1].max()+1
+    nx = int(span_x / h) + 1
+    ny = int(span_y / h) + 1
+    if nx * ny > MAX_CELLS:
+        print(f"⤷  Skipping plot – grid would be {nx:,}×{ny:,} "
+              f"({nx*ny/1e6:.1f} M cells)")
+        return
+
+    # -- 3. decision boundary grid
+    x_min, x_max = X[:, 0].min() - 1, X[:, 0].max() + 1
+    y_min, y_max = X[:, 1].min() - 1, X[:, 1].max() + 1
     xx, yy = np.meshgrid(np.arange(x_min, x_max, h),
                          np.arange(y_min, y_max, h))
-    Z = KMeans(n_clusters=len(centers), init=centers,
-               n_init=1, max_iter=1).predict(np.c_[xx.ravel(), yy.ravel()])
-    Z = Z.reshape(xx.shape)
+    Z = KMeans(n_clusters=len(centers),
+               init=centers, n_init=1, max_iter=1).predict(
+               np.c_[xx.ravel(), yy.ravel()]).reshape(xx.shape)
 
-    plt.figure(figsize=(6,5))
-    plt.contourf(xx, yy, Z, alpha=0.3, cmap="Pastel2")
-    plt.scatter(X[:,0], X[:,1], c=labels, s=5, cmap="Dark2")
-    plt.scatter(centers[:,0], centers[:,1], c="k", s=80, marker="x")
+    # -- 4. draw
+    plt.figure(figsize=(6, 5))
+    plt.contourf(xx, yy, Z, cmap="Pastel2", alpha=0.3)
+    plt.scatter(*X.T, c=labels, s=4, cmap="Dark2")
+    plt.scatter(*centers.T, c="k", marker="x", s=80)
     plt.title(title)
     plt.tight_layout()
 
-    if filename:
-        plot_path = PLOTS_DIR / f"{filename}.png"
-        plt.savefig(plot_path)
-        print(f" Plot saved to {plot_path}")
-    plt.close()
-
+    if save_path:
+        plt.savefig(save_path, dpi=200)
+    # comment out `plt.show()` to keep windows closed
     # plt.show()
+    plt.close()
 
 # FULL DOUBLE PRECISION RUN
 def run_full_double(X, initial_centers, n_clusters, max_iter, tol, y_true):
