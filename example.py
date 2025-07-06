@@ -15,10 +15,10 @@ import os
 import pathlib
 
 DATA_DIR = pathlib.Path(".")         
-RESULTS_DIR = pathlib.PATH("Results")
+RESULTS_DIR = pathlib.Path("Results")
 RESULTS_DIR.mkdir(exist_ok=True)
 
-PLOTS_DIR= pathlib.PATH("ClusterPlots")
+PLOTS_DIR= pathlib.Path("ClusterPlots")
 PLOTS_DIR.mkdir(exist_ok = True)
 
 def load_3d_road(n_rows=1_000_000):
@@ -73,52 +73,42 @@ def generate_data(n_samples, n_features, n_clusters, random_state):
 
 def evaluate_metrics(X, labels, y_true, inertia):
     if y_true is None:
-        ari = np.nan                 # ARI undefined
+        ari = np.nan                
     else:
         ari = adjusted_rand_score(y_true, labels)
 
     db_index       = davies_bouldin_score(X, labels)
     return ari, db_index, inertia
 
-def plot_clusters(X, labels, centers, title="", save_path=None):
-    # -- 1. guard: 2-D only
-    if X.shape[1] != 2:
+def plot_clusters(X, labels, centers, title="", do_plot = True, filename = None):
+    if not do_plot or X.shape[1] != 2:
+        print("⤷  Skipping plot (data not 2-D)")
         return
 
-    # -- 2. guard: don’t build a silly-large grid
-    span_x = X[:, 0].ptp()          # ptp() = max-min
-    span_y = X[:, 1].ptp()
-    MAX_CELLS = 300 * 300           # ≈ 90 k cells  → few MB
+    # decision boundary mesh
     h = 0.02
-    nx = int(span_x / h) + 1
-    ny = int(span_y / h) + 1
-    if nx * ny > MAX_CELLS:
-        print(f"⤷  Skipping plot – grid would be {nx:,}×{ny:,} "
-              f"({nx*ny/1e6:.1f} M cells)")
-        return
-
-    # -- 3. decision boundary grid
-    x_min, x_max = X[:, 0].min() - 1, X[:, 0].max() + 1
-    y_min, y_max = X[:, 1].min() - 1, X[:, 1].max() + 1
+    x_min, x_max = X[:,0].min()-1, X[:,0].max()+1
+    y_min, y_max = X[:,1].min()-1, X[:,1].max()+1
     xx, yy = np.meshgrid(np.arange(x_min, x_max, h),
                          np.arange(y_min, y_max, h))
-    Z = KMeans(n_clusters=len(centers),
-               init=centers, n_init=1, max_iter=1).predict(
-               np.c_[xx.ravel(), yy.ravel()]).reshape(xx.shape)
+    Z = KMeans(n_clusters=len(centers), init=centers,
+               n_init=1, max_iter=1).predict(np.c_[xx.ravel(), yy.ravel()])
+    Z = Z.reshape(xx.shape)
 
-    # -- 4. draw
-    plt.figure(figsize=(6, 5))
-    plt.contourf(xx, yy, Z, cmap="Pastel2", alpha=0.3)
-    plt.scatter(*X.T, c=labels, s=4, cmap="Dark2")
-    plt.scatter(*centers.T, c="k", marker="x", s=80)
+    plt.figure(figsize=(6,5))
+    plt.contourf(xx, yy, Z, alpha=0.3, cmap="Pastel2")
+    plt.scatter(X[:,0], X[:,1], c=labels, s=5, cmap="Dark2")
+    plt.scatter(centers[:,0], centers[:,1], c="k", s=80, marker="x")
     plt.title(title)
     plt.tight_layout()
 
-    if save_path:
-        plt.savefig(save_path, dpi=200)
-    # comment out `plt.show()` to keep windows closed
-    # plt.show()
+    if filename:
+        plot_path = PLOTS_DIR / f"{filename}.png"
+        plt.savefig(plot_path)
+        print(f" Plot saved to {plot_path}")
     plt.close()
+
+    # plt.show()
 
 # FULL DOUBLE PRECISION RUN
 def run_full_double(X, initial_centers, n_clusters, max_iter, tol, y_true):
@@ -202,7 +192,7 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
                 X_cur = X_ns[:, :n_features]   
                 y_true_cur = y_ns          
 
-                print(f" → n={n_samples:,}  k={n_clusters}  d={n_features}  "f"({ds_name})", flush=True)
+                print(f"→ n={n_samples:,}  k={n_clusters}  d={n_features}  "f"({ds_name})", flush=True)
 
                 init_kmeans = KMeans(n_clusters=n_clusters, init='k-means++', n_init=1, random_state=0,  max_iter =1)
                 initial_fit = init_kmeans.fit(X_cur)
@@ -230,11 +220,11 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
                         
                         print(f" [Hybrid] {rows}", flush=True) 
                         # plot clusters
-                            # plot clusters
                         if n_features == 2 and rep == 0:
-                            plot_fname = (f"ClusterPlots/{ds_name}_n{n_samples}_k{n_clusters}"
-                                f"_suite{option}_{cap if option=='A' else tol_s}.png")
-                                plot_clusters(X_cur[:, :2], labels_hybrid, centers_hybrid, title=title, save_path=plot_fname)
+                            filename = (f"{ds_name}_n{n_samples}_k{n_clusters}_A_{cap}")
+                            title = (f"{ds_name}: n={n_samples}, k={n_clusters}, "f"cap={cap}")
+                            # *** the line below is now indented exactly 8 spaces ***
+                            plot_clusters(X_cur, labels_hybrid, centers_hybrid, title=title, filename=filename)
 
                     option = "B"
                     for tol_s in tol_single_grid:
@@ -258,11 +248,10 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
                             print(f" [Hybrid] {rows}", flush=True) 
 
                             # plot clusters
-                           if n_features == 2 and rep == 0:
-                                plot_fname = (f"ClusterPlots/{ds_name}_n{n_samples}_k{n_clusters}"
-                                f"_suite{option}_{cap if option=='A' else tol_s}.png")
-                                plot_clusters(X_cur[:, :2], labels_hybrid, centers_hybrid, title=title, save_path=plot_fname)
-
+                            if n_features == 2 and rep == 0:
+                                filename = f"{ds_name}_n{n_samples}_k{n_clusters}_{option}_{cap if option == 'A' else tol_s}"
+                                title = f"{ds_name}: n={n_samples}, k={n_clusters}, cap/tol={cap if option == 'A' else tol_s}"
+                                plot_clusters(X_cur, labels_hybrid, centers_hybrid, title, filename=filename)
 
     return rows
 
@@ -271,8 +260,6 @@ all_rows = []
 synth_specs = [
     ("SYNTH_K5_n100k" , 100_000, 30,  5, 0),
     ("SYNTH_K30_n100k", 100_000, 30, 30, 1),
-    # ("SYNTH_K5_n200k" , 200_000, 30,  5, 2),
-    # ("SYNTH_K30_n200k", 200_000, 30, 30, 3),
 ]
 
 all_rows = []
@@ -302,7 +289,8 @@ print(results_df.groupby(['DatasetSize','NumClusters','NumFeatures','Mode', 'Swi
 # Save results to CSV file
 results_df.to_csv(RESULTS_DIR / "hybrid_kmeans_results.csv", index=False)
 for tag in results_df.DatasetName.unique():
-    results_df[results_df.DatasetName == tag].to_csv(f"results_{tag}.csv", index=False)
+    out_path = RESULTS_DIR / f"results_{tag}.csv"
+    results_df[results_df.DatasetName == tag].to_csv(out_path, index=False)
 print("CSVS written:", list(results_df.DatasetName.unique()))
 
 print("\nResults saved to 'results/hybrid_kmeans_results.csv'")
