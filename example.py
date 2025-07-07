@@ -13,6 +13,7 @@ from scipy.spatial import Voronoi, voronoi_plot_2d
 import sys
 import os
 import pathlib
+from sklearn.decomposition import PCA
 
 DATA_DIR = pathlib.Path(".")         
 RESULTS_DIR = pathlib.Path("Results")
@@ -40,7 +41,7 @@ def load_susy(n_rows=1_000_000):
 # CONFIGURATION PARAMETERS 
 dataset_sizes = [100000]
 n_clusters_list = [5, 8]
-n_features_list = [2, 3, 30]  # We keep 2 here for proper plotting 
+n_features_list = [3, 30]  # We keep 2 here for proper plotting 
 max_iter = 120
 
 tol_fixed_A = 1e-16
@@ -80,9 +81,6 @@ def evaluate_metrics(X, labels, y_true, inertia):
     db_index       = davies_bouldin_score(X, labels)
     return ari, db_index, inertia
 
-# ------------------------------------------------------------
-# replace the old plot_clusters with this version
-# ------------------------------------------------------------
 def plot_clusters(
         X, labels, centers,
         title="",
@@ -91,17 +89,12 @@ def plot_clusters(
         max_grid_pts=4_000_000,   # upper bound for meshgrid points
         max_scatter=25_000        # max points to draw in scatter
 ):
-    """Plot a 2-D slice of clusters safely.
 
-    * skips if data not 2-D
-    * skips meshgrid if it would explode memory
-    * samples point cloud if there are too many points
-    """
     if not do_plot or X.shape[1] != 2:
         print("⤷  Skipping plot (not 2-D)")
         return
 
-    # --- bounding box -------------------------------------------------
+    # bounding box 
     h = 0.02
     x_min, x_max = X[:, 0].min() - 1, X[:, 0].max() + 1
     y_min, y_max = X[:, 1].min() - 1, X[:, 1].max() + 1
@@ -109,7 +102,7 @@ def plot_clusters(
     ny = int((y_max - y_min) / h) + 1
     need_mesh = (nx * ny) <= max_grid_pts
 
-    # --- figure -------------------------------------------------------
+    # figure 
     plt.figure(figsize=(6, 5))
 
     if need_mesh:
@@ -125,7 +118,7 @@ def plot_clusters(
     else:
         print("⤷  Mesh too large; plotting points only")
 
-    # --- scatter (optionally subsampled) ------------------------------
+    # scatter
     if len(X) > max_scatter:
         sel = np.random.default_rng(0).choice(len(X), max_scatter, replace=False)
         X_plot, labels_plot = X[sel], labels[sel]
@@ -137,12 +130,19 @@ def plot_clusters(
     plt.title(title)
     plt.tight_layout()
 
-    # --- save ---------------------------------------------------------
+    # save 
     if filename:
         out_path = PLOTS_DIR / f"{filename}.png"
         plt.savefig(out_path, dpi=150)
         print(f"⤷  Plot saved to {out_path}")
     plt.close()
+
+
+def pca_2d_view(X_full, centers_full, random_state=0):
+    pca = PCA(n_components=2, random_state=random_state)
+    X_vis = pca.fit_transform(X_full)
+    centers_vis = pca.transform(centers_full)
+    return X_vis, centers_vis
 
 # FULL DOUBLE PRECISION RUN
 def run_full_double(X, initial_centers, n_clusters, max_iter, tol, y_true):
@@ -254,11 +254,11 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
                         
                         print(f" [Hybrid] {rows}", flush=True) 
                         # plot clusters
-                        if n_features == 2 and rep == 0:
+                        if rep == 0:
+                            X_vis, centers_vis = pca_2d_view(X_cur, centers_hybrid)
                             filename = (f"{ds_name}_n{n_samples}_k{n_clusters}_A_{cap}")
                             title = (f"{ds_name}: n={n_samples}, k={n_clusters}, "f"cap={cap}")
-                            # *** the line below is now indented exactly 8 spaces ***
-                            plot_clusters(X_cur, labels_hybrid, centers_hybrid, title=title, filename=filename)
+                            plot_clusters(X_vis, labels_hybrid, centers_vis, title=title, filename=filename)
 
                     option = "B"
                     for tol_s in tol_single_grid:
@@ -282,10 +282,12 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
                             print(f" [Hybrid] {rows}", flush=True) 
 
                             # plot clusters
-                            if n_features == 2 and rep == 0:
-                                filename = f"{ds_name}_n{n_samples}_k{n_clusters}_{option}_{cap if option == 'A' else tol_s}"
-                                title = f"{ds_name}: n={n_samples}, k={n_clusters}, cap/tol={cap if option == 'A' else tol_s}"
-                                plot_clusters(X_cur, labels_hybrid, centers_hybrid, title, filename=filename)
+                            if rep == 0:
+                                X_vis, centers_vis = pca_2d_view(X_cur, centers_hybrid)
+                                filename = (f"{ds_name}_n{n_samples}_k{n_clusters}_B_tol{tol_s:g}")
+                                title = (f"{ds_name}: n={n_samples}, k={n_clusters},  tol={tol_s:g}")
+                                plot_clusters(X_vis, labels_hybrid, centers_vis, title=title, filename=filename)
+
 
     return rows
 
