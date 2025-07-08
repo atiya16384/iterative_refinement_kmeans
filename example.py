@@ -22,8 +22,11 @@ RESULTS_DIR.mkdir(exist_ok=True)
 PLOTS_DIR= pathlib.Path("ClusterPlots")
 PLOTS_DIR.mkdir(exist_ok = True)
 
-def load_3d_road(n_rows=1_000_000):
+CONV_DIR = pathlib.Path("ConvergencePlots")
+CONV_DIR.mkdir(exist_ok=True)
 
+
+def load_3d_road(n_rows=1_000_000):
     path = DATA_DIR / "3D_spatial_network.csv"
     X = pd.read_csv(path, sep=r"\s+|,", engine="python",  
                     header=None, usecols=[0, 1, 2],
@@ -31,7 +34,6 @@ def load_3d_road(n_rows=1_000_000):
     return X, None
     
 def load_susy(n_rows=1_000_000):
-
     path = DATA_DIR / "SUSY.csv"
     df = pd.read_csv(path, header=None, nrows=n_rows,
                      dtype=np.float64, names=[f"c{i}" for i in range(9)])
@@ -91,7 +93,7 @@ def plot_clusters(
 ):
 
     if not do_plot or X.shape[1] != 2:
-        print("⤷  Skipping plot (not 2-D)")
+        print("Skipping plot (not 2-D)")
         return
 
     # bounding box 
@@ -116,7 +118,7 @@ def plot_clusters(
         ).predict(np.c_[xx.ravel(), yy.ravel()]).reshape(xx.shape)
         plt.contourf(xx, yy, Z, alpha=0.25, cmap="Pastel2")
     else:
-        print("⤷  Mesh too large; plotting points only")
+        print("Mesh too large; plotting points only")
 
     # scatter
     if len(X) > max_scatter:
@@ -134,10 +136,41 @@ def plot_clusters(
     if filename:
         out_path = PLOTS_DIR / f"{filename}.png"
         plt.savefig(out_path, dpi=150)
-        print(f"⤷  Plot saved to {out_path}")
+        print(f"Plot saved to {out_path}")
     plt.close()
 
 
+def kmeans_trace_and_plot(X, init_centers, tol=1e-4, max_iter=300, label="", random_state=0):
+    centers = init_centers.copy()
+    inertia_trace = []
+
+    for it in range(1, max_iter + 1):
+        km=KMeans(n_clusters=len(centers), init=centers, n_init=1, max_iter=1, tol=0, algorithm="lloyd", random_state=random_state)
+        km=km.fit(X)
+
+        centers=km.cluster_centers_
+        inertia_trace.append(km.inertia_)
+
+        if it > 1 and abs(inertia_trace[-2] - inertia_trace[-1]) <= tol: 
+            break
+    
+    plt.figure(figsize=(6,4))
+    plt.plot(range(1, len(inertia_trace)  + 1),
+            inertia_trace, marker = "o")
+    plt.yscale("log")
+    plt.xlabel("Iteration")
+    plt.ylabel("Inertia (log-scale)")
+    plt.title(f"Convergence trace - {label}") 
+    plt.tight_layout()
+
+    fname = CONV_DIR / f"{label}_trace.png"
+    plt.savefig(fname, dpi=150)
+    plt.close()
+    print("Trace plot saved to" , fname)
+
+    return inertia_trace
+
+    
 def pca_2d_view(X_full, centers_full, random_state=0):
     pca = PCA(n_components=2, random_state=random_state)
     X_vis = pca.fit_transform(X_full)
@@ -239,6 +272,9 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
                         centers_double, labels_double, inertia, elapsed, mem_MB_double, ari,  dbi = run_full_double(
                         X_cur, initial_centers, n_clusters, max_iter, tol_fixed_A, y_true_cur
                             )
+                        
+                        if rep == 0:
+                            kmeans_trace_and_plot(X_cur, initial_centers, tol = tol_fixed_A, max_iter=max_iter, label=f"{ds_name}_A_cap{cap}_double_rep0", random_state=rep)
 
                         rows.append([ds_name, n_samples, n_clusters, n_features, "A", cap, "Double", max_iter_A, elapsed, mem_MB_double, 
                                         ari,  dbi, inertia, 0])
@@ -248,6 +284,9 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
                         iter_num, elapsed_hybrid, mem_MB_hybrid, ari_hybrid, dbi_hybrid, inertia_hybrid, center_diff, labels_hybrid, centers_hybrid, mem_MB_hybrid = run_adaptive_hybrid(
                         X_cur, initial_centers, n_clusters, max_iter_total = max_iter_A, single_iter_cap=cap, tol_single = tol_fixed_A, tol_double=tol_fixed_A, y_true = y_true_cur, seed = rep
                             )
+                        
+                        if rep == 0:
+                            kmeans_trace_and_plot(X_cur, centers_hybrid, tol = tol_fixed_A, max_iter=max_iter_A - iter_num, label=f"{ds_name}_A_cap{cap}_hybrid_rep0", random_state=rep)
 
                         rows.append([ds_name, n_samples, n_clusters, n_features, "A", cap, "AdaptiveHybrid", iter_num, elapsed_hybrid, mem_MB_hybrid,
                                         ari_hybrid, dbi_hybrid, inertia_hybrid, center_diff])
@@ -268,6 +307,9 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
                                 X_cur, initial_centers, n_clusters, max_iter_B, tol_double_B, y_true_cur
                             )
 
+                            if rep == 0:
+                                kmeans_trace_and_plot(X_cur, initial_centers, tol = tol_s, max_iter=max_iter, label=f"{ds_name}_B_tol{tol_s:g}_double_rep0", random_state=rep)
+
                             rows.append([ds_name, n_samples, n_clusters, n_features, "B", tol_s, "Double", elapsed, mem_MB_double, max_iter_B,
                                         ari, dbi, inertia, 0])
                             print(f" [Double] {rows}", flush=True) 
@@ -275,6 +317,10 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
                             iter_num, elapsed_hybrid, mem_MB_hybrid, ari_hybrid, dbi_hybrid, inertia_hybrid, center_diff, labels_hybrid, centers_hybrid, mem_MB_hybrid = run_adaptive_hybrid(
                             X_cur, initial_centers, n_clusters, max_iter_total=max_iter_B, tol_single = tol_s, tol_double = tol_double_B, single_iter_cap=300, y_true= y_true_cur, seed = rep
                             )
+
+                            if rep == 0:
+                                kmeans_trace_and_plot(X_cur, centers_hybrid, tol = tol_s, max_iter=max_iter_B - iter_num, label=f"{ds_name}_B_tol{tol_s:g}_hybrid_rep0", random_state=rep)
+
 
                             rows.append([ds_name, n_samples, n_clusters, n_features, "B", tol_s, "AdaptiveHybrid", iter_num, elapsed_hybrid, mem_MB_hybrid,
                                         ari_hybrid, dbi_hybrid, inertia_hybrid, center_diff])
