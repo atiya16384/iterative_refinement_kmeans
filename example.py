@@ -43,12 +43,11 @@ def load_susy(n_rows=1_000_000):
 dataset_sizes = [100000]
 n_clusters_list = [5]
 n_features_list = [30]  # We keep 2 here for proper plotting 
-max_iter = 120
+max_iter = 300
 
 tol_fixed_A = 1e-16
 max_iter_A = 300
-cap_grid = [0]
-
+cap_grid = [250]
 
 max_iter_B = 1000
 tol_double_B = 1e-7
@@ -182,7 +181,7 @@ def run_full_double(X, initial_centers, n_clusters, max_iter, tol, y_true):
     kmeans.fit(X)
     iters_double_tot = kmeans.n_iter_
     elapsed = time.time() - start_time
-   # speedup = elapsed / elapsed_hybrid
+
     labels = kmeans.labels_
     centers = kmeans.cluster_centers_
     inertia = kmeans.inertia_
@@ -192,7 +191,7 @@ def run_full_double(X, initial_centers, n_clusters, max_iter, tol, y_true):
 
     ari, dbi, inertia = evaluate_metrics(X, labels, y_true, inertia)
     mem_MB_double = X.astype(np.float64).nbytes / 1e6
-    return centers, labels, iters_single_tot, iters_double_tot, elapsed, mem_MB_double, ari, dbi, inertia, 
+    return centers, labels, iters_double_tot, iters_single_tot,  elapsed, mem_MB_double, ari, dbi, inertia, 
 
 # Hybrid precison loop 
 def run_adaptive_hybrid(X, initial_centers, n_clusters, max_iter_total, tol_single, tol_double, single_iter_cap, y_true, seed=0):
@@ -219,7 +218,7 @@ def run_adaptive_hybrid(X, initial_centers, n_clusters, max_iter_total, tol_sing
     # X_double = X.astype(np.float64)
     initial_centers_64 = centers32.astype(np.float64)
 
-    kmeans_double = KMeans( n_clusters=n_clusters, init=initial_centers, n_init=1, max_iter=remaining_iter, tol=tol_double, random_state=seed, algorithm= 'lloyd')
+    kmeans_double = KMeans( n_clusters=n_clusters, init=initial_centers_64, n_init=1, max_iter=remaining_iter, tol=tol_double, random_state=seed, algorithm= 'lloyd')
     kmeans_double.fit(X)
     
     end_time_double = time.time() - start_time_double
@@ -266,7 +265,7 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
 
                 print(f"→ n={n_samples:,}  k={n_clusters}  d={n_features}  "f"({ds_name})", flush=True)
 
-                init_kmeans = KMeans(n_clusters=n_clusters, init='k-means++', n_init=1, random_state=0,  max_iter =1)
+                init_kmeans = KMeans(n_clusters=n_clusters, init='random', n_init=1, random_state=0,  max_iter =1)
                 initial_fit = init_kmeans.fit(X_cur)
                 initial_centers = init_kmeans.cluster_centers_
 
@@ -280,8 +279,9 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
                     # if rep == 0:
                         # kmeans_trace_and_plot(X_cur, initial_centers, tol = tol_fixed_A, max_iter=max_iter, label=f"{ds_name}_A_cap{300}_double_rep0", random_state=rep)
 
-                    rows.append([ds_name, n_samples, n_clusters, n_features, "A", 0, 1e-16, iters_double_tot, iters_single_tot, "Double",  elapsed, mem_MB_double, 
+                    rows.append([ds_name, n_samples, n_clusters, n_features, "A", 0, 1e-16,  iters_single_tot, iters_double_tot,"Double",  elapsed, mem_MB_double, 
                                         ari,  dbi, inertia])
+                    
                     
                     print(f" [Double] {rows}", flush=True) 
 
