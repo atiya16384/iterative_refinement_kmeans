@@ -36,13 +36,13 @@ def load_susy(n_rows=1_000_000):
     path = DATA_DIR / "SUSY.csv"
     df = pd.read_csv(path, header=None, nrows=n_rows,
                      dtype=np.float64, names=[f"c{i}" for i in range(9)])
-    X = df.iloc[:, 1:].to_numpy()     # drop label col
+    X = df.iloc[:, 1:].to_numpy()     
     return X, None
 
 # CONFIGURATION PARAMETERS 
 dataset_sizes = [100000]
 n_clusters_list = [5]
-n_features_list = [30]  # We keep 2 here for proper plotting 
+n_features_list = [30]  
 max_iter = 300
 
 tol_fixed_A = 1e-16
@@ -79,7 +79,7 @@ def evaluate_metrics(X, labels, y_true, inertia):
     else:
         ari = adjusted_rand_score(y_true, labels)
 
-    db_index       = davies_bouldin_score(X, labels)
+    db_index = davies_bouldin_score(X, labels)
     return ari, db_index, inertia
 
 def plot_clusters(
@@ -87,9 +87,8 @@ def plot_clusters(
         title="",
         do_plot=True,
         filename=None,
-        max_grid_pts=4_000_000,   # upper bound for meshgrid points
-        max_scatter=25_000        # max points to draw in scatter
-):
+        max_grid_pts=4_000_000,   
+        max_scatter=25_000):
 
     if not do_plot or X.shape[1] != 2:
         print("Skipping plot (not 2-D)")
@@ -137,6 +136,52 @@ def plot_clusters(
         plt.savefig(out_path, dpi=150)
         print(f"Plot saved to {out_path}")
     plt.close()
+
+def kmeans_cap_inertia_plot(X, init_centers, tol, cap, random_state=0):
+    centers = init_centers
+    inertia_trace = []
+    
+    for cap_value in cap:
+        km = KMeans(n_clusters=len(centers), init=centers, n_init=1, max_iter=1, tol=0, algorithm ='lloyd', random_state=0 )
+        km.fit(X)
+
+        centers=km.cluster_centers_
+        inertia_trace.append(km.intertia_)
+
+    plt.figure((6,6))
+    plt.plot(range(1, len(inertia_trace) + 1 ), inertia_trace, marker = "o")
+    plt.yscale()
+    plt.xlabel("Cap")
+    plt.title(f"Single and double precision for intertia and cap")
+    plt.tight_layout()
+
+    return inertia_trace
+
+def kmeans_cap_time_plot(X, init_centers, total_time, cap):
+
+    centers = init_centers
+
+    cap_trace =[]
+
+    # total_time is the time it takes to converge
+
+    for cap in cap_grid:
+        start_time = time.time()
+        km = KMeans(n_clusters=len(centers), init=centers, n_init=1, max_iter=1, tol=0, algorithm ='lloyd', random_state=0 )
+        km.fit(X)
+
+        centers=km.cluster_centers_
+        end_time = time.time() - start_time 
+    
+    plt.figure((6,6))
+    plt.plot(range(1, len(cap_trace) + 1), cap_trace, marker = "o")
+    plt.yscale()
+    plt.xlabel("Cap")
+    plt.title(f"Single and Double precision for time and cap.")
+
+    return cap_trace
+
+
 
 # def kmeans_trace_and_plot(X, init_centers, tol=1e-4, max_iter=300, label="", random_state=0):
 #     centers = init_centers
@@ -342,8 +387,6 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
                                 # filename = (f"{ds_name}_n{n_samples}_k{n_clusters}_B_tol{tol_s:g}")
                                 # title = (f"{ds_name}: n={n_samples}, k={n_clusters},  tol={tol_s:g}")
                                 # plot_clusters(X_vis, labels_hybrid, centers_vis, title=title, filename=filename)
-
-
     return rows
 
 all_rows = []
@@ -384,5 +427,5 @@ for tag in results_df.DatasetName.unique():
     results_df[results_df.DatasetName == tag].to_csv(out_path, index=False)
 print("CSVS written:", list(results_df.DatasetName.unique()))
 
-print("\nResults saved to 'results/hybrid_kmeans_results.csv'")
+print("\nResults saved to 'hybrid_kmeans_results.csv'")
 print(os.getcwd())
