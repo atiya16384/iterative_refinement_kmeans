@@ -19,9 +19,6 @@ DATA_DIR = pathlib.Path(".")
 RESULTS_DIR = pathlib.Path("Results")
 RESULTS_DIR.mkdir(exist_ok=True)
 
-PLOTS_DIR= pathlib.Path("ClusterPlots")
-PLOTS_DIR.mkdir(exist_ok = True)
-
 CONV_DIR = pathlib.Path("ConvergencePlots")
 CONV_DIR.mkdir(exist_ok=True)
 
@@ -47,7 +44,7 @@ max_iter = 300
 
 tol_fixed_A = 1e-16
 max_iter_A = 300
-cap_grid = [250]
+cap_grid = [0]
 
 max_iter_B = 1000
 tol_double_B = 1e-7
@@ -137,82 +134,50 @@ def plot_clusters(
         print(f"Plot saved to {out_path}")
     plt.close()
 
-def kmeans_cap_inertia_plot(X, init_centers, tol, cap, random_state=0):
-    centers = init_centers
-    inertia_trace = []
+def plot_hybrid_cap_vs_inertia(results_path = "Results/hybrid_kmeans_results.csv", output_dir = "Results"):
+    output_dir = pathlib.Path(output_dir)
+    df=pd.read_csv(results_path)
+    df_hybrid = df[df["Suite"]== "AdaptiveHybrid"]
+
+    plt.figure(figsize=(7,5))
+    for name, group in df_hybrid.groupby("DatasetName"):
+        group_sorted = group.sort_values("Cap")
+        plt.plot(group_sorted["Cap"], group_sorted["Inertia"], marker = 'o', label=name)
     
-    for cap_value in cap:
-        km = KMeans(n_clusters=len(centers), init=centers, n_init=1, max_iter=1, tol=0, algorithm ='lloyd', random_state=0 )
-        km.fit(X)
-
-        centers=km.cluster_centers_
-        inertia_trace.append(km.intertia_)
-
-    plt.figure((6,6))
-    plt.plot(range(1, len(inertia_trace) + 1 ), inertia_trace, marker = "o")
-    plt.yscale()
-    plt.xlabel("Cap")
-    plt.title(f"Single and double precision for intertia and cap")
+    plt.title("Cap vs Intertia (Adaptive Hybrid)")
+    plt.xlabel("Cap (Single Precision Iteration Cap)")
+    plt.ylabel("Final Inertia")
+    plt.grid(True)
+    plt.legend()
     plt.tight_layout()
 
-    return inertia_trace
+    filename = output_dir / "cap_vs_inertia_hybrid.png"
+    plt.savefig(filename)
+    plt.close()
+    print(f"saved: {filename}")
 
-def kmeans_cap_time_plot(X, init_centers, total_time, cap):
+def plot_cap_vs_time(results_path="Results/hybrid_kmeans_results.csv", output_dir="Results"):
+    output_dir = pathlib.Path(output_dir)
+    df = pd.read_csv(results_path)
+    df_hybrid = df[df["Suite"] == "AdaptiveHybrid"]
 
-    centers = init_centers
-
-    cap_trace =[]
-
-    # total_time is the time it takes to converge
-
-    for cap in cap_grid:
-        start_time = time.time()
-        km = KMeans(n_clusters=len(centers), init=centers, n_init=1, max_iter=1, tol=0, algorithm ='lloyd', random_state=0 )
-        km.fit(X)
-
-        centers=km.cluster_centers_
-        end_time = time.time() - start_time 
+    plt.figure(figsize=(7,5))
+    for name, group in df_hybrid.groupby("DatasetName"):
+        group_sorted = group.sort_values("Cap")
+        plt.plot(group_sorted["Cap"], group_sorted["Time"], marker = 'o', label=name)
     
-    plt.figure((6,6))
-    plt.plot(range(1, len(cap_trace) + 1), cap_trace, marker = "o")
-    plt.yscale()
-    plt.xlabel("Cap")
-    plt.title(f"Single and Double precision for time and cap.")
+    plt.title("Cap vs Time (Adaptive Hybrid)")
+    plt.xlabel("Cap (Single Precision Iteration Cap)")
+    plt.ylabel("Total Time (seconds)")
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
 
-    return cap_trace
+    filename = output_dir / "cap_vs_time_hybrid.png"
+    plt.savefig(filename)
+    plt.close()
+    print(f"Saved: {filename}")
 
-
-
-# def kmeans_trace_and_plot(X, init_centers, tol=1e-4, max_iter=300, label="", random_state=0):
-#     centers = init_centers
-#     inertia_trace = []
-
-#     for it in range(1, (int(max_iter)) + 1):
-#         km=KMeans(n_clusters=int(len(centers)), init=centers, n_init=1, max_iter=1, tol=0, algorithm="lloyd", random_state=random_state)
-#         km=km.fit(X)
-
-#         centers=km.cluster_centers_
-#         inertia_trace.append(km.inertia_)
-
-#         if it > 1 and abs(inertia_trace[-2] - inertia_trace[-1]) <= tol: 
-#             break
-    
-#     plt.figure(figsize=(6,4))
-#     plt.plot(range(1, len(inertia_trace)  + 1),
-#             inertia_trace, marker = "o")
-#     plt.yscale("log")
-#     plt.xlabel("Iteration")
-#     plt.ylabel("Inertia (log-scale)")
-#     plt.title(f"Convergence trace - {label}") 
-#     plt.tight_layout()
-
-#     fname = CONV_DIR / f"{label}_trace.png"
-#     plt.savefig(fname, dpi=150)
-#     plt.close()
-#     print("Trace plot saved to" , fname)
-#     return inertia_trace
-
-    
 def pca_2d_view(X_full, centers_full, random_state=0):
     pca = PCA(n_components=2, random_state=random_state)
     X_vis = pca.fit_transform(X_full)
@@ -404,6 +369,7 @@ for tag, n, d, k, seed in synth_specs:
           flush=True)
     all_rows += run_one_dataset(tag, X, y)
 
+
 # real datasets
 #for tag, loader in real_datasets.items():
  #   print(f"loading {tag} …")
@@ -426,6 +392,11 @@ for tag in results_df.DatasetName.unique():
     out_path = RESULTS_DIR / f"results_{tag}.csv"
     results_df[results_df.DatasetName == tag].to_csv(out_path, index=False)
 print("CSVS written:", list(results_df.DatasetName.unique()))
+
+
+plot_hybrid_cap_vs_inertia()
+plot_cap_vs_time()
+
 
 print("\nResults saved to 'hybrid_kmeans_results.csv'")
 print(os.getcwd())
