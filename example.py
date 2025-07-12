@@ -137,7 +137,7 @@ def plot_clusters(
         print(f"Plot saved to {out_path}")
     plt.close()
 
-def plot_hybrid_cap_vs_inertia(results_path = "Results/hybrid_kmeans_results.csv", output_dir = "Results"):
+def plot_hybrid_cap_vs_inertia(results_path = "Results/hybrid_kmeans_results_expA.csv", output_dir = "Results"):
     output_dir = pathlib.Path(output_dir)
     df=pd.read_csv(results_path)
     df_hybrid = df[df["Suite"]== "AdaptiveHybrid"]
@@ -159,7 +159,7 @@ def plot_hybrid_cap_vs_inertia(results_path = "Results/hybrid_kmeans_results.csv
     plt.close()
     print(f"saved: {filename}")
 
-def plot_cap_vs_time(results_path="Results/hybrid_kmeans_results.csv", output_dir="Results"):
+def plot_cap_vs_time(results_path="Results/hybrid_kmeans_results_expA.csv", output_dir="Results"):
     output_dir = pathlib.Path(output_dir)
     df = pd.read_csv(results_path)
     df_hybrid = df[df["Suite"] == "AdaptiveHybrid"]
@@ -362,11 +362,27 @@ synth_specs = [
 rows_A = []
 rows_B= []
 
-for tag, n, d, k, seed in synth_specs:
-    X, y = generate_data(n, d, k, random_state=seed)
-    print(f"[SYNTH] {tag:14s}  shape={X.shape}  any_NaN={np.isnan(X).any()}",
-          flush=True)
-    all_rows += run_one_dataset(tag, X, y, rows_A, rows_B)
+columns_A = [
+    'DatasetName', 'DatasetSize', 'NumClusters', 'NumFeatures',
+    'Mode', 'Cap', 'tolerance_single', 'iter_single', 'iter_double', 'Suite',
+    'Time', 'Memory_MB', 'ARI', 'DBI', 'Inertia'
+]
+
+columns_B = [
+    'DatasetName', 'DatasetSize', 'NumClusters', 'NumFeatures',
+    'Mode', 'tolerance_single', 'iter_single', 'iter_double', 'Suite',
+    'Time', 'Memory_MB', 'ARI', 'DBI', 'Inertia'
+]
+
+df_A = pd.DataFrame(rows_A, columns=columns_A)
+df_B = pd.DataFrame(rows_B, columns=columns_B)
+
+df_A.to_csv(RESULTS_DIR / "hybrid_kmeans_results_expA.csv", index=False)
+df_B.to_csv(RESULTS_DIR / "hybrid_kmeans_results_expB.csv", index=False)
+
+print("Saved:")
+print("- hybrid_kmeans_results_expA.csv")
+print("- hybrid_kmeans_results_expB.csv")
 
 
 # real datasets
@@ -375,23 +391,22 @@ for tag, n, d, k, seed in synth_specs:
   #  X_real, y_real = loader()
    # all_rows += run_one_dataset(tag, X_real, y_real)
 
-# Data frame and output
-columns = ['DatasetName', 'DatasetSize', 'NumClusters', 'NumFeatures', 'Mode', 'Cap', 'tolerance_single' ,'iter_single', 'iter_double',  'Suite',
-           'Time', 'Memory_MB', 'ARI',  'DBI', 'Inertia' ]
 
 results_df = pd.DataFrame(all_rows, columns=columns)
 
-# Print summary
-print("\n==== SUMMARY ====")
-print(results_df.groupby(['DatasetSize','NumClusters','NumFeatures','Mode', 'Cap', 'tolerance_single', 'iter_single', 'iter_double', 'Suite' ])[['Time','Memory_MB','ARI', 'DBI','Inertia']].mean())
+# === SUMMARY: Experiment A ===
+print("\n==== SUMMARY: EXPERIMENT A ====")
+print(df_A.groupby([
+    'DatasetSize', 'NumClusters', 'NumFeatures', 'Mode', 'Cap',
+    'tolerance_single', 'iter_single', 'iter_double', 'Suite'
+])[['Time', 'Memory_MB', 'ARI', 'DBI', 'Inertia']].mean())
 
-
-results_df.to_csv(RESULTS_DIR / "hybrid_kmeans_results.csv", index =False)
-results_df_A = results_df[results_df['Mode'] == 'A']
-results_df_B = results_df[results_df['Mode'] == 'B']
-
-results_df_A.to_csv(RESULTS_DIR / "hybrid_kmeans_results_expA.csv", index=False)
-results_df_B.to_csv(RESULTS_DIR / "hybrid_kmeans_results_expB.csv", index=False)
+# === SUMMARY: Experiment B ===
+print("\n==== SUMMARY: EXPERIMENT B ====")
+print(df_B.groupby([
+    'DatasetSize', 'NumClusters', 'NumFeatures', 'Mode',
+    'tolerance_single', 'iter_single', 'iter_double', 'Suite'
+])[['Time', 'Memory_MB', 'ARI', 'DBI', 'Inertia']].mean())
 
 plot_hybrid_cap_vs_inertia()
 plot_cap_vs_time()
