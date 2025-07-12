@@ -317,12 +317,15 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
                     
                     
 
+                    # Full double precision baseline for Experiment B
+                    for rep in range(n_repeats):
+                            centers_double, labels_double, iters_double_tot, iters_single_tot, elapsed, mem_MB_double, ari, dbi, inertia = run_full_double(
+                            X_cur, initial_centers, n_clusters, max_iter_B, tol_double_B, y_true_cur
+                            )
 
-
-
-
-
-
+                        rows.append([ ds_name, n_samples, n_clusters, n_features, "B", 0, tol_double_B,  iters_single_tot, iters_double_tot, "Double", elapsed, mem_MB_double,
+                        ari, dbi, inertia])
+                        print(f"[Double Baseline - Exp B] tol={tol_double_B} | iter_double={iters_double_tot}")
 
 
 
