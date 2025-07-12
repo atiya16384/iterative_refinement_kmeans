@@ -54,7 +54,7 @@ cap_grid = [1, 50, 100, 150, 200, 250, 300]
 
 max_iter_B = 1000
 tol_double_B = 1e-7
-tol_single_grid = [1e-1, 1e-3, 1e-5, 1e-7]
+tol_single_grid = [1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-7, 1e-9, 1e-10]
 
 n_repeats = 1
 rng_global = np.random.default_rng(0)
@@ -330,9 +330,6 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A, rows_B):
                         rows_B.append([ ds_name, n_samples, n_clusters, n_features, "B", tol_double_B,  iters_single_tot, iters_double_tot, "Double", elapsed, mem_MB_double,
                                         ari, dbi, inertia])
                         print(f"[Double Baseline - Exp B] tol={tol_double_B} | iter_double={iters_double_tot}")
-
-
-
 
 
                         option = "B"
