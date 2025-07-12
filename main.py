@@ -184,6 +184,50 @@ def plot_cap_vs_time(results_path="Results/hybrid_kmeans_results_expA.csv", outp
     plt.close()
     print(f"Saved: {filename}")
 
+def plot_tolerance_vs_time(results_path="Results/hybrid_kmeans_results_expB.csv", output_dir="Results"):
+    output_dir = pathlib.Path(output_dir)
+    df = pd.read_csv(results_path)
+    df_hybrid = df[df["Suite"] == "AdaptiveHybrid"]
+
+    plt.figure(figsize=(7, 5))
+    for name, group in df_hybrid.groupby("DatasetName"):
+        group_sorted = group.sort_values("tolerance_single")
+        plt.plot(group_sorted["tolerance_single"], group_sorted["Time"], marker='o', label=name)
+
+    plt.title("Tolerance vs Time (Adaptive Hybrid)")
+    plt.xlabel("Single Precision Tolerance")
+    plt.ylabel("Total Time (seconds)")
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
+
+    filename = output_dir / "tolerance_vs_time_hybrid.png"
+    plt.savefig(filename)
+    plt.close()
+    print(f"Saved: {filename}")
+
+def plot_tolerance_vs_inertia(results_path="Results/hybrid_kmeans_results_expB.csv", output_dir="Results"):
+    output_dir = pathlib.Path(output_dir)
+    df = pd.read_csv(results_path)
+    df_hybrid = df[df["Suite"] == "AdaptiveHybrid"]
+
+    plt.figure(figsize=(7, 5))
+    for name, group in df_hybrid.groupby("DatasetName"):
+        group_sorted = group.sort_values("tolerance_single")
+        plt.plot(group_sorted["tolerance_single"], group_sorted["Inertia"], marker='o', label=name)
+
+    plt.title("Tolerance vs Inertia (Adaptive Hybrid)")
+    plt.xlabel("Single Precision Tolerance")
+    plt.ylabel("Final Inertia")
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
+
+    filename = output_dir / "tolerance_vs_inertia_hybrid.png"
+    plt.savefig(filename)
+    plt.close()
+    print(f"Saved: {filename}")
+
 def pca_2d_view(X_full, centers_full, random_state=0):
     pca = PCA(n_components=2, random_state=random_state)
     X_vis = pca.fit_transform(X_full)
