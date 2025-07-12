@@ -19,6 +19,9 @@ DATA_DIR = pathlib.Path(".")
 RESULTS_DIR = pathlib.Path("Results")
 RESULTS_DIR.mkdir(exist_ok=True)
 
+PLOTS_DIR= pathlib.Path("ClusterPlots")
+PLOTS_DIR.mkdir(exist_ok = True)
+
 CONV_DIR = pathlib.Path("ConvergencePlots")
 CONV_DIR.mkdir(exist_ok=True)
 
@@ -44,11 +47,11 @@ max_iter = 300
 
 tol_fixed_A = 1e-16
 max_iter_A = 300
-cap_grid = [0]
+cap_grid = [1, 50, 100, 150, 200, 250, 300]
 
 max_iter_B = 1000
 tol_double_B = 1e-7
-tol_single_grid = [1e-1, 1e-3, 1e-5, 1e-7, 1e-9]
+tol_single_grid = [1e-1, 1e-3, 1e-5, 1e-7]
 
 n_repeats = 1
 rng_global = np.random.default_rng(0)
@@ -191,7 +194,6 @@ def run_full_double(X, initial_centers, n_clusters, max_iter, tol, y_true):
     kmeans.fit(X)
     iters_double_tot = kmeans.n_iter_
     elapsed = time.time() - start_time
-
     labels = kmeans.labels_
     centers = kmeans.cluster_centers_
     inertia = kmeans.inertia_
@@ -285,14 +287,10 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
                     centers_double, labels_double, iters_double_tot, iters_single_tot, elapsed, mem_MB_double, ari,  dbi, inertia = run_full_double(
                     X_cur, initial_centers, n_clusters, max_iter, tol_fixed_A, y_true_cur
                     )
-                        
-                    # if rep == 0:
-                        # kmeans_trace_and_plot(X_cur, initial_centers, tol = tol_fixed_A, max_iter=max_iter, label=f"{ds_name}_A_cap{300}_double_rep0", random_state=rep)
 
                     rows.append([ds_name, n_samples, n_clusters, n_features, "A", 0, 1e-16,  iters_single_tot, iters_double_tot,"Double",  elapsed, mem_MB_double, 
                                         ari,  dbi, inertia])
-                    
-                    
+                                 
                     print(f" [Double] {rows}", flush=True) 
 
                 option = "A"
@@ -304,9 +302,8 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
                         X_cur, initial_centers, n_clusters, max_iter_total = max_iter_A, single_iter_cap=cap, tol_single = tol_fixed_A, tol_double=tol_fixed_A, y_true = y_true_cur, seed = rep
                             )
                         
-                        # if rep == 0:
-                            # kmeans_trace_and_plot(X_cur, centers_hybrid, tol = tol_fixed_A, max_iter=max_iter_A - iter_num, label=f"{ds_name}_A_cap{cap}_hybrid_rep0", random_state=rep)
-
+                        print(f"Cap: {cap}, Iter Single: {iters_single}, Iter Double: {iters_double}, Toal: {iters_single + iters_double}")
+                    
                         rows.append([ds_name, n_samples, n_clusters, n_features, "A", cap, tol_fixed_A, iters_single, iters_double, "AdaptiveHybrid", elapsed_hybrid, mem_MB_hybrid,
                                         ari_hybrid, dbi_hybrid, inertia_hybrid ])
                         
@@ -317,34 +314,35 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
                         #     filename = (f"{ds_name}_n{n_samples}_k{n_clusters}_A_{cap}")
                         #     title = (f"{ds_name}: n={n_samples}, k={n_clusters}, "f"cap={cap}")
                         #     plot_clusters(X_vis, labels_hybrid, centers_vis, title=title, filename=filename)
+                    
+                    
 
-                    # option = "B"
-                    # for tol_s in tol_single_grid:
-                        # for rep in range(n_repeats):
-                               # Full double precision run
-                            # centers_double, labels_double, inertia, elapsed, mem_MB_double, ari, dbi = run_full_double(
-                                # X_cur, initial_centers, n_clusters, max_iter_B, tol_double_B, y_true_cur
-                            # )
 
-                            # if rep == 0:
-                                # kmeans_trace_and_plot(X_cur, initial_centers, tol = tol_s, max_iter=max_iter, label=f"{ds_name}_B_tol{tol_s:g}_double_rep0", random_state=rep)
 
-                            # rows.append([ds_name, n_samples, n_clusters, n_features, "B", tol_s, "Double", elapsed, mem_MB_double, max_iter_B,
-                                        # ari, dbi, inertia, 0])
-                            # print(f" [Double] {rows}", flush=True) 
+
+
+
+
+
+
+
+
+                    option = "B"
+                    for tol_s in tol_single_grid:
+                        for rep in range(n_repeats):
+           
                             # Adaptive hybrid run
-                            # iter_num, elapsed_hybrid, mem_MB_hybrid, ari_hybrid, dbi_hybrid, inertia_hybrid, , labels_hybrid, centers_hybrid, mem_MB_hybrid = run_adaptive_hybrid(
-                            # X_cur, initial_centers, n_clusters, max_iter_total=max_iter_B, tol_single = tol_s, tol_double = tol_double_B, single_iter_cap=300, y_true= y_true_cur, seed = rep
-                            # )
+                            labels_hybrid, centers_hybrid, iters_single, iters_double, elapsed_hybrid, mem_MB_hybrid, ari_hybrid, dbi_hybrid, inertia_hybrid = run_adaptive_hybrid(
+                                X_cur, initial_centers, n_clusters, max_iter_total=max_iter_B, tol_single = tol_s, tol_double = tol_double_B, y_true= y_true_cur, seed = rep
+                            )
 
-                            # if rep == 0:
-                                # kmeans_trace_and_plot(X_cur, centers_hybrid, tol = tol_s, max_iter=max_iter_B - iter_num, label=f"{ds_name}_B_tol{tol_s:g}_hybrid_rep0", random_state=rep)
+                            print(f"Tol_single: {tol_s}, Iter Single: {iters_single}, Iter Double: {iters_double}, Total: {iters_single + iters_double}")
+                           
 
-
-                            # rows.append([ds_name, n_samples, n_clusters, n_features, "B", tol_s, "AdaptiveHybrid", iter_num, elapsed_hybrid, mem_MB_hybrid,
-                                        # ari_hybrid, dbi_hybrid, inertia_hybrid, ])
-                        # 
-                            # print(f" [Hybrid] {rows}", flush=True) 
+                            rows.append([ds_name, n_samples, n_clusters, n_features, "B", tol_s,  iters_single, iters_double, "AdaptiveHybrid",elapsed_hybrid, mem_MB_hybrid,
+                                        ari_hybrid, dbi_hybrid, inertia_hybrid])
+                            
+                            print(f" [Hybrid] {rows}", flush=True) 
 
                             # plot clusters
                             # if rep == 0:
@@ -377,14 +375,14 @@ for tag, n, d, k, seed in synth_specs:
    # all_rows += run_one_dataset(tag, X_real, y_real)
 
 # Data frame and output
-columns = ['DatasetName', 'DatasetSize', 'NumClusters', 'NumFeatures', 'Mode', 'Cap', 'tolerance' ,'iter_single', 'iter_double',  'Suite',
+columns = ['DatasetName', 'DatasetSize', 'NumClusters', 'NumFeatures', 'Mode', 'Cap', 'tolerance_single' ,'iter_single', 'iter_double',  'Suite',
            'Time', 'Memory_MB', 'ARI',  'DBI', 'Inertia' ]
 
 results_df = pd.DataFrame(all_rows, columns=columns)
 
 # Print summary
 print("\n==== SUMMARY ====")
-print(results_df.groupby(['DatasetSize','NumClusters','NumFeatures','Mode', 'Cap', 'tolerance', 'iter_single', 'iter_double', 'Suite' ])[['Time','Memory_MB','ARI', 'DBI','Inertia']].mean())
+print(results_df.groupby(['DatasetSize','NumClusters','NumFeatures','Mode', 'Cap', 'tolerance_single', 'iter_single', 'iter_double', 'Suite' ])[['Time','Memory_MB','ARI', 'DBI','Inertia']].mean())
 
 # Save results to CSV file
 results_df.to_csv(RESULTS_DIR / "hybrid_kmeans_results.csv", index=False)
