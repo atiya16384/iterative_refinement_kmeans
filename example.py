@@ -1,5 +1,4 @@
 import numpy as np
-import time
 import matplotlib.pyplot as plt
 import pandas as pd
 from aoclda.sklearn import skpatch
@@ -14,6 +13,7 @@ import sys
 import os
 import pathlib
 from sklearn.decomposition import PCA
+import time
 
 DATA_DIR = pathlib.Path(".")         
 RESULTS_DIR = pathlib.Path("Results")
@@ -24,6 +24,9 @@ PLOTS_DIR.mkdir(exist_ok = True)
 
 CONV_DIR = pathlib.Path("ConvergencePlots")
 CONV_DIR.mkdir(exist_ok=True)
+
+RUN_EXPERIMENT_A = True
+RUN_EXPERIMENT_B = True
 
 def load_3d_road(n_rows=1_000_000):
     path = DATA_DIR / "3D_spatial_network.csv"
@@ -281,33 +284,34 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A, rows_B):
                 initial_fit = init_kmeans.fit(X_cur)
                 initial_centers = init_kmeans.cluster_centers_
 
-                for rep in range(n_repeats):
-
-                    # Full double precision run
-                    centers_double, labels_double, iters_double_tot, iters_single_tot, elapsed, mem_MB_double, ari,  dbi, inertia = run_full_double(
-                    X_cur, initial_centers, n_clusters, max_iter, tol_fixed_A, y_true_cur
-                    )
-
-                    rows_A.append([ds_name, n_samples, n_clusters, n_features, "A", 0, 1e-16,  iters_single_tot, iters_double_tot,"Double",  elapsed, mem_MB_double, 
-                                        ari,  dbi, inertia])
-                                 
-                    print(f" [Double] {rows_A}", flush=True) 
-
-                option = "A"
-                for cap in cap_grid:
+                if RUN_EXPERIMENT_A:
                     for rep in range(n_repeats):
 
+                    # Full double precision run
+                        centers_double, labels_double, iters_double_tot, iters_single_tot, elapsed, mem_MB_double, ari,  dbi, inertia = run_full_double(
+                        X_cur, initial_centers, n_clusters, max_iter, tol_fixed_A, y_true_cur
+                        )
+
+                        rows_A.append([ds_name, n_samples, n_clusters, n_features, "A", 0, 1e-16,  iters_single_tot, iters_double_tot,"Double",  elapsed, mem_MB_double, 
+                                        ari,  dbi, inertia])
+                                 
+                        print(f" [Double] {rows_A}", flush=True) 
+
+                    option = "A"
+                    for cap in cap_grid:
+                        for rep in range(n_repeats):
+
                         # Adaptive hybrid run
-                        labels_hybrid, centers_hybrid, iters_single, iters_double, elapsed_hybrid, mem_MB_hybrid, ari_hybrid, dbi_hybrid, inertia_hybrid = run_adaptive_hybrid(
-                        X_cur, initial_centers, n_clusters, max_iter_total = max_iter_A, single_iter_cap=cap, tol_single = tol_fixed_A, tol_double=tol_fixed_A, y_true = y_true_cur, seed = rep
+                            labels_hybrid, centers_hybrid, iters_single, iters_double, elapsed_hybrid, mem_MB_hybrid, ari_hybrid, dbi_hybrid, inertia_hybrid = run_adaptive_hybrid(
+                            X_cur, initial_centers, n_clusters, max_iter_total = max_iter_A, single_iter_cap=cap, tol_single = tol_fixed_A, tol_double=tol_fixed_A, y_true = y_true_cur, seed = rep
                             )
                         
-                        print(f"Cap: {cap}, Iter Single: {iters_single}, Iter Double: {iters_double}, Toal: {iters_single + iters_double}")
+                            print(f"Cap: {cap}, Iter Single: {iters_single}, Iter Double: {iters_double}, Toal: {iters_single + iters_double}")
                     
-                        rows_A.append([ds_name, n_samples, n_clusters, n_features, "A", cap, tol_fixed_A, iters_single, iters_double, "AdaptiveHybrid", elapsed_hybrid, mem_MB_hybrid,
+                            rows_A.append([ds_name, n_samples, n_clusters, n_features, "A", cap, tol_fixed_A, iters_single, iters_double, "AdaptiveHybrid", elapsed_hybrid, mem_MB_hybrid,
                                         ari_hybrid, dbi_hybrid, inertia_hybrid ])
                         
-                        print(f" [Hybrid] {rows_A}", flush=True) 
+                            print(f" [Hybrid] {rows_A}", flush=True) 
                         # plot clusters
                         # if rep == 0:
                         #     X_vis, centers_vis = pca_2d_view(X_cur, centers_hybrid)
@@ -316,33 +320,36 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A, rows_B):
                         #     plot_clusters(X_vis, labels_hybrid, centers_vis, title=title, filename=filename)
                     
 
-
+                    if RUN_EXPERIMENT_B:
                     # Full double precision baseline for Experiment B
-                for rep in range(n_repeats):
-                        centers_double, labels_double, iters_double_tot, iters_single_tot, elapsed, mem_MB_double, ari, dbi, inertia = run_full_double(
+                        for rep in range(n_repeats):
+                            centers_double, labels_double, iters_double_tot, iters_single_tot, elapsed, mem_MB_double, ari, dbi, inertia = run_full_double(
                             X_cur, initial_centers, n_clusters, max_iter_B, tol_double_B, y_true_cur
                             )
 
-                        rows_B.append([ ds_name, n_samples, n_clusters, n_features, "B", 0, tol_double_B,  iters_single_tot, iters_double_tot, "Double", elapsed, mem_MB_double,
+                        rows_B.append([ ds_name, n_samples, n_clusters, n_features, "B", tol_double_B,  iters_single_tot, iters_double_tot, "Double", elapsed, mem_MB_double,
                                         ari, dbi, inertia])
                         print(f"[Double Baseline - Exp B] tol={tol_double_B} | iter_double={iters_double_tot}")
 
-                option = "B"
-                for tol_s in tol_single_grid:
-                    for rep in range(n_repeats):
-           
-                            # Adaptive hybrid run
-                            labels_hybrid, centers_hybrid, iters_single, iters_double, elapsed_hybrid, mem_MB_hybrid, ari_hybrid, dbi_hybrid, inertia_hybrid = run_adaptive_hybrid(
-                                X_cur, initial_centers, n_clusters, max_iter_total=max_iter_B, tol_single = tol_s, tol_double = tol_double_B, single_iter_cap=max_iter_B, y_true= y_true_cur, seed = rep
-                            )
 
-                            print(f"Tol_single: {tol_s}, Iter Single: {iters_single}, Iter Double: {iters_double}, Total: {iters_single + iters_double}")
+
+
+
+                        option = "B"
+                        for tol_s in tol_single_grid:
+                            for rep in range(n_repeats):
+                            # Adaptive hybrid run
+                                labels_hybrid, centers_hybrid, iters_single, iters_double, elapsed_hybrid, mem_MB_hybrid, ari_hybrid, dbi_hybrid, inertia_hybrid = run_adaptive_hybrid(
+                                    X_cur, initial_centers, n_clusters, max_iter_total=max_iter_B, tol_single = tol_s, tol_double = tol_double_B, single_iter_cap=max_iter_B, y_true= y_true_cur, seed = rep
+                                )
+
+                                print(f"Tol_single: {tol_s}, Iter Single: {iters_single}, Iter Double: {iters_double}, Total: {iters_single + iters_double}")
                            
 
-                            rows_B.append([ds_name, n_samples, n_clusters, n_features, "B", max_iter_B, tol_s,  iters_single, iters_double, "AdaptiveHybrid", elapsed_hybrid, mem_MB_hybrid,
+                                rows_B.append([ds_name, n_samples, n_clusters, n_features, "B", tol_s,  iters_single, iters_double, "AdaptiveHybrid", elapsed_hybrid, mem_MB_hybrid,
                                         ari_hybrid, dbi_hybrid, inertia_hybrid])
                             
-                            print(f" [Hybrid] {rows_B}", flush=True) 
+                                print(f" [Hybrid] {rows_B}", flush=True) 
 
                             # plot clusters
                             # if rep == 0:
@@ -361,6 +368,14 @@ synth_specs = [
 
 rows_A = []
 rows_B= []
+
+
+for tag, n, d, k, seed in synth_specs:
+    X, y = generate_data(n, d, k, random_state=seed)
+    print(f"[SYNTH] {tag:14s}  shape={X.shape}  any_NaN={np.isnan(X).any()}",
+          flush=True)
+    run_one_dataset(tag, X, y, rows_A, rows_B)
+
 
 columns_A = [
     'DatasetName', 'DatasetSize', 'NumClusters', 'NumFeatures',
@@ -392,7 +407,6 @@ print("- hybrid_kmeans_results_expB.csv")
    # all_rows += run_one_dataset(tag, X_real, y_real)
 
 
-results_df = pd.DataFrame(all_rows, columns=columns)
 
 # === SUMMARY: Experiment A ===
 print("\n==== SUMMARY: EXPERIMENT A ====")
@@ -412,5 +426,6 @@ plot_hybrid_cap_vs_inertia()
 plot_cap_vs_time()
 
 
-print("\nResults saved to 'hybrid_kmeans_results.csv'")
+print("\nResults saved to 'hybrid_kmeans_results_expA.csv")
+print("\nResults saved to 'hybrid_kmeans_results_expB.csv")
 print(os.getcwd())
