@@ -248,8 +248,8 @@ def run_adaptive_hybrid(X, initial_centers, n_clusters, max_iter_total, tol_sing
     
     return ( labels_final, centers_final, iters_single, iters_double,total_time, mem_MB_total, ari, dbi, inertia)
     
-def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
-    rows = []
+def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A, rows_B):
+
     if ds_name.startswith("SYNTH"):
         sample_sizes = dataset_sizes
     else:
@@ -288,10 +288,10 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
                     X_cur, initial_centers, n_clusters, max_iter, tol_fixed_A, y_true_cur
                     )
 
-                    rows.append([ds_name, n_samples, n_clusters, n_features, "A", 0, 1e-16,  iters_single_tot, iters_double_tot,"Double",  elapsed, mem_MB_double, 
+                    rows_A.append([ds_name, n_samples, n_clusters, n_features, "A", 0, 1e-16,  iters_single_tot, iters_double_tot,"Double",  elapsed, mem_MB_double, 
                                         ari,  dbi, inertia])
                                  
-                    print(f" [Double] {rows}", flush=True) 
+                    print(f" [Double] {rows_A}", flush=True) 
 
                 option = "A"
                 for cap in cap_grid:
@@ -304,10 +304,10 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
                         
                         print(f"Cap: {cap}, Iter Single: {iters_single}, Iter Double: {iters_double}, Toal: {iters_single + iters_double}")
                     
-                        rows.append([ds_name, n_samples, n_clusters, n_features, "A", cap, tol_fixed_A, iters_single, iters_double, "AdaptiveHybrid", elapsed_hybrid, mem_MB_hybrid,
+                        rows_A.append([ds_name, n_samples, n_clusters, n_features, "A", cap, tol_fixed_A, iters_single, iters_double, "AdaptiveHybrid", elapsed_hybrid, mem_MB_hybrid,
                                         ari_hybrid, dbi_hybrid, inertia_hybrid ])
                         
-                        print(f" [Hybrid] {rows}", flush=True) 
+                        print(f" [Hybrid] {rows_A}", flush=True) 
                         # plot clusters
                         # if rep == 0:
                         #     X_vis, centers_vis = pca_2d_view(X_cur, centers_hybrid)
@@ -315,37 +315,34 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
                         #     title = (f"{ds_name}: n={n_samples}, k={n_clusters}, "f"cap={cap}")
                         #     plot_clusters(X_vis, labels_hybrid, centers_vis, title=title, filename=filename)
                     
-                    
+
 
                     # Full double precision baseline for Experiment B
-                    for rep in range(n_repeats):
-                            centers_double, labels_double, iters_double_tot, iters_single_tot, elapsed, mem_MB_double, ari, dbi, inertia = run_full_double(
+                for rep in range(n_repeats):
+                        centers_double, labels_double, iters_double_tot, iters_single_tot, elapsed, mem_MB_double, ari, dbi, inertia = run_full_double(
                             X_cur, initial_centers, n_clusters, max_iter_B, tol_double_B, y_true_cur
                             )
 
-                        rows.append([ ds_name, n_samples, n_clusters, n_features, "B", 0, tol_double_B,  iters_single_tot, iters_double_tot, "Double", elapsed, mem_MB_double,
-                        ari, dbi, inertia])
+                        rows_B.append([ ds_name, n_samples, n_clusters, n_features, "B", 0, tol_double_B,  iters_single_tot, iters_double_tot, "Double", elapsed, mem_MB_double,
+                                        ari, dbi, inertia])
                         print(f"[Double Baseline - Exp B] tol={tol_double_B} | iter_double={iters_double_tot}")
 
-
-
-
-                    option = "B"
-                    for tol_s in tol_single_grid:
-                        for rep in range(n_repeats):
+                option = "B"
+                for tol_s in tol_single_grid:
+                    for rep in range(n_repeats):
            
                             # Adaptive hybrid run
                             labels_hybrid, centers_hybrid, iters_single, iters_double, elapsed_hybrid, mem_MB_hybrid, ari_hybrid, dbi_hybrid, inertia_hybrid = run_adaptive_hybrid(
-                                X_cur, initial_centers, n_clusters, max_iter_total=max_iter_B, tol_single = tol_s, tol_double = tol_double_B, y_true= y_true_cur, seed = rep
+                                X_cur, initial_centers, n_clusters, max_iter_total=max_iter_B, tol_single = tol_s, tol_double = tol_double_B, single_iter_cap=max_iter_B, y_true= y_true_cur, seed = rep
                             )
 
                             print(f"Tol_single: {tol_s}, Iter Single: {iters_single}, Iter Double: {iters_double}, Total: {iters_single + iters_double}")
                            
 
-                            rows.append([ds_name, n_samples, n_clusters, n_features, "B", tol_s,  iters_single, iters_double, "AdaptiveHybrid",elapsed_hybrid, mem_MB_hybrid,
+                            rows_B.append([ds_name, n_samples, n_clusters, n_features, "B", max_iter_B, tol_s,  iters_single, iters_double, "AdaptiveHybrid", elapsed_hybrid, mem_MB_hybrid,
                                         ari_hybrid, dbi_hybrid, inertia_hybrid])
                             
-                            print(f" [Hybrid] {rows}", flush=True) 
+                            print(f" [Hybrid] {rows_B}", flush=True) 
 
                             # plot clusters
                             # if rep == 0:
@@ -353,7 +350,7 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full):
                                 # filename = (f"{ds_name}_n{n_samples}_k{n_clusters}_B_tol{tol_s:g}")
                                 # title = (f"{ds_name}: n={n_samples}, k={n_clusters},  tol={tol_s:g}")
                                 # plot_clusters(X_vis, labels_hybrid, centers_vis, title=title, filename=filename)
-    return rows
+    return rows_A, rows_B
 
 all_rows = []
 
@@ -362,13 +359,14 @@ synth_specs = [
     # ("SYNTH_K30_n100k", 100_000, 30, 30, 1),
 ]
 
-all_rows = []
+rows_A = []
+rows_B= []
 
 for tag, n, d, k, seed in synth_specs:
     X, y = generate_data(n, d, k, random_state=seed)
     print(f"[SYNTH] {tag:14s}  shape={X.shape}  any_NaN={np.isnan(X).any()}",
           flush=True)
-    all_rows += run_one_dataset(tag, X, y)
+    all_rows += run_one_dataset(tag, X, y, rows_A, rows_B)
 
 
 # real datasets
@@ -387,13 +385,13 @@ results_df = pd.DataFrame(all_rows, columns=columns)
 print("\n==== SUMMARY ====")
 print(results_df.groupby(['DatasetSize','NumClusters','NumFeatures','Mode', 'Cap', 'tolerance_single', 'iter_single', 'iter_double', 'Suite' ])[['Time','Memory_MB','ARI', 'DBI','Inertia']].mean())
 
-# Save results to CSV file
-results_df.to_csv(RESULTS_DIR / "hybrid_kmeans_results.csv", index=False)
-for tag in results_df.DatasetName.unique():
-    out_path = RESULTS_DIR / f"results_{tag}.csv"
-    results_df[results_df.DatasetName == tag].to_csv(out_path, index=False)
-print("CSVS written:", list(results_df.DatasetName.unique()))
 
+results_df.to_csv(RESULTS_DIR / "hybrid_kmeans_results.csv", index =False)
+results_df_A = results_df[results_df['Mode'] == 'A']
+results_df_B = results_df[results_df['Mode'] == 'B']
+
+results_df_A.to_csv(RESULTS_DIR / "hybrid_kmeans_results_expA.csv", index=False)
+results_df_B.to_csv(RESULTS_DIR / "hybrid_kmeans_results_expB.csv", index=False)
 
 plot_hybrid_cap_vs_inertia()
 plot_cap_vs_time()
