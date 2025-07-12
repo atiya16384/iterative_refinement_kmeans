@@ -465,7 +465,8 @@ print(df_B.groupby([
 
 plot_hybrid_cap_vs_inertia()
 plot_cap_vs_time()
-
+plot_tolerance_vs_inertia()
+plot_tolerance_vs_time()
 
 print("\nResults saved to 'hybrid_kmeans_results_expA.csv")
 print("\nResults saved to 'hybrid_kmeans_results_expB.csv")
