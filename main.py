@@ -375,7 +375,6 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A, rows_B):
                                         ari, dbi, inertia])
                         print(f"[Double Baseline - Exp B] tol={tol_double_B} | iter_double={iters_double_tot}")
 
-
                         option = "B"
                         for tol_s in tol_single_grid:
                             for rep in range(n_repeats):
@@ -385,7 +384,6 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A, rows_B):
                                 )
 
                                 print(f"Tol_single: {tol_s}, Iter Single: {iters_single}, Iter Double: {iters_double}, Total: {iters_single + iters_double}")
-                           
 
                                 rows_B.append([ds_name, n_samples, n_clusters, n_features, "B", tol_s,  iters_single, iters_double, "AdaptiveHybrid", elapsed_hybrid, mem_MB_hybrid,
                                         ari_hybrid, dbi_hybrid, inertia_hybrid])
@@ -403,14 +401,13 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A, rows_B):
 all_rows = []
 
 synth_specs = [
-    # number of samples; number of features, number of clusters, random seed.s
+    # number of samples; number of features, number of clusters, random seeds
     ("SYNTH_K5_n100k" , 100_000, 30,  5, 0),
     ("SYNTH_K30_n100k", 100_000, 30, 30, 1),
 ]
 
 rows_A = []
-rows_B= []
-
+rows_B = []
 
 for tag, n, d, k, seed in synth_specs:
     X, y = generate_data(n, d, k, random_state=seed)
@@ -418,6 +415,11 @@ for tag, n, d, k, seed in synth_specs:
           flush=True)
     run_one_dataset(tag, X, y, rows_A, rows_B)
 
+# real datasets
+for tag, loader in real_datasets.items():
+   print(f"loading {tag} …")
+   X_real, y_real = loader()
+   all_rows += run_one_dataset(tag, X_real, y_real, rows_A, rows_B)
 
 columns_A = [
     'DatasetName', 'DatasetSize', 'NumClusters', 'NumFeatures',
@@ -442,13 +444,6 @@ print("- hybrid_kmeans_results_expA.csv")
 print("- hybrid_kmeans_results_expB.csv")
 
 
-# real datasets
-for tag, loader in real_datasets.items():
-   print(f"loading {tag} …")
-   X_real, y_real = loader()
-   all_rows += run_one_dataset(tag, X_real, y_real)
-
-
 # === SUMMARY: Experiment A ===
 print("\n==== SUMMARY: EXPERIMENT A ====")
 print(df_A.groupby([
@@ -463,9 +458,7 @@ print(df_B.groupby([
     'tolerance_single', 'iter_single', 'iter_double', 'Suite'
 ])[['Time', 'Memory_MB', 'ARI', 'DBI', 'Inertia']].mean())
 
-
 # how to plot for the different types of graphs that we have
-
 plot_hybrid_cap_vs_inertia()
 plot_cap_vs_time()
 plot_tolerance_vs_inertia()
