@@ -62,7 +62,7 @@ rng_global = np.random.default_rng(0)
 # Real-dataset
 real_datasets = {
     "3D_ROAD": load_3d_road,
-    # "SUSY":    load_susy,
+    "SUSY":    load_susy,
 }
 
 # Define dictionary of precisions
@@ -443,10 +443,10 @@ print("- hybrid_kmeans_results_expB.csv")
 
 
 # real datasets
-#for tag, loader in real_datasets.items():
- #   print(f"loading {tag} …")
-  #  X_real, y_real = loader()
-   # all_rows += run_one_dataset(tag, X_real, y_real)
+for tag, loader in real_datasets.items():
+   print(f"loading {tag} …")
+   X_real, y_real = loader()
+   all_rows += run_one_dataset(tag, X_real, y_real)
 
 
 # === SUMMARY: Experiment A ===
@@ -462,6 +462,9 @@ print(df_B.groupby([
     'DatasetSize', 'NumClusters', 'NumFeatures', 'Mode',
     'tolerance_single', 'iter_single', 'iter_double', 'Suite'
 ])[['Time', 'Memory_MB', 'ARI', 'DBI', 'Inertia']].mean())
+
+
+# how to plot for the different types of graphs that we have
 
 plot_hybrid_cap_vs_inertia()
 plot_cap_vs_time()
