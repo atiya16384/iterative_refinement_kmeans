@@ -44,8 +44,8 @@ def load_susy(n_rows=1_000_000):
 
 # CONFIGURATION PARAMETERS 
 dataset_sizes = [100000]
-n_clusters_list = [5]
-n_features_list = [30]  
+n_clusters_list = [5, 8]
+n_features_list = [3, 30]  
 max_iter = 300
 
 tol_fixed_A = 1e-16
@@ -403,8 +403,9 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A, rows_B):
 all_rows = []
 
 synth_specs = [
+    # number of samples; number of features, number of clusters, random seed.s
     ("SYNTH_K5_n100k" , 100_000, 30,  5, 0),
-    # ("SYNTH_K30_n100k", 100_000, 30, 30, 1),
+    ("SYNTH_K30_n100k", 100_000, 30, 30, 1),
 ]
 
 rows_A = []
@@ -446,7 +447,6 @@ print("- hybrid_kmeans_results_expB.csv")
  #   print(f"loading {tag} …")
   #  X_real, y_real = loader()
    # all_rows += run_one_dataset(tag, X_real, y_real)
-
 
 
 # === SUMMARY: Experiment A ===
