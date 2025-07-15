@@ -22,16 +22,14 @@ RESULTS_DIR.mkdir(exist_ok=True)
 PLOTS_DIR= pathlib.Path("ClusterPlots")
 PLOTS_DIR.mkdir(exist_ok = True)
 
-CONV_DIR = pathlib.Path("ConvergencePlots")
-CONV_DIR.mkdir(exist_ok=True)
-
 RUN_EXPERIMENT_A = True
 RUN_EXPERIMENT_B = True
 
 def load_3d_road(n_rows=1_000_000):
     path = DATA_DIR / "3D_spatial_network.csv"
+    
     X = pd.read_csv(path, sep=r"\s+|,", engine="python",  
-                    header=None, usecols=[0, 1, 2],
+                    header=None, usecols=[1, 2, 3],
                     nrows=n_rows, dtype=np.float64).to_numpy()
     return X, None
     
@@ -143,12 +141,12 @@ def plot_clusters(
 def plot_hybrid_cap_vs_inertia(results_path = "Results/hybrid_kmeans_results_expA.csv", output_dir = "Results"):
     output_dir = pathlib.Path(output_dir)
     df=pd.read_csv(results_path)
-    df_hybrid = df[df["Suite"]== "AdaptiveHybrid"]
+    df_hybrid = df[df["Suite"] == "AdaptiveHybrid"]
 
     plt.figure(figsize=(7,5))
-    for name, group in df_hybrid.groupby("DatasetName"):
+    for (ds, k, d) , group in df_hybrid.groupby(["DatasetName", "NumClusters", "NumFeatures"]):
         group_sorted = group.sort_values("Cap")
-        plt.plot(group_sorted["Cap"], group_sorted["Inertia"], marker = 'o', label=name)
+        plt.plot(group_sorted["Cap"], group_sorted["Inertia"], marker = 'o')
     
     plt.title("Cap vs Intertia (Adaptive Hybrid)")
     plt.xlabel("Cap (Single Precision Iteration Cap)")
@@ -168,9 +166,9 @@ def plot_cap_vs_time(results_path="Results/hybrid_kmeans_results_expA.csv", outp
     df_hybrid = df[df["Suite"] == "AdaptiveHybrid"]
 
     plt.figure(figsize=(7,5))
-    for name, group in df_hybrid.groupby("DatasetName"):
+    for (ds, k ,d), group in df_hybrid.groupby(["DatasetName", "NumClusters", "NumFeatures"]):
         group_sorted = group.sort_values("Cap")
-        plt.plot(group_sorted["Cap"], group_sorted["Time"], marker = 'o', label=name)
+        plt.plot(group_sorted["Cap"], group_sorted["Time"], marker = 'o', label=f"{ds}-k{k}-d{d}")
     
     plt.title("Cap vs Time (Adaptive Hybrid)")
     plt.xlabel("Cap (Single Precision Iteration Cap)")
@@ -190,9 +188,9 @@ def plot_tolerance_vs_time(results_path="Results/hybrid_kmeans_results_expB.csv"
     df_hybrid = df[df["Suite"] == "AdaptiveHybrid"]
 
     plt.figure(figsize=(7, 5))
-    for name, group in df_hybrid.groupby("DatasetName"):
+    for (ds, k ,d), group in df_hybrid.groupby(["DatasetName", "NumClusters", "NumFeatures"]):
         group_sorted = group.sort_values("tolerance_single")
-        plt.plot(group_sorted["tolerance_single"], group_sorted["Time"], marker='o', label=name)
+        plt.plot(group_sorted["tolerance_single"], group_sorted["Time"], marker='o', label=f"{ds}-k{k}-d{d}")
 
     plt.title("Tolerance vs Time (Adaptive Hybrid)")
     plt.xlabel("Single Precision Tolerance")
@@ -212,9 +210,9 @@ def plot_tolerance_vs_inertia(results_path="Results/hybrid_kmeans_results_expB.c
     df_hybrid = df[df["Suite"] == "AdaptiveHybrid"]
 
     plt.figure(figsize=(7, 5))
-    for name, group in df_hybrid.groupby("DatasetName"):
+    for (ds, k ,d), group in df_hybrid.groupby(["DatasetName", "NumClusters", "NumFeatures"]):
         group_sorted = group.sort_values("tolerance_single")
-        plt.plot(group_sorted["tolerance_single"], group_sorted["Inertia"], marker='o', label=name)
+        plt.plot(group_sorted["tolerance_single"], group_sorted["Inertia"], marker='o', label=f"{ds}-k{k}-d{d}")
 
     plt.title("Tolerance vs Inertia (Adaptive Hybrid)")
     plt.xlabel("Single Precision Tolerance")
@@ -442,7 +440,6 @@ df_B.to_csv(RESULTS_DIR / "hybrid_kmeans_results_expB.csv", index=False)
 print("Saved:")
 print("- hybrid_kmeans_results_expA.csv")
 print("- hybrid_kmeans_results_expB.csv")
-
 
 # === SUMMARY: Experiment A ===
 print("\n==== SUMMARY: EXPERIMENT A ====")
