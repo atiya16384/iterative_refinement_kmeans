@@ -49,6 +49,8 @@ n_clusters_list = [5, 8]
 n_features_list = [3, 30]  
 max_iter = 300
 
+# Implementation from a
+
 tol_fixed_A = 1e-16
 # varying the cap
 max_iter_A = 268
@@ -57,7 +59,7 @@ cap_grid = [240, 244, 248, 252, 256, 260, 264, 268, 272, 276, 280]
 max_iter_B = 1000
 # tolerance at which we change from single to double 
 tol_double_B = 1e-3
-tol_single_grid = [1e-1, 8e-2, 6e-2, 4e-2, 2e-2, 1e-2, 8e-3, 6e-3, 4e-3, 2e-3 , 1e-3, 1e-4]
+tol_single_grid = [1e-1,8e-2, 6e-2, 4e-2, 2e-2 1e-2, 8  1e-3, 1e-4]
 
 n_repeats = 1
 rng_global = np.random.default_rng(0)
@@ -202,7 +204,7 @@ def plot_tolerance_vs_time(results_path="Results/hybrid_kmeans_results_expB.csv"
     df = pd.read_csv(results_path)
     df_hybrid = df[df["Suite"] == "AdaptiveHybrid"]
 
-    plt.figure(figsize=(7, 5))
+    plt.figure(figsize=(7, 15))
     for (ds, k ,d), group in df_hybrid.groupby(["DatasetName", "NumClusters", "NumFeatures"]):
 
         base_time = df[(df["Suite"] == "Double") & (df["DatasetName"] == ds) & (df["NumClusters"] == k) & (df["NumFeatures"] == d)]["Time"].values
@@ -229,7 +231,7 @@ def plot_tolerance_vs_inertia(results_path="Results/hybrid_kmeans_results_expB.c
     df = pd.read_csv(results_path)
     df_hybrid = df[df["Suite"] == "AdaptiveHybrid"]
 
-    plt.figure(figsize=(7, 5))
+    plt.figure(figsize=(7, 15))
     for (ds, k ,d), group in df_hybrid.groupby(["DatasetName", "NumClusters", "NumFeatures"]):
         base_inertia = df[(df["Suite"] == "Double") & (df["DatasetName"] == ds) & (df["NumClusters"] == k) & (df["NumFeatures"] == d)]["Inertia"].values
         
