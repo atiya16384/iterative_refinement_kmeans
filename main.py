@@ -42,17 +42,22 @@ def load_susy(n_rows=1_000_000):
 
 # CONFIGURATION PARAMETERS 
 dataset_sizes = [100000]
+# for the cluster size we are varying this for all datasets
 n_clusters_list = [5, 8]
+
+# for feature list we are only varying for the synthetic dataset
 n_features_list = [3, 30]  
 max_iter = 300
 
 tol_fixed_A = 1e-16
-max_iter_A = 300
-cap_grid = [1, 50, 100, 150, 200, 250, 300]
+# varying the cap
+max_iter_A = 268
+cap_grid = [240, 244, 248, 252, 256, 260, 264, 268, 272, 276, 280]
 
 max_iter_B = 1000
-tol_double_B = 1e-7
-tol_single_grid = [1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-7, 1e-9, 1e-10]
+# tolerance at which we change from single to double 
+tol_double_B = 1e-3
+tol_single_grid = [1e-1, 8e-2, 6e-2, 4e-2, 2e-2, 1e-2, 8e-3, 6e-3, 4e-3, 2e-3 , 1e-3, 1e-4]
 
 n_repeats = 1
 rng_global = np.random.default_rng(0)
@@ -140,13 +145,19 @@ def plot_clusters(
 
 def plot_hybrid_cap_vs_inertia(results_path = "Results/hybrid_kmeans_results_expA.csv", output_dir = "Results"):
     output_dir = pathlib.Path(output_dir)
-    df=pd.read_csv(results_path)
+    df = pd.read_csv(results_path)
     df_hybrid = df[df["Suite"] == "AdaptiveHybrid"]
+    df_double = df[df["Suite"] == "Double"]
 
     plt.figure(figsize=(7,5))
-    for (ds, k, d) , group in df_hybrid.groupby(["DatasetName", "NumClusters", "NumFeatures"]):
-        group_sorted = group.sort_values("Cap")
-        plt.plot(group_sorted["Cap"], group_sorted["Inertia"], marker = 'o')
+    for (ds, k, d), group in df_hybrid.groupby(["DatasetName", "NumClusters", "NumFeatures"]):
+        
+            group_sorted = group.sort_values("Cap")
+            base_inertia = df[(df["Suite"] == "Double") & (df["DatasetName"] == ds) & (df["NumClusters"] == k) & (df["NumFeatures"] == d)]["Inertia"].values
+        
+            group_sorted["Inertia"] = group_sorted["Inertia"] / base_inertia[0]
+                          
+            plt.plot(group_sorted["Cap"], group_sorted["Inertia"], marker = 'o', label=f"{ds}-C{k}-F{d}")
     
     plt.title("Cap vs Intertia (Adaptive Hybrid)")
     plt.xlabel("Cap (Single Precision Iteration Cap)")
@@ -167,8 +178,12 @@ def plot_cap_vs_time(results_path="Results/hybrid_kmeans_results_expA.csv", outp
 
     plt.figure(figsize=(7,5))
     for (ds, k ,d), group in df_hybrid.groupby(["DatasetName", "NumClusters", "NumFeatures"]):
+
+        base_time = df[(df["Suite"] == "Double") & (df["DatasetName"] == ds) & (df["NumClusters"] == k) & (df["NumFeatures"] == d)]["Time"].values
         group_sorted = group.sort_values("Cap")
-        plt.plot(group_sorted["Cap"], group_sorted["Time"], marker = 'o', label=f"{ds}-k{k}-d{d}")
+        group_sorted["Time"] = group_sorted["Time"] / base_time[0]
+        
+        plt.plot(group_sorted["Cap"], group_sorted["Time"], marker = 'o', label=f"{ds}-C{k}-F{d}")
     
     plt.title("Cap vs Time (Adaptive Hybrid)")
     plt.xlabel("Cap (Single Precision Iteration Cap)")
@@ -189,8 +204,13 @@ def plot_tolerance_vs_time(results_path="Results/hybrid_kmeans_results_expB.csv"
 
     plt.figure(figsize=(7, 5))
     for (ds, k ,d), group in df_hybrid.groupby(["DatasetName", "NumClusters", "NumFeatures"]):
+
+        base_time = df[(df["Suite"] == "Double") & (df["DatasetName"] == ds) & (df["NumClusters"] == k) & (df["NumFeatures"] == d)]["Time"].values
         group_sorted = group.sort_values("tolerance_single")
-        plt.plot(group_sorted["tolerance_single"], group_sorted["Time"], marker='o', label=f"{ds}-k{k}-d{d}")
+        group_sorted["Time"] = group_sorted["Time"] / base_time[0]
+
+        
+        plt.plot(group_sorted["tolerance_single"], group_sorted["Time"], marker='o', label=f"{ds}-C{k}-F{d}")
 
     plt.title("Tolerance vs Time (Adaptive Hybrid)")
     plt.xlabel("Single Precision Tolerance")
@@ -211,8 +231,11 @@ def plot_tolerance_vs_inertia(results_path="Results/hybrid_kmeans_results_expB.c
 
     plt.figure(figsize=(7, 5))
     for (ds, k ,d), group in df_hybrid.groupby(["DatasetName", "NumClusters", "NumFeatures"]):
+        base_inertia = df[(df["Suite"] == "Double") & (df["DatasetName"] == ds) & (df["NumClusters"] == k) & (df["NumFeatures"] == d)]["Inertia"].values
+        
         group_sorted = group.sort_values("tolerance_single")
-        plt.plot(group_sorted["tolerance_single"], group_sorted["Inertia"], marker='o', label=f"{ds}-k{k}-d{d}")
+        group_sorted["Inertia"] = group_sorted["Inertia"] / base_inertia[0]
+        plt.plot(group_sorted["tolerance_single"], group_sorted["Inertia"], marker='o', label=f"{ds}-C{k}-F{d}")
 
     plt.title("Tolerance vs Inertia (Adaptive Hybrid)")
     plt.xlabel("Single Precision Tolerance")
@@ -251,7 +274,7 @@ def run_full_double(X, initial_centers, n_clusters, max_iter, tol, y_true):
     return centers, labels, iters_double_tot, iters_single_tot,  elapsed, mem_MB_double, ari, dbi, inertia, 
 
 # Hybrid precison loop 
-def run_adaptive_hybrid(X, initial_centers, n_clusters, max_iter_total, tol_single, tol_double, single_iter_cap, y_true, seed=0):
+def run_hybrid(X, initial_centers, n_clusters, max_iter_total, tol_single, tol_double, single_iter_cap, y_true, seed=0):
     # single floating point type
     start_time_single = time.time()
     X_single = X.astype(np.float32)
@@ -344,7 +367,7 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A, rows_B):
                         for rep in range(n_repeats):
 
                         # Adaptive hybrid run
-                            labels_hybrid, centers_hybrid, iters_single, iters_double, elapsed_hybrid, mem_MB_hybrid, ari_hybrid, dbi_hybrid, inertia_hybrid = run_adaptive_hybrid(
+                            labels_hybrid, centers_hybrid, iters_single, iters_double, elapsed_hybrid, mem_MB_hybrid, ari_hybrid, dbi_hybrid, inertia_hybrid = run_hybrid(
                             X_cur, initial_centers, n_clusters, max_iter_total = max_iter_A, single_iter_cap=cap, tol_single = tol_fixed_A, tol_double=tol_fixed_A, y_true = y_true_cur, seed = rep
                             )
                         
@@ -377,7 +400,7 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A, rows_B):
                         for tol_s in tol_single_grid:
                             for rep in range(n_repeats):
                             # Adaptive hybrid run
-                                labels_hybrid, centers_hybrid, iters_single, iters_double, elapsed_hybrid, mem_MB_hybrid, ari_hybrid, dbi_hybrid, inertia_hybrid = run_adaptive_hybrid(
+                                labels_hybrid, centers_hybrid, iters_single, iters_double, elapsed_hybrid, mem_MB_hybrid, ari_hybrid, dbi_hybrid, inertia_hybrid = run_hybrid(
                                     X_cur, initial_centers, n_clusters, max_iter_total=max_iter_B, tol_single = tol_s, tol_double = tol_double_B, single_iter_cap=max_iter_B, y_true= y_true_cur, seed = rep
                                 )
 
@@ -400,8 +423,8 @@ all_rows = []
 
 synth_specs = [
     # number of samples; number of features, number of clusters, random seeds
-    ("SYNTH_K5_n100k" , 100_000, 30,  5, 0),
-    ("SYNTH_K30_n100k", 100_000, 30, 30, 1),
+    ("SYNTH_C_5_F_30_n100k" , 100_000, 30,  5, 0),
+    ("SYNTH_C_30_F_30_n100k", 100_000, 30, 30, 1),
 ]
 
 rows_A = []
