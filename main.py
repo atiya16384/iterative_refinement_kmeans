@@ -59,12 +59,11 @@ max_iter_A = 300
     # start time 
 cap_grid = [1, 50, 100, 150, 200, 250, 300]
 
-# we are assigning the max iterations to be the single iteration cap
-# therefore, 
+# we may be assigning the max iterations to be the single iteration cap
 
 max_iter_B = 1000
 # tolerance at which we change from single to double 
-tol_double_B = 1e-4
+tol_double_B = 1e-5
 tol_single_grid = [1e-1, 1e-2, 1e-3, 1e-4]
 
 
@@ -79,7 +78,7 @@ tol_single_grid = [1e-1, 1e-2, 1e-3, 1e-4]
 # tol_scale_C = 100 * tol_fixed_C
 # tol_single_grid = [tol_scale_C]
 
-n_repeats = 4
+n_repeats = 5
 rng_global = np.random.default_rng(0)
 
 # Real-dataset
@@ -168,13 +167,16 @@ def plot_hybrid_cap_vs_inertia(results_path = "Results/hybrid_kmeans_results_exp
     df = pd.read_csv(results_path)
     df_hybrid = df[df["Suite"] == "AdaptiveHybrid"]
     df_double = df[df["Suite"] == "Double"]
+    group_cols = ["DatasetName", "NumClusters", "NumFeatures", "Cap"]
+    df_grouped = df_hybrid.groupby(group_cols)[["Inertia"]].mean().reset_index()
+    
 
     plt.figure(figsize=(7,5))
-    for (ds, k, d), group in df_hybrid.groupby(["DatasetName", "NumClusters", "NumFeatures"]):
+    for (ds, k, d), group in df_grouped.groupby(["DatasetName", "NumClusters", "NumFeatures"]):
             group_sorted = group.sort_values("Cap")
-            base_inertia = df[(df["Suite"] == "Double") & (df["DatasetName"] == ds) & (df["NumClusters"] == k) & (df["NumFeatures"] == d)]["Inertia"].values
+            base_inertia = df[(df["Suite"] == "Double") & (df["DatasetName"] == ds) & (df["NumClusters"] == k) & (df["NumFeatures"] == d)]["Inertia"].mean()
         
-            group_sorted["Inertia"] = group_sorted["Inertia"] / base_inertia[0]
+            group_sorted["Inertia"] = group_sorted["Inertia"] / base_inertia
                           
             plt.plot(group_sorted["Cap"], group_sorted["Inertia"], marker = 'o', label=f"{ds}-C{k}-F{d}")
     
@@ -196,6 +198,7 @@ def plot_cap_vs_time(results_path="Results/hybrid_kmeans_results_expA.csv", outp
     df_hybrid = df[df["Suite"] == "AdaptiveHybrid"]
     group_cols = ["DatasetName", "NumClusters", "NumFeatures", "Cap"]
     df_grouped = df_hybrid.groupby(group_cols)[["Time"]].mean().reset_index()
+
     plt.figure(figsize=(7,5))
     for (ds, k ,d), group in df_grouped.groupby(["DatasetName", "NumClusters", "NumFeatures"]):
             
@@ -218,16 +221,20 @@ def plot_cap_vs_time(results_path="Results/hybrid_kmeans_results_expA.csv", outp
     print(f"Saved: {filename}")
 
 def plot_tolerance_vs_time(results_path="Results/hybrid_kmeans_results_expB.csv", output_dir="Results"):
+
     output_dir = pathlib.Path(output_dir)
     df = pd.read_csv(results_path)
     df_hybrid = df[df["Suite"] == "AdaptiveHybrid"]
+    group_cols = ["DatasetName", "NumClusters", "NumFeatures", "tolerance_single"]
+    df_grouped = df_hybrid.groupby(group_cols)[["Time"]].mean().reset_index()
 
     plt.figure(figsize=(7, 5))
-    for (ds, k ,d), group in df_hybrid.groupby(["DatasetName", "NumClusters", "NumFeatures"]):
+    for (ds, k ,d), group in df_grouped.groupby(["DatasetName", "NumClusters", "NumFeatures"]):
 
-        base_time = df[(df["Suite"] == "Double") & (df["DatasetName"] == ds) & (df["NumClusters"] == k) & (df["NumFeatures"] == d)]["Time"].values
+        base_time = df[(df["Suite"] == "Double") & (df["DatasetName"] == ds) & (df["NumClusters"] == k) & (df["NumFeatures"] == d)]["Time"].mean()
         group_sorted = group.sort_values("tolerance_single")
-        group_sorted["Time"] = group_sorted["Time"] / base_time[0]
+        group_sorted["Time"] = group_sorted["Time"] / base_time
+
         plt.plot(group_sorted["tolerance_single"], group_sorted["Time"], marker='o', label=f"{ds}-C{k}-F{d}")
 
     plt.title("Tolerance vs Time (Adaptive Hybrid)")
@@ -246,13 +253,17 @@ def plot_tolerance_vs_inertia(results_path="Results/hybrid_kmeans_results_expB.c
     output_dir = pathlib.Path(output_dir)
     df = pd.read_csv(results_path)
     df_hybrid = df[df["Suite"] == "AdaptiveHybrid"]
+    group_cols = ["DatasetName", "NumClusters", "NumFeatures", "tolerance_single"]
+    df_grouped = df_hybrid.groupby(group_cols)[["Inertia"]].mean().reset_index()
+
 
     plt.figure(figsize=(7, 5))
-    for (ds, k ,d), group in df_hybrid.groupby(["DatasetName", "NumClusters", "NumFeatures"]):
+    for (ds, k ,d), group in df_grouped.groupby(["DatasetName", "NumClusters", "NumFeatures"]):
         base_inertia = df[(df["Suite"] == "Double") & (df["DatasetName"] == ds) & (df["NumClusters"] == k) & (df["NumFeatures"] == d)]["Inertia"].values
         
         group_sorted = group.sort_values("tolerance_single")
-        group_sorted["Inertia"] = group_sorted["Inertia"] / base_inertia[0]
+        group_sorted["Inertia"] = group_sorted["Inertia"] / base_inertia
+
         plt.plot(group_sorted["tolerance_single"], group_sorted["Inertia"], marker='o', label=f"{ds}-C{k}-F{d}")
 
     plt.title("Tolerance vs Inertia (Adaptive Hybrid)")
@@ -336,7 +347,6 @@ def run_hybrid(X, initial_centers, n_clusters, max_iter_total, tol_single, tol_d
     return ( labels_final, centers_final, iters_single, iters_double,total_time, mem_MB_total, ari, dbi, inertia)
     
 def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A, rows_B):
-
     if ds_name.startswith("SYNTH"):
         sample_sizes = dataset_sizes
     else:
