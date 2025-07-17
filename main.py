@@ -1,4 +1,3 @@
-import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 from aoclda.sklearn import skpatch
@@ -14,6 +13,7 @@ import os
 import pathlib
 from sklearn.decomposition import PCA
 import time
+import numpy as np
 
 DATA_DIR = pathlib.Path(".")         
 RESULTS_DIR = pathlib.Path("Results")
@@ -37,6 +37,7 @@ def load_susy(n_rows=1_000_000):
     path = DATA_DIR / "SUSY.csv"
     df = pd.read_csv(path, header=None, nrows=n_rows,
                      dtype=np.float64, names=[f"c{i}" for i in range(9)])
+    # start time 
     X = df.iloc[:, 1:].to_numpy()     
     return X, None
 
@@ -50,29 +51,42 @@ n_features_list = [3, 30]
 max_iter = 300
 
 # Understand what the experiment parameters mean
-# have the cap grid based on a percentage of the max iteration
+# Have the cap grid based on a percentage of the max iteration
 
 tol_fixed_A = 1e-16
 # varying the cap
-# 
-max_iter_A = 280
-cap_grid = [240, 244, 248, 252, 256, 260, 264, 268, 272, 276, 280]
+max_iter_A = 300
+    # start time 
+cap_grid = [1, 50, 100, 150, 200, 250, 300]
 
+# we are assigning the max iterations to be the single iteration cap
+# therefore, 
 
-max_iter_B = 100
-# wtf does 
+max_iter_B = 1000
 # tolerance at which we change from single to double 
-tol_double_B = 1e-5
-tol_single_grid = [1e-1, 1e-2, 1e-3, 1e-4, 1e-5]
+tol_double_B = 1e-4
+tol_single_grid = [1e-1, 1e-2, 1e-3, 1e-4]
 
-n_repeats = 1
+
+# Percentage/value approach
+
+# max_iter_C = 300
+# tol_fixed_C = 1e-5
+# max_percentage = 0.8
+# final_iter_C = max_iter_C * max_percentage
+# cap_grid = [final_iter_C]
+
+# tol_scale_C = 100 * tol_fixed_C
+# tol_single_grid = [tol_scale_C]
+
+n_repeats = 4
 rng_global = np.random.default_rng(0)
 
 # Real-dataset
 real_datasets = {
     "3D_ROAD": load_3d_road,
     "SUSY":    load_susy,
-}
+} 
 
 # Define dictionary of precisions
 precisions = {
@@ -157,7 +171,6 @@ def plot_hybrid_cap_vs_inertia(results_path = "Results/hybrid_kmeans_results_exp
 
     plt.figure(figsize=(7,5))
     for (ds, k, d), group in df_hybrid.groupby(["DatasetName", "NumClusters", "NumFeatures"]):
-        
             group_sorted = group.sort_values("Cap")
             base_inertia = df[(df["Suite"] == "Double") & (df["DatasetName"] == ds) & (df["NumClusters"] == k) & (df["NumFeatures"] == d)]["Inertia"].values
         
@@ -181,15 +194,16 @@ def plot_cap_vs_time(results_path="Results/hybrid_kmeans_results_expA.csv", outp
     output_dir = pathlib.Path(output_dir)
     df = pd.read_csv(results_path)
     df_hybrid = df[df["Suite"] == "AdaptiveHybrid"]
-
+    group_cols = ["DatasetName", "NumClusters", "NumFeatures", "Cap"]
+    df_grouped = df_hybrid.groupby(group_cols)[["Time"]].mean().reset_index()
     plt.figure(figsize=(7,5))
-    for (ds, k ,d), group in df_hybrid.groupby(["DatasetName", "NumClusters", "NumFeatures"]):
-
-        base_time = df[(df["Suite"] == "Double") & (df["DatasetName"] == ds) & (df["NumClusters"] == k) & (df["NumFeatures"] == d)]["Time"].values
-        group_sorted = group.sort_values("Cap")
-        group_sorted["Time"] = group_sorted["Time"] / base_time[0]
+    for (ds, k ,d), group in df_grouped.groupby(["DatasetName", "NumClusters", "NumFeatures"]):
+            
+            base_time = df[(df["Suite"] == "Double") & (df["DatasetName"] == ds) & (df["NumClusters"] == k) & (df["NumFeatures"] == d)]["Time"].mean()
+            group_sorted = group.sort_values("Cap")
+            group_sorted["Time"] = group_sorted["Time"] / base_time
         
-        plt.plot(group_sorted["Cap"], group_sorted["Time"], marker = 'o', label=f"{ds}-C{k}-F{d}")
+            plt.plot(group_sorted["Cap"], group_sorted["Time"], marker = 'o', label=f"{ds}-C{k}-F{d}")
     
     plt.title("Cap vs Time (Adaptive Hybrid)")
     plt.xlabel("Cap (Single Precision Iteration Cap)")
@@ -214,8 +228,6 @@ def plot_tolerance_vs_time(results_path="Results/hybrid_kmeans_results_expB.csv"
         base_time = df[(df["Suite"] == "Double") & (df["DatasetName"] == ds) & (df["NumClusters"] == k) & (df["NumFeatures"] == d)]["Time"].values
         group_sorted = group.sort_values("tolerance_single")
         group_sorted["Time"] = group_sorted["Time"] / base_time[0]
-
-        
         plt.plot(group_sorted["tolerance_single"], group_sorted["Time"], marker='o', label=f"{ds}-C{k}-F{d}")
 
     plt.title("Tolerance vs Time (Adaptive Hybrid)")
@@ -264,7 +276,7 @@ def pca_2d_view(X_full, centers_full, random_state=0):
 # FULL DOUBLE PRECISION RUN
 def run_full_double(X, initial_centers, n_clusters, max_iter, tol, y_true):
     start_time = time.time()
-    kmeans = KMeans(n_clusters=n_clusters, init=initial_centers, n_init=1, max_iter=max_iter,tol=tol, algorithm='lloyd', random_state=0)
+    kmeans = KMeans(n_clusters=n_clusters, init=initial_centers, n_init=1, max_iter=max_iter,tol=tol, algorithm='elkan', random_state=0)
     kmeans.fit(X)
     iters_double_tot = kmeans.n_iter_
     elapsed = time.time() - start_time
@@ -286,9 +298,10 @@ def run_hybrid(X, initial_centers, n_clusters, max_iter_total, tol_single, tol_d
     X_single = X.astype(np.float32)
     # Define the initial centers
     initial_centers_32 = initial_centers.astype(np.float32)
+    # this
     max_iter_single=max(1,min(single_iter_cap, max_iter_total))
     # K=means algorithm for single precision
-    kmeans_single = KMeans(n_clusters=n_clusters, init=initial_centers_32, n_init=1, max_iter=max_iter_single, tol=tol_single,random_state=0, algorithm = 'lloyd'
+    kmeans_single = KMeans(n_clusters=n_clusters, init=initial_centers_32, n_init=1, max_iter=max_iter_single, tol=tol_single,random_state=0, algorithm = 'elkan'
     )
     # start time 
     kmeans_single.fit(X_single)
@@ -304,7 +317,7 @@ def run_hybrid(X, initial_centers, n_clusters, max_iter_total, tol_single, tol_d
     # X_double = X.astype(np.float64)
     initial_centers_64 = centers32.astype(np.float64)
 
-    kmeans_double = KMeans( n_clusters=n_clusters, init=initial_centers_64, n_init=1, max_iter=remaining_iter, tol=tol_double, random_state=seed, algorithm= 'lloyd')
+    kmeans_double = KMeans( n_clusters=n_clusters, init=initial_centers_64, n_init=1, max_iter=remaining_iter, tol=tol_double, random_state=seed, algorithm= 'elkan')
     kmeans_double.fit(X)
     
     end_time_double = time.time() - start_time_double
@@ -430,7 +443,7 @@ all_rows = []
 synth_specs = [
     # number of samples; number of features, number of clusters, random seeds
     ("SYNTH_C_5_F_30_n100k" , 100_000, 30,  5, 0),
-    ("SYNTH_C_30_F_30_n100k", 100_000, 30, 30, 1),
+    # ("SYNTH_C_30_F_30_n100k", 100_000, 30, 30, 1),
 ]
 
 rows_A = []
@@ -443,10 +456,10 @@ for tag, n, d, k, seed in synth_specs:
     run_one_dataset(tag, X, y, rows_A, rows_B)
 
 # real datasets
-for tag, loader in real_datasets.items():
-   print(f"loading {tag} …")
-   X_real, y_real = loader()
-   all_rows += run_one_dataset(tag, X_real, y_real, rows_A, rows_B)
+# for tag, loader in real_datasets.items():
+#    print(f"loading {tag} …")
+#    X_real, y_real = loader()
+#    all_rows += run_one_dataset(tag, X_real, y_real, rows_A, rows_B)
 
 columns_A = [
     'DatasetName', 'DatasetSize', 'NumClusters', 'NumFeatures',
@@ -493,3 +506,4 @@ plot_tolerance_vs_time()
 print("\nResults saved to 'hybrid_kmeans_results_expA.csv")
 print("\nResults saved to 'hybrid_kmeans_results_expB.csv")
 print(os.getcwd())
+
