@@ -44,13 +44,13 @@ def load_susy(n_rows=1_000_000):
 # CONFIGURATION PARAMETERS 
 dataset_sizes = [100000]
 # for the cluster size we are varying this for all datasets
-n_clusters_list = [5, 30]
+n_clusters_list = [30]
 
 max_iter = 300
 
 # Understand what the experiment parameters mean
 # Have the cap grid based on a percentage of the max iteration
-tol_fixed_A = 1e-16
+tol_fixed_A = 0
 # varying the capmax_percentage
 max_iter_A = 300
     # start time 
@@ -74,7 +74,7 @@ tol_single_grid = [1e-1, 1e-2, 1e-3, 1e-4]
 # tol_scale_C = 100 * tol_fixed_C
 # tol_single_grid = [tol_scale_C]
 
-n_repeats = 3
+n_repeats = 1
 rng_global = np.random.default_rng(0)
 
 # Real-dataset
@@ -178,7 +178,6 @@ def plot_hybrid_cap_vs_inertia(results_path = "Results/hybrid_kmeans_results_exp
     
     plt.title("Cap vs Intertia (Adaptive Hybrid)")
     plt.xlabel("Cap (Single Precision Iteration Cap)")
-    
 
     plt.ylabel("Final Inertia")
     plt.grid(True)
@@ -235,6 +234,7 @@ def plot_tolerance_vs_time(results_path="Results/hybrid_kmeans_results_expB.csv"
         plt.plot(group_sorted["tolerance_single"], group_sorted["Time"], marker='o', label=f"{ds}-C{k}")
 
     plt.title("Tolerance vs Time (Adaptive Hybrid)")
+    # plt.ylim(0.99, 1.01)
     plt.xlabel("Single Precision Tolerance")
     plt.xscale('log')
     plt.ylabel("Total Time (seconds)")
@@ -256,7 +256,7 @@ def plot_tolerance_vs_inertia(results_path="Results/hybrid_kmeans_results_expB.c
 
     plt.figure(figsize=(7, 5))
     for (ds, k ), group in df_grouped.groupby(["DatasetName", "NumClusters"]):
-        base_inertia = df[(df["Suite"] == "Double") & (df["DatasetName"] == ds) & (df["NumClusters"] == k) ]["Inertia"].values
+        base_inertia = df[(df["Suite"] == "Double") & (df["DatasetName"] == ds) & (df["NumClusters"] == k) ]["Inertia"].mean()
         
         group_sorted = group.sort_values("tolerance_single")
         group_sorted["Inertia"] = group_sorted["Inertia"] / base_inertia
@@ -264,9 +264,11 @@ def plot_tolerance_vs_inertia(results_path="Results/hybrid_kmeans_results_expB.c
         plt.plot(group_sorted["tolerance_single"], group_sorted["Inertia"], marker='o', label=f"{ds}-C{k}")
 
     plt.title("Tolerance vs Inertia (Adaptive Hybrid)")
+    plt.ylim(0.9999, 1.0001)
     plt.xlabel("Single Precision Tolerance")
     plt.xscale('log')
     plt.ylabel("Final Inertia")
+
     plt.grid(True)
     plt.legend()
     plt.tight_layout()
@@ -370,6 +372,10 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A, rows_B):
 
                 print(f"→ n={n_samples:,} F={n_features} C={n_clusters}  "f"({ds_name})", flush=True)
                 print(f"The total number of features is : F={n_features}")
+                
+                np.random.seed(0)
+                # random_indices = np.random.choice(X_cur.shape[0], size=n_clusters, replace=False)
+                # initial_centers = X_cur[random_indices].copy()
 
                 init_kmeans = KMeans(n_clusters=n_clusters, init='random', n_init=1, random_state=0,  max_iter = 1)
                 initial_fit = init_kmeans.fit(X_cur)
@@ -378,15 +384,18 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A, rows_B):
                 if RUN_EXPERIMENT_A:
                     for rep in range(n_repeats):
 
+
                     # Full double precision run
                         centers_double, labels_double, iters_double_tot, iters_single_tot, elapsed, mem_MB_double, ari,  dbi, inertia = run_full_double(
                         X_cur, initial_centers, n_clusters, max_iter, tol_fixed_A, y_true_cur
                         )
 
-                        rows_A.append([ds_name, n_samples, n_clusters,"A", 0, 1e-16,  iters_single_tot, iters_double_tot, "Double",  elapsed, mem_MB_double, 
+                        rows_A.append([ds_name, n_samples, n_clusters,"A", 0, 0,  iters_single_tot, iters_double_tot, "Double",  elapsed, mem_MB_double, 
                                         ari,  dbi, inertia])
                                  
                         print(f" [Double] {rows_A}", flush=True) 
+                        print(f"The total number of features is : F={n_features}")
+                
 
                     option = "A"
                     for cap in cap_grid:
@@ -398,11 +407,15 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A, rows_B):
                             )
                         
                             print(f"Cap: {cap}, Iter Single: {iters_single}, Iter Double: {iters_double}, Toal: {iters_single + iters_double}")
+                            print(f"The total number of features is : F={n_features}")
+                
                     
                             rows_A.append([ds_name, n_samples, n_clusters, "A", cap, tol_fixed_A, iters_single, iters_double, "AdaptiveHybrid", elapsed_hybrid, mem_MB_hybrid,
                                         ari_hybrid, dbi_hybrid, inertia_hybrid ])
                         
                             print(f" [Hybrid] {rows_A}", flush=True) 
+                            print(f"The total number of features is : F={n_features}")
+                
                         # plot clusters
                         # if rep == 0:
                         #     X_vis, centers_vis = pca_2d_view(X_cur, centers_hybrid)
@@ -421,6 +434,8 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A, rows_B):
                             rows_B.append([ ds_name, n_samples, n_clusters, "B", tol_double_B,  iters_single_tot, iters_double_tot, "Double", elapsed, mem_MB_double,
                                         ari, dbi, inertia])
                             print(f"[Double Baseline - Exp B] tol={tol_double_B} | iter_double={iters_double_tot}")
+                            print(f"The total number of features is : F={n_features}")
+                
 
                         option = "B"
                         for tol_s in tol_single_grid:
@@ -431,11 +446,15 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A, rows_B):
                                 )
 
                                 print(f"Tol_single: {tol_s}, Iter Single: {iters_single}, Iter Double: {iters_double}, Total: {iters_single + iters_double}")
+                                print(f"The total number of features is : F={n_features}")
+                
 
                                 rows_B.append([ds_name, n_samples, n_clusters, "B", tol_s,  iters_single, iters_double, "AdaptiveHybrid", elapsed_hybrid, mem_MB_hybrid,
                                         ari_hybrid, dbi_hybrid, inertia_hybrid])
                             
                                 print(f" [Hybrid] {rows_B}", flush=True) 
+                                print(f"The total number of features is : F={n_features}")
+                
 
                             # plot clusters
                             # if rep == 0:
@@ -449,8 +468,9 @@ all_rows = []
 
 synth_specs = [
     # number of samples; number of features, number of clusters, random seeds
-    ("SYNTH_C_5_F_30_n100k", 100_000, 30,  5, 0),
-    ("SYNTH_C_30_F_5_n100k", 100_000, 5, 30, 1),
+    ("SYNTH_C_5_F_80_n100k", 1000_000, 80,  5, 0),
+    ("SYNTH_C_80_F_5_n100k", 1000_000, 5, 80, 1),
+    ("SYNTH_C_80_30_n100k", 1000_000, 30, 80, 1)
 ]
 
 rows_A = []
