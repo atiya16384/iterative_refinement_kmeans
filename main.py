@@ -161,7 +161,7 @@ def plot_clusters(
 def plot_hybrid_cap_vs_inertia(results_path = "Results/hybrid_kmeans_results_expA.csv", output_dir = "Results"):
     output_dir = pathlib.Path(output_dir)
     df = pd.read_csv(results_path)
-    df_hybrid = df[df["Suite"] == "AdaptiveHybrid"]
+    df_hybrid = df[df["Suite"] == "Hybrid"]
     df_double = df[df["Suite"] == "Double"]
     group_cols = ["DatasetName", "NumClusters", "Cap"]
     df_grouped = df_hybrid.groupby(group_cols)[["Inertia"]].mean().reset_index()
@@ -176,7 +176,7 @@ def plot_hybrid_cap_vs_inertia(results_path = "Results/hybrid_kmeans_results_exp
                           
             plt.plot(group_sorted["Cap"], group_sorted["Inertia"], marker = 'o', label=f"{ds}-C{k}")
     
-    plt.title("Cap vs Intertia (Adaptive Hybrid)")
+    plt.title("Cap vs Intertia ( Hybrid)")
     plt.xlabel("Cap (Single Precision Iteration Cap)")
 
     plt.ylabel("Final Inertia")
@@ -192,7 +192,7 @@ def plot_hybrid_cap_vs_inertia(results_path = "Results/hybrid_kmeans_results_exp
 def plot_cap_vs_time(results_path="Results/hybrid_kmeans_results_expA.csv", output_dir="Results"):
     output_dir = pathlib.Path(output_dir)
     df = pd.read_csv(results_path)
-    df_hybrid = df[df["Suite"] == "AdaptiveHybrid"]
+    df_hybrid = df[df["Suite"] == "Hybrid"]
     group_cols = ["DatasetName", "NumClusters", "Cap"]
     df_grouped = df_hybrid.groupby(group_cols)[["Time"]].mean().reset_index()
 
@@ -205,7 +205,7 @@ def plot_cap_vs_time(results_path="Results/hybrid_kmeans_results_expA.csv", outp
         
             plt.plot(group_sorted["Cap"], group_sorted["Time"], marker = 'o', label=f"{ds}-C{k}")
     
-    plt.title("Cap vs Time (Adaptive Hybrid)")
+    plt.title("Cap vs Time (Hybrid)")
     plt.xlabel("Cap (Single Precision Iteration Cap)")
     plt.ylabel("Total Time (seconds)")
     plt.grid(True)
@@ -220,7 +220,7 @@ def plot_cap_vs_time(results_path="Results/hybrid_kmeans_results_expA.csv", outp
 def plot_tolerance_vs_time(results_path="Results/hybrid_kmeans_results_expB.csv", output_dir="Results"):
     output_dir = pathlib.Path(output_dir)
     df = pd.read_csv(results_path)
-    df_hybrid = df[df["Suite"] == "AdaptiveHybrid"]
+    df_hybrid = df[df["Suite"] == "Hybrid"]
     group_cols = ["DatasetName", "NumClusters",  "tolerance_single"]
     df_grouped = df_hybrid.groupby(group_cols)[["Time"]].mean().reset_index()
 
@@ -233,7 +233,7 @@ def plot_tolerance_vs_time(results_path="Results/hybrid_kmeans_results_expB.csv"
 
         plt.plot(group_sorted["tolerance_single"], group_sorted["Time"], marker='o', label=f"{ds}-C{k}")
 
-    plt.title("Tolerance vs Time (Adaptive Hybrid)")
+    plt.title("Tolerance vs Time (Hybrid)")
     # plt.ylim(0.99, 1.01)
     plt.xlabel("Single Precision Tolerance")
     plt.xscale('log')
@@ -250,7 +250,7 @@ def plot_tolerance_vs_time(results_path="Results/hybrid_kmeans_results_expB.csv"
 def plot_tolerance_vs_inertia(results_path="Results/hybrid_kmeans_results_expB.csv", output_dir="Results"):
     output_dir = pathlib.Path(output_dir)
     df = pd.read_csv(results_path)
-    df_hybrid = df[df["Suite"] == "AdaptiveHybrid"]
+    df_hybrid = df[df["Suite"] == "Hybrid"]
     group_cols = ["DatasetName", "NumClusters", "tolerance_single"]
     df_grouped = df_hybrid.groupby(group_cols)[["Inertia"]].mean().reset_index()
 
@@ -263,7 +263,7 @@ def plot_tolerance_vs_inertia(results_path="Results/hybrid_kmeans_results_expB.c
 
         plt.plot(group_sorted["tolerance_single"], group_sorted["Inertia"], marker='o', label=f"{ds}-C{k}")
 
-    plt.title("Tolerance vs Inertia (Adaptive Hybrid)")
+    plt.title("Tolerance vs Inertia (Hybrid)")
     # plt.ylim(0.9999, 1.0001)
     plt.xlabel("Single Precision Tolerance")
     plt.xscale('log')
@@ -345,95 +345,8 @@ def run_hybrid(X, initial_centers, n_clusters, max_iter_total, tol_single, tol_d
     total_time = end_time_single + end_time_double
     
     return ( labels_final, centers_final, iters_single, iters_double,total_time, mem_MB_total, ari, dbi, inertia)
-
-
-
-from numpy.linalg import norm
-
-def adaptive_run_hybrid_optimized(X, initial_centers, n_clusters, 
-                                  max_iter_total, tol_single, tol_double, 
-                                  residual_tol=1e-4, y_true=None, seed=0):
-    """
-    Advanced adaptive refinement method:
-    - Uses residual convergence (change in centers).
-    - Minimizes precision switching overhead.
-    """
-    rng = np.random.default_rng(seed)
     
-    # Initializations
-    X_single = X.astype(np.float32)
-    centers_single = initial_centers.astype(np.float32)
-    
-    total_single_iters = 0
-    total_double_iters = 0
-    converged = False
 
-    # Single precision iterative refinement
-    start_total = time.time()
-    for iter_single in range(max_iter_total):
-        prev_centers = centers_single.copy()
-
-        # KMeans single precision (one iteration at a time)
-        kmeans_single = KMeans(
-            n_clusters=n_clusters,
-            init=centers_single,
-            n_init=1,
-            max_iter=1,
-            tol=tol_single,
-            algorithm='lloyd',
-            random_state=seed
-        ).fit(X_single)
-
-        centers_single = kmeans_single.cluster_centers_
-        total_single_iters += 1
-        
-        # Compute residual (center movement)
-        center_shift = norm(centers_single - prev_centers) / norm(prev_centers)
-        
-        if center_shift <= residual_tol:
-            converged = True
-            break
-    
-    elapsed_single = time.time() - start_total
-    
-    # Only switch to double if not sufficiently converged
-    if not converged and (max_iter_total - total_single_iters) > 0:
-        remaining_iters = max_iter_total - total_single_iters
-        
-        centers_double = centers_single.astype(np.float64)
-        
-        start_double = time.time()
-        
-        # Double precision refinement
-        kmeans_double = KMeans(
-            n_clusters=n_clusters,
-            init=centers_double,
-            n_init=1,
-            max_iter=remaining_iters,
-            tol=tol_double,
-            algorithm='lloyd',
-            random_state=seed
-        ).fit(X)
-
-        elapsed_double = time.time() - start_double
-
-        labels_final = kmeans_double.labels_
-        centers_final = kmeans_double.cluster_centers_
-        inertia_final = kmeans_double.inertia_
-        total_double_iters = kmeans_double.n_iter_
-    else:
-        labels_final = kmeans_single.labels_
-        centers_final = centers_single.astype(np.float64)
-        inertia_final = kmeans_single.inertia_
-        elapsed_double = 0
-        total_double_iters = 0
-
-    total_time = elapsed_single + elapsed_double
-    total_memory_MB = X_single.nbytes / 1e6 + X.nbytes / 1e6
-    
-    ari, dbi, inertia = evaluate_metrics(X, labels_final, y_true, inertia_final)
-
-    return (labels_final, centers_final, total_single_iters, total_double_iters, total_time, total_memory_MB, ari, dbi, inertia)
 
 def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A, rows_B):
     if ds_name.startswith("SYNTH"):
@@ -466,7 +379,7 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A, rows_B):
                 # random_indices = np.random.choice(X_cur.shape[0], size=n_clusters, replace=False)
                 # initial_centers = X_cur[random_indices].copy()
 
-                init_kmeans = KMeans(n_clusters=n_clusters, init='random', n_init=1, random_state=0,  max_iter = 1)
+                init_kmeans = KMeans(n_clusters=n_clusters, init='mixed', n_init=1, random_state=0,  max_iter = 1)
                 initial_fit = init_kmeans.fit(X_cur)
                 initial_centers = init_kmeans.cluster_centers_
 
@@ -490,7 +403,7 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A, rows_B):
                     for cap in cap_grid:
                         for rep in range(n_repeats):
 
-                        # Adaptive hybrid run
+                        #hybrid run
                             labels_hybrid, centers_hybrid, iters_single, iters_double, elapsed_hybrid, mem_MB_hybrid, ari_hybrid, dbi_hybrid, inertia_hybrid = run_hybrid(
                             X_cur, initial_centers, n_clusters, max_iter_total = max_iter_A, single_iter_cap=cap, tol_single = tol_fixed_A, tol_double=tol_fixed_A, y_true = y_true_cur, seed = rep
                             )
@@ -499,7 +412,7 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A, rows_B):
                             print(f"The total number of features is : F={n_features}")
                 
                     
-                            rows_A.append([ds_name, n_samples, n_clusters, "A", cap, tol_fixed_A, iters_single, iters_double, "AdaptiveHybrid", elapsed_hybrid, mem_MB_hybrid,
+                            rows_A.append([ds_name, n_samples, n_clusters, "A", cap, tol_fixed_A, iters_single, iters_double, "Hybrid", elapsed_hybrid, mem_MB_hybrid,
                                         ari_hybrid, dbi_hybrid, inertia_hybrid ])
                         
                             print(f" [Hybrid] {rows_A}", flush=True) 
@@ -529,7 +442,7 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A, rows_B):
                         option = "B"
                         for tol_s in tol_single_grid:
                             for rep in range(n_repeats):
-                            # Adaptive hybrid run
+                            #  hybrid run
                                 labels_hybrid, centers_hybrid, iters_single, iters_double, elapsed_hybrid, mem_MB_hybrid, ari_hybrid, dbi_hybrid, inertia_hybrid = run_hybrid(
                                     X_cur, initial_centers, n_clusters, max_iter_total=max_iter_B, tol_single = tol_s, tol_double = tol_double_B, single_iter_cap=max_iter_B, y_true= y_true_cur, seed = rep
                                 )
@@ -538,7 +451,7 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A, rows_B):
                                 print(f"The total number of features is : F={n_features}")
                 
 
-                                rows_B.append([ds_name, n_samples, n_clusters, "B", tol_s,  iters_single, iters_double, "AdaptiveHybrid", elapsed_hybrid, mem_MB_hybrid,
+                                rows_B.append([ds_name, n_samples, n_clusters, "B", tol_s,  iters_single, iters_double, "Hybrid", elapsed_hybrid, mem_MB_hybrid,
                                         ari_hybrid, dbi_hybrid, inertia_hybrid])
                             
                                 print(f" [Hybrid] {rows_B}", flush=True) 
