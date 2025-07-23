@@ -44,8 +44,7 @@ def load_susy(n_rows=1_000_000):
 # CONFIGURATION PARAMETERS 
 dataset_sizes = [100000]
 # for the cluster size we are varying this for all datasets
-n_clusters_list = [5, 8]
-
+n_clusters_list = [5, 30]
 
 max_iter = 300
 
@@ -75,7 +74,7 @@ tol_single_grid = [1e-1, 1e-2, 1e-3, 1e-4]
 # tol_scale_C = 100 * tol_fixed_C
 # tol_single_grid = [tol_scale_C]
 
-n_repeats = 5
+n_repeats = 3
 rng_global = np.random.default_rng(0)
 
 # Real-dataset
@@ -286,7 +285,7 @@ def pca_2d_view(X_full, centers_full, random_state=0):
 # FULL DOUBLE PRECISION RUN
 def run_full_double(X, initial_centers, n_clusters, max_iter, tol, y_true):
     start_time = time.time()
-    kmeans = KMeans(n_clusters=n_clusters, init=initial_centers, n_init=1, max_iter=max_iter,tol=tol, algorithm='elkan', random_state=0)
+    kmeans = KMeans(n_clusters=n_clusters, init=initial_centers, n_init=1, max_iter=max_iter,tol=tol, algorithm='lloyd', random_state=0)
     kmeans.fit(X)
     iters_double_tot = kmeans.n_iter_
     elapsed = time.time() - start_time
@@ -311,7 +310,7 @@ def run_hybrid(X, initial_centers, n_clusters, max_iter_total, tol_single, tol_d
     # this
     max_iter_single=max(1,min(single_iter_cap, max_iter_total))
     # K=means algorithm for single precision
-    kmeans_single = KMeans(n_clusters=n_clusters, init=initial_centers_32, n_init=1, max_iter=max_iter_single, tol=tol_single,random_state=0, algorithm = 'elkan'
+    kmeans_single = KMeans(n_clusters=n_clusters, init=initial_centers_32, n_init=1, max_iter=max_iter_single, tol=tol_single,random_state=0, algorithm = 'lloyd'
     )
     # start time 
     kmeans_single.fit(X_single)
@@ -327,7 +326,7 @@ def run_hybrid(X, initial_centers, n_clusters, max_iter_total, tol_single, tol_d
     # X_double = X.astype(np.float64)
     initial_centers_64 = centers32.astype(np.float64)
 
-    kmeans_double = KMeans( n_clusters=n_clusters, init=initial_centers_64, n_init=1, max_iter=remaining_iter, tol=tol_double, random_state=seed, algorithm= 'elkan')
+    kmeans_double = KMeans( n_clusters=n_clusters, init=initial_centers_64, n_init=1, max_iter=remaining_iter, tol=tol_double, random_state=seed, algorithm= 'lloyd')
     kmeans_double.fit(X)
     
     end_time_double = time.time() - start_time_double
@@ -369,9 +368,10 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A, rows_B):
                 X_cur = X_ns[:, :n_features]   
                 y_true_cur = y_ns          
 
-                print(f"→ n={n_samples:,}  C={n_clusters}  "f"({ds_name})", flush=True)
+                print(f"→ n={n_samples:,} F={n_features} C={n_clusters}  "f"({ds_name})", flush=True)
+                print(f"The total number of features is : F={n_features}")
 
-                init_kmeans = KMeans(n_clusters=n_clusters, init='random', n_init=1, random_state=0,  max_iter =1)
+                init_kmeans = KMeans(n_clusters=n_clusters, init='random', n_init=1, random_state=0,  max_iter = 1)
                 initial_fit = init_kmeans.fit(X_cur)
                 initial_centers = init_kmeans.cluster_centers_
 
@@ -383,7 +383,7 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A, rows_B):
                         X_cur, initial_centers, n_clusters, max_iter, tol_fixed_A, y_true_cur
                         )
 
-                        rows_A.append([ds_name, n_samples, n_clusters,"A", 0, 1e-16,  iters_single_tot, iters_double_tot,"Double",  elapsed, mem_MB_double, 
+                        rows_A.append([ds_name, n_samples, n_clusters,"A", 0, 1e-16,  iters_single_tot, iters_double_tot, "Double",  elapsed, mem_MB_double, 
                                         ari,  dbi, inertia])
                                  
                         print(f" [Double] {rows_A}", flush=True) 
@@ -418,9 +418,9 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A, rows_B):
                             X_cur, initial_centers, n_clusters, max_iter_B, tol_double_B, y_true_cur
                             )
 
-                        rows_B.append([ ds_name, n_samples, n_clusters, "B", tol_double_B,  iters_single_tot, iters_double_tot, "Double", elapsed, mem_MB_double,
+                            rows_B.append([ ds_name, n_samples, n_clusters, "B", tol_double_B,  iters_single_tot, iters_double_tot, "Double", elapsed, mem_MB_double,
                                         ari, dbi, inertia])
-                        print(f"[Double Baseline - Exp B] tol={tol_double_B} | iter_double={iters_double_tot}")
+                            print(f"[Double Baseline - Exp B] tol={tol_double_B} | iter_double={iters_double_tot}")
 
                         option = "B"
                         for tol_s in tol_single_grid:
@@ -460,7 +460,7 @@ for tag, n, d, k, seed in synth_specs:
     X, y = generate_data(n, d, k, random_state=seed)
     print(f"[SYNTH] {tag:14s}  shape={X.shape}  any_NaN={np.isnan(X).any()}",
           flush=True)
-    # check if the mappings are correct to the run_one_dataset function
+    # check if the mappings are correct to the run_one_dataset
     run_one_dataset(tag, X, y, rows_A, rows_B)
 
 # real datasets
@@ -507,7 +507,7 @@ print(df_B.groupby([
 
 # how to plot for the different types of graphs that we have
 plot_hybrid_cap_vs_inertia()
-plot_cap_vs_time()
+plot_cap_vs_time() 
 plot_tolerance_vs_inertia()
 plot_tolerance_vs_time()
 
