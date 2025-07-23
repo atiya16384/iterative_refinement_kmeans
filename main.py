@@ -46,8 +46,7 @@ dataset_sizes = [100000]
 # for the cluster size we are varying this for all datasets
 n_clusters_list = [5, 8]
 
-# for feature list we are only varying for the synthetic dataset
-n_features_list = [3, 30]  
+
 max_iter = 300
 
 # Understand what the experiment parameters mean
@@ -165,18 +164,18 @@ def plot_hybrid_cap_vs_inertia(results_path = "Results/hybrid_kmeans_results_exp
     df = pd.read_csv(results_path)
     df_hybrid = df[df["Suite"] == "AdaptiveHybrid"]
     df_double = df[df["Suite"] == "Double"]
-    group_cols = ["DatasetName", "NumClusters", "NumFeatures", "Cap"]
+    group_cols = ["DatasetName", "NumClusters", "Cap"]
     df_grouped = df_hybrid.groupby(group_cols)[["Inertia"]].mean().reset_index()
-    
+
 
     plt.figure(figsize=(7,5))
-    for (ds, k, d), group in df_grouped.groupby(["DatasetName", "NumClusters", "NumFeatures"]):
+    for (ds, k), group in df_grouped.groupby(["DatasetName", "NumClusters"]):
             group_sorted = group.sort_values("Cap")
-            base_inertia = df[(df["Suite"] == "Double") & (df["DatasetName"] == ds) & (df["NumClusters"] == k) & (df["NumFeatures"] == d)]["Inertia"].mean()
+            base_inertia = df[(df["Suite"] == "Double") & (df["DatasetName"] == ds) & (df["NumClusters"] == k)]["Inertia"].mean()
         
             group_sorted["Inertia"] = group_sorted["Inertia"] / base_inertia
                           
-            plt.plot(group_sorted["Cap"], group_sorted["Inertia"], marker = 'o', label=f"{ds}-C{k}-F{d}")
+            plt.plot(group_sorted["Cap"], group_sorted["Inertia"], marker = 'o', label=f"{ds}-C{k}")
     
     plt.title("Cap vs Intertia (Adaptive Hybrid)")
     plt.xlabel("Cap (Single Precision Iteration Cap)")
@@ -196,17 +195,17 @@ def plot_cap_vs_time(results_path="Results/hybrid_kmeans_results_expA.csv", outp
     output_dir = pathlib.Path(output_dir)
     df = pd.read_csv(results_path)
     df_hybrid = df[df["Suite"] == "AdaptiveHybrid"]
-    group_cols = ["DatasetName", "NumClusters", "NumFeatures", "Cap"]
+    group_cols = ["DatasetName", "NumClusters", "Cap"]
     df_grouped = df_hybrid.groupby(group_cols)[["Time"]].mean().reset_index()
 
     plt.figure(figsize=(7,5))
-    for (ds, k ,d), group in df_grouped.groupby(["DatasetName", "NumClusters", "NumFeatures"]):
+    for (ds, k), group in df_grouped.groupby(["DatasetName", "NumClusters"]):
             
-            base_time = df[(df["Suite"] == "Double") & (df["DatasetName"] == ds) & (df["NumClusters"] == k) & (df["NumFeatures"] == d)]["Time"].mean()
+            base_time = df[(df["Suite"] == "Double") & (df["DatasetName"] == ds) & (df["NumClusters"] == k)]["Time"].mean()
             group_sorted = group.sort_values("Cap")
             group_sorted["Time"] = group_sorted["Time"] / base_time
         
-            plt.plot(group_sorted["Cap"], group_sorted["Time"], marker = 'o', label=f"{ds}-C{k}-F{d}")
+            plt.plot(group_sorted["Cap"], group_sorted["Time"], marker = 'o', label=f"{ds}-C{k}")
     
     plt.title("Cap vs Time (Adaptive Hybrid)")
     plt.xlabel("Cap (Single Precision Iteration Cap)")
@@ -224,17 +223,17 @@ def plot_tolerance_vs_time(results_path="Results/hybrid_kmeans_results_expB.csv"
     output_dir = pathlib.Path(output_dir)
     df = pd.read_csv(results_path)
     df_hybrid = df[df["Suite"] == "AdaptiveHybrid"]
-    group_cols = ["DatasetName", "NumClusters", "NumFeatures", "tolerance_single"]
+    group_cols = ["DatasetName", "NumClusters",  "tolerance_single"]
     df_grouped = df_hybrid.groupby(group_cols)[["Time"]].mean().reset_index()
 
     plt.figure(figsize=(7, 5))
-    for (ds, k ,d), group in df_grouped.groupby(["DatasetName", "NumClusters", "NumFeatures"]):
+    for (ds, k), group in df_grouped.groupby(["DatasetName", "NumClusters"]):
 
-        base_time = df[(df["Suite"] == "Double") & (df["DatasetName"] == ds) & (df["NumClusters"] == k) & (df["NumFeatures"] == d)]["Time"].mean()
+        base_time = df[(df["Suite"] == "Double") & (df["DatasetName"] == ds) & (df["NumClusters"] == k) ]["Time"].mean()
         group_sorted = group.sort_values("tolerance_single")
         group_sorted["Time"] = group_sorted["Time"] / base_time
 
-        plt.plot(group_sorted["tolerance_single"], group_sorted["Time"], marker='o', label=f"{ds}-C{k}-F{d}")
+        plt.plot(group_sorted["tolerance_single"], group_sorted["Time"], marker='o', label=f"{ds}-C{k}")
 
     plt.title("Tolerance vs Time (Adaptive Hybrid)")
     plt.xlabel("Single Precision Tolerance")
@@ -253,17 +252,17 @@ def plot_tolerance_vs_inertia(results_path="Results/hybrid_kmeans_results_expB.c
     output_dir = pathlib.Path(output_dir)
     df = pd.read_csv(results_path)
     df_hybrid = df[df["Suite"] == "AdaptiveHybrid"]
-    group_cols = ["DatasetName", "NumClusters", "NumFeatures", "tolerance_single"]
+    group_cols = ["DatasetName", "NumClusters", "tolerance_single"]
     df_grouped = df_hybrid.groupby(group_cols)[["Inertia"]].mean().reset_index()
 
     plt.figure(figsize=(7, 5))
-    for (ds, k ,d), group in df_grouped.groupby(["DatasetName", "NumClusters", "NumFeatures"]):
-        base_inertia = df[(df["Suite"] == "Double") & (df["DatasetName"] == ds) & (df["NumClusters"] == k) & (df["NumFeatures"] == d)]["Inertia"].values
+    for (ds, k ), group in df_grouped.groupby(["DatasetName", "NumClusters"]):
+        base_inertia = df[(df["Suite"] == "Double") & (df["DatasetName"] == ds) & (df["NumClusters"] == k) ]["Inertia"].values
         
         group_sorted = group.sort_values("tolerance_single")
         group_sorted["Inertia"] = group_sorted["Inertia"] / base_inertia
 
-        plt.plot(group_sorted["tolerance_single"], group_sorted["Inertia"], marker='o', label=f"{ds}-C{k}-F{d}")
+        plt.plot(group_sorted["tolerance_single"], group_sorted["Inertia"], marker='o', label=f"{ds}-C{k}")
 
     plt.title("Tolerance vs Inertia (Adaptive Hybrid)")
     plt.xlabel("Single Precision Tolerance")
@@ -363,16 +362,14 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A, rows_B):
         else:
             X_ns, y_ns = X_full, y_full
 
+        n_features = X_ns.shape[1]
         for n_clusters in n_clusters_list:
-            for n_features in n_features_list:
-
-                if X_ns.shape[1] < n_features and not ds_name.startswith("SYNTH"):
-                    continue            
+           # for n_features in n_features_list          
 
                 X_cur = X_ns[:, :n_features]   
                 y_true_cur = y_ns          
 
-                print(f"→ n={n_samples:,}  k={n_clusters}  d={n_features}  "f"({ds_name})", flush=True)
+                print(f"→ n={n_samples:,}  C={n_clusters}  "f"({ds_name})", flush=True)
 
                 init_kmeans = KMeans(n_clusters=n_clusters, init='random', n_init=1, random_state=0,  max_iter =1)
                 initial_fit = init_kmeans.fit(X_cur)
@@ -386,7 +383,7 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A, rows_B):
                         X_cur, initial_centers, n_clusters, max_iter, tol_fixed_A, y_true_cur
                         )
 
-                        rows_A.append([ds_name, n_samples, n_clusters, n_features, "A", 0, 1e-16,  iters_single_tot, iters_double_tot,"Double",  elapsed, mem_MB_double, 
+                        rows_A.append([ds_name, n_samples, n_clusters,"A", 0, 1e-16,  iters_single_tot, iters_double_tot,"Double",  elapsed, mem_MB_double, 
                                         ari,  dbi, inertia])
                                  
                         print(f" [Double] {rows_A}", flush=True) 
@@ -402,7 +399,7 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A, rows_B):
                         
                             print(f"Cap: {cap}, Iter Single: {iters_single}, Iter Double: {iters_double}, Toal: {iters_single + iters_double}")
                     
-                            rows_A.append([ds_name, n_samples, n_clusters, n_features, "A", cap, tol_fixed_A, iters_single, iters_double, "AdaptiveHybrid", elapsed_hybrid, mem_MB_hybrid,
+                            rows_A.append([ds_name, n_samples, n_clusters, "A", cap, tol_fixed_A, iters_single, iters_double, "AdaptiveHybrid", elapsed_hybrid, mem_MB_hybrid,
                                         ari_hybrid, dbi_hybrid, inertia_hybrid ])
                         
                             print(f" [Hybrid] {rows_A}", flush=True) 
@@ -421,7 +418,7 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A, rows_B):
                             X_cur, initial_centers, n_clusters, max_iter_B, tol_double_B, y_true_cur
                             )
 
-                        rows_B.append([ ds_name, n_samples, n_clusters, n_features, "B", tol_double_B,  iters_single_tot, iters_double_tot, "Double", elapsed, mem_MB_double,
+                        rows_B.append([ ds_name, n_samples, n_clusters, "B", tol_double_B,  iters_single_tot, iters_double_tot, "Double", elapsed, mem_MB_double,
                                         ari, dbi, inertia])
                         print(f"[Double Baseline - Exp B] tol={tol_double_B} | iter_double={iters_double_tot}")
 
@@ -435,7 +432,7 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A, rows_B):
 
                                 print(f"Tol_single: {tol_s}, Iter Single: {iters_single}, Iter Double: {iters_double}, Total: {iters_single + iters_double}")
 
-                                rows_B.append([ds_name, n_samples, n_clusters, n_features, "B", tol_s,  iters_single, iters_double, "AdaptiveHybrid", elapsed_hybrid, mem_MB_hybrid,
+                                rows_B.append([ds_name, n_samples, n_clusters, "B", tol_s,  iters_single, iters_double, "AdaptiveHybrid", elapsed_hybrid, mem_MB_hybrid,
                                         ari_hybrid, dbi_hybrid, inertia_hybrid])
                             
                                 print(f" [Hybrid] {rows_B}", flush=True) 
@@ -452,8 +449,8 @@ all_rows = []
 
 synth_specs = [
     # number of samples; number of features, number of clusters, random seeds
-    ("SYNTH_C_5_F_30_n100k" , 100_000, 30,  5, 0),
-    # ("SYNTH_C_30_F_30_n100k", 100_000, 30, 30, 1),
+    ("SYNTH_C_5_F_30_n100k", 100_000, 30,  5, 0),
+    ("SYNTH_C_30_F_5_n100k", 100_000, 5, 30, 1),
 ]
 
 rows_A = []
@@ -463,6 +460,7 @@ for tag, n, d, k, seed in synth_specs:
     X, y = generate_data(n, d, k, random_state=seed)
     print(f"[SYNTH] {tag:14s}  shape={X.shape}  any_NaN={np.isnan(X).any()}",
           flush=True)
+    # check if the mappings are correct to the run_one_dataset function
     run_one_dataset(tag, X, y, rows_A, rows_B)
 
 # real datasets
@@ -472,13 +470,13 @@ for tag, n, d, k, seed in synth_specs:
 #    all_rows += run_one_dataset(tag, X_real, y_real, rows_A, rows_B)
 
 columns_A = [
-    'DatasetName', 'DatasetSize', 'NumClusters', 'NumFeatures',
+    'DatasetName', 'DatasetSize', 'NumClusters', 
     'Mode', 'Cap', 'tolerance_single', 'iter_single', 'iter_double', 'Suite',
     'Time', 'Memory_MB', 'ARI', 'DBI', 'Inertia'
 ]
 
 columns_B = [
-    'DatasetName', 'DatasetSize', 'NumClusters', 'NumFeatures',
+    'DatasetName', 'DatasetSize', 'NumClusters',
     'Mode', 'tolerance_single', 'iter_single', 'iter_double', 'Suite',
     'Time', 'Memory_MB', 'ARI', 'DBI', 'Inertia'
 ]
@@ -496,14 +494,14 @@ print("- hybrid_kmeans_results_expB.csv")
 # === SUMMARY: Experiment A ===
 print("\n==== SUMMARY: EXPERIMENT A ====")
 print(df_A.groupby([
-    'DatasetSize', 'NumClusters', 'NumFeatures', 'Mode', 'Cap',
+    'DatasetSize', 'NumClusters', 'Mode', 'Cap',
     'tolerance_single', 'iter_single', 'iter_double', 'Suite'
 ])[['Time', 'Memory_MB', 'ARI', 'DBI', 'Inertia']].mean())
 
 # === SUMMARY: Experiment B ===
 print("\n==== SUMMARY: EXPERIMENT B ====")
 print(df_B.groupby([
-    'DatasetSize', 'NumClusters', 'NumFeatures', 'Mode',
+    'DatasetSize', 'NumClusters', 'Mode',
     'tolerance_single', 'iter_single', 'iter_double', 'Suite'
 ])[['Time', 'Memory_MB', 'ARI', 'DBI', 'Inertia']].mean())
 
