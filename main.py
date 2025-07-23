@@ -53,10 +53,10 @@ max_iter = 300
 # Understand what the experiment parameters mean
 # Have the cap grid based on a percentage of the max iteration
 tol_fixed_A = 1e-16
-# varying the cap
+# varying the capmax_percentage
 max_iter_A = 300
     # start time 
-cap_grid = [1, 50, 100, 150, 200, 250, 300]
+cap_grid = [0, 50, 100, 150, 200, 250, 300]
 
 # we may be assigning the max iterations to be the single iteration cap
 max_iter_B = 1000
@@ -76,7 +76,7 @@ tol_single_grid = [1e-1, 1e-2, 1e-3, 1e-4]
 # tol_scale_C = 100 * tol_fixed_C
 # tol_single_grid = [tol_scale_C]
 
-n_repeats = 10
+n_repeats = 5
 rng_global = np.random.default_rng(0)
 
 # Real-dataset
@@ -238,7 +238,7 @@ def plot_tolerance_vs_time(results_path="Results/hybrid_kmeans_results_expB.csv"
 
     plt.title("Tolerance vs Time (Adaptive Hybrid)")
     plt.xlabel("Single Precision Tolerance")
-    #plt.xscale('log')
+    plt.xscale('log')
     plt.ylabel("Total Time (seconds)")
     plt.grid(True)
     plt.legend()
@@ -267,7 +267,7 @@ def plot_tolerance_vs_inertia(results_path="Results/hybrid_kmeans_results_expB.c
 
     plt.title("Tolerance vs Inertia (Adaptive Hybrid)")
     plt.xlabel("Single Precision Tolerance")
-   # plt.xscale('log')
+    plt.xscale('log')
     plt.ylabel("Final Inertia")
     plt.grid(True)
     plt.legend()
