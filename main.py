@@ -264,7 +264,7 @@ def plot_tolerance_vs_inertia(results_path="Results/hybrid_kmeans_results_expB.c
         plt.plot(group_sorted["tolerance_single"], group_sorted["Inertia"], marker='o', label=f"{ds}-C{k}")
 
     plt.title("Tolerance vs Inertia (Adaptive Hybrid)")
-    plt.ylim(0.9999, 1.0001)
+    # plt.ylim(0.9999, 1.0001)
     plt.xlabel("Single Precision Tolerance")
     plt.xscale('log')
     plt.ylabel("Final Inertia")
@@ -367,7 +367,7 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A, rows_B):
         for n_clusters in n_clusters_list:
            # for n_features in n_features_list          
 
-                X_cur = X_ns[:, :n_features]   
+                X_cur = X_ns  
                 y_true_cur = y_ns          
 
                 print(f"→ n={n_samples:,} F={n_features} C={n_clusters}  "f"({ds_name})", flush=True)
