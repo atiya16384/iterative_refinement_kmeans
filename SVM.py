@@ -14,7 +14,6 @@ import matplotlib.pyplot as plt
 
 RUN_EXPERIMENT_A = True
 RUN_EXPERIMENT_B = True
-RESULTS_DIR = pathlib.Path("Results_SVM")
 
 # CONFIGURATION PARAMETERS 
 dataset_sizes = [100000]
@@ -33,6 +32,7 @@ cap_grid = [0, 50, 100, 150, 200, 250, 300]
 
 # we may be assigning the max iterations to be the single iteration cap
 max_iter_B = 1000
+
 # tolerance at which we change from single to double 
 tol_double_B = 1e-5
 tol_single_grid = [1e-2, 1e-3, 1e-4]
@@ -112,4 +112,27 @@ def svm_run_hybrid(X, y, max_iter_total, tol_single, tol_double, single_iter_cap
 
     return (svm_single.n_iter_, total_double_iters, total_time, acc, f1, memory_MB, support_vectors_count)
 
+if __name__ == '__main__':
+    X, y = generate_data(40000, 20, 5, 1)
 
+
+
+    # start from the same svm initialisation
+
+    # if RUN_EXPERIMENT_A:
+    #     for rep in range(n_repeats):
+    #          # Full double precision run
+    #         iterations, elapsed_time, acc, f1, memory_MB, support_vectors_count = svm_run_double(
+    #             X,  max_iter, tol_fixed_A, y
+    #         )
+      
+    #         for cap in cap_grid:
+    #             for rep in range(n_repeats):
+    #                 #hybrid ru
+    #                 svm_single.n_iter_, total_double_iters, total_time, acc, f1, memory_MB, support_vectors_count = svm_run_hybrid(
+    #                     X, initial_centers, n_clusters, max_iter_total = max_iter_A, single_iter_cap=cap, tol_single = tol_fixed_A, tol_double=tol_fixed_A, y_true = y_true_cur, seed = rep
+
+    #                 )
+                            
+    #                 print(f"Cap: {cap}, Iter Single: {iters_single}, Iter Double: {iters_double}, Toal: {iters_single + iters_double}")
+                   

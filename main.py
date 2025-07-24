@@ -459,7 +459,7 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A, rows_B):
                 # random_indices = np.random.choice(X_cur.shape[0], size=n_clusters, replace=False)
                 # initial_centers = X_cur[random_indices].copy()
 
-                init_kmeans = KMeans(n_clusters=n_clusters, init='mixed', n_init=1, random_state=0,  max_iter = 1)
+                init_kmeans = KMeans(n_clusters=n_clusters, init='random', n_init=1, random_state=0,  max_iter = 1)
                 initial_fit = init_kmeans.fit(X_cur)
                 initial_centers = init_kmeans.cluster_centers_
 
