@@ -432,6 +432,64 @@ def adaptive_run_hybrid(X, initial_centers, n_clusters,
             total_time, total_memory_MB, inertia_final)
 
 
+def svm_double_precision(X, y, max_iter, tol, C=1.0, kernel='rbf', seed=0):
+    """
+    SVM double precision baseline function.
+    """
+    start_time = time.time()
+    
+    svm = SVC(C=C, kernel=kernel, gamma='scale', tol=tol, 
+              max_iter=max_iter, random_state=seed)
+    
+    svm.fit(X, y)
+    
+    elapsed_time = time.time() - start_time
+    iterations = svm.n_iter_
+    support_vectors = svm.support_vectors_
+    memory_MB = X.astype(np.float64).nbytes / 1e6
+
+    return svm, iterations, elapsed_time, memory_MB, len(support_vectors)
+
+def svm_hybrid_precision(X, y, max_iter_total, tol_single, tol_double, 
+                         residual_tol=1e-3, single_iter_cap=200, C=1.0, kernel='rbf', seed=0):
+    """
+    Adaptive hybrid precision method for SVM.
+    """
+    X_single, y_single = X.astype(np.float32), y.astype(np.float32)
+    
+    # Single precision phase
+    start_single = time.time()
+    svm_single = SVC(C=C, kernel=kernel, gamma='scale', tol=tol_single,
+                     max_iter=single_iter_cap, random_state=seed)
+    svm_single.fit(X_single, y_single)
+    elapsed_single = time.time() - start_single
+
+    residual_single = 1 - svm_single.score(X_single, y_single)
+    total_double_iters = 0
+    elapsed_double = 0
+
+    # Adaptive switching condition
+    if residual_single > residual_tol and (max_iter_total - svm_single.n_iter_) > 0:
+        remaining_iters = max_iter_total - svm_single.n_iter_
+        
+        # Double precision refinement
+        start_double = time.time()
+        svm_double = SVC(C=C, kernel=kernel, gamma='scale', tol=tol_double,
+                         max_iter=remaining_iters, random_state=seed)
+        svm_double.fit(X, y)
+        
+        elapsed_double = time.time() - start_double
+        final_model = svm_double
+        total_double_iters = svm_double.n_iter_
+    else:
+        final_model = svm_single
+    
+    total_time = elapsed_single + elapsed_double
+    memory_MB = (X_single.nbytes + X.nbytes) / 1e6
+    
+    return (final_model, svm_single.n_iter_, total_double_iters, 
+            total_time, memory_MB, len(final_model.support_vectors_))
+
 def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A, rows_B):
     if ds_name.startswith("SYNTH"):
         sample_sizes = dataset_sizes
