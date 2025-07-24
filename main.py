@@ -347,6 +347,90 @@ def run_hybrid(X, initial_centers, n_clusters, max_iter_total, tol_single, tol_d
     return ( labels_final, centers_final, iters_single, iters_double,total_time, mem_MB_total, ari, dbi, inertia)
     
 
+def adaptive_run_hybrid(X, initial_centers, n_clusters, 
+                        max_iter_total, tol_single, tol_double, 
+                        residual_tol=1e-4, y_true=None, seed=0):
+    """
+    Advanced adaptive refinement method:
+    - Uses residual convergence (change in centers).
+    - Minimizes precision switching overhead.
+    """
+    rng = np.random.default_rng(seed)
+    
+    # Initializations
+    X_single = X.astype(np.float32)
+    centers_single = initial_centers.astype(np.float32)
+    
+    total_single_iters = 0
+    total_double_iters = 0
+    converged = False
+
+    # Single precision iterative refinement
+    start_total = time.time()
+    for iter_single in range(max_iter_total):
+        prev_centers = centers_single.copy()
+
+        # KMeans single precision (one iteration at a time)
+        kmeans_single = KMeans(
+            n_clusters=n_clusters,
+            init=centers_single,
+            n_init=1,
+            max_iter=1,
+            tol=tol_single,
+            algorithm='lloyd',
+            random_state=seed
+        ).fit(X_single)
+
+        centers_single = kmeans_single.cluster_centers_
+        total_single_iters += 1
+        
+        # Compute residual (center movement)
+        center_shift = norm(centers_single - prev_centers) / norm(prev_centers)
+        
+        if center_shift <= residual_tol:
+            converged = True
+            break
+    
+    elapsed_single = time.time() - start_total
+    
+    # Only switch to double if not sufficiently converged
+    if not converged and (max_iter_total - total_single_iters) > 0:
+        remaining_iters = max_iter_total - total_single_iters
+        
+        centers_double = centers_single.astype(np.float64)
+        
+        start_double = time.time()
+        
+        # Double precision refinement
+        kmeans_double = KMeans(
+            n_clusters=n_clusters,
+            init=centers_double,
+            n_init=1,
+            max_iter=remaining_iters,
+            tol=tol_double,
+            algorithm='lloyd',
+            random_state=seed
+        ).fit(X)
+
+        elapsed_double = time.time() - start_double
+
+        labels_final = kmeans_double.labels_
+        centers_final = kmeans_double.cluster_centers_
+        inertia_final = kmeans_double.inertia_
+        total_double_iters = kmeans_double.n_iter_
+    else:
+        labels_final = kmeans_single.labels_
+        centers_final = centers_single.astype(np.float64)
+        inertia_final = kmeans_single.inertia_
+        elapsed_double = 0
+        total_double_iters = 0
+
+    total_time = elapsed_single + elapsed_double
+    total_memory_MB = X_single.nbytes / 1e6 + X.nbytes / 1e6
+    
+    return (labels_final, centers_final, total_single_iters, total_double_iters,
+            total_time, total_memory_MB, inertia_final)
+
 
 def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A, rows_B):
     if ds_name.startswith("SYNTH"):
