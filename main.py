@@ -347,148 +347,86 @@ def run_hybrid(X, initial_centers, n_clusters, max_iter_total, tol_single, tol_d
     return ( labels_final, centers_final, iters_single, iters_double,total_time, mem_MB_total, ari, dbi, inertia)
     
 
-def adaptive_run_hybrid(X, initial_centers, n_clusters, 
-                        max_iter_total, tol_single, tol_double, 
-                        residual_tol=1e-4, y_true=None, seed=0):
-    """
-    Advanced adaptive refinement method:
-    - Uses residual convergence (change in centers).
-    - Minimizes precision switching overhead.
-    """
-    rng = np.random.default_rng(seed)
+# def adaptive_run_hybrid(X, initial_centers, n_clusters, 
+#                         max_iter_total, tol_single, tol_double, 
+#                         residual_tol=1e-4, y_true=None, seed=0):
+
+#     rng = np.random.default_rng(seed)
     
-    # Initializations
-    X_single = X.astype(np.float32)
-    centers_single = initial_centers.astype(np.float32)
+#     # Initializations
+#     X_single = X.astype(np.float32)
+#     centers_single = initial_centers.astype(np.float32)
     
-    total_single_iters = 0
-    total_double_iters = 0
-    converged = False
+#     total_single_iters = 0
+#     total_double_iters = 0
+#     converged = False
 
-    # Single precision iterative refinement
-    start_total = time.time()
-    for iter_single in range(max_iter_total):
-        prev_centers = centers_single.copy()
+#     # Single precision iterative refinement
+#     start_total = time.time()
+#     for iter_single in range(max_iter_total):
+#         prev_centers = centers_single.copy()
 
-        # KMeans single precision (one iteration at a time)
-        kmeans_single = KMeans(
-            n_clusters=n_clusters,
-            init=centers_single,
-            n_init=1,
-            max_iter=1,
-            tol=tol_single,
-            algorithm='lloyd',
-            random_state=seed
-        ).fit(X_single)
+#         # KMeans single precision (one iteration at a time)
+#         kmeans_single = KMeans(
+#             n_clusters=n_clusters,
+#             init=centers_single,
+#             n_init=1,
+#             max_iter=1,
+#             tol=tol_single,
+#             algorithm='lloyd',
+#             random_state=seed
+#         ).fit(X_single)
 
-        centers_single = kmeans_single.cluster_centers_
-        total_single_iters += 1
+#         centers_single = kmeans_single.cluster_centers_
+#         total_single_iters += 1
         
-        # Compute residual (center movement)
-        center_shift = norm(centers_single - prev_centers) / norm(prev_centers)
+#         # Compute residual (center movement)
+#         center_shift = norm(centers_single - prev_centers) / norm(prev_centers)
         
-        if center_shift <= residual_tol:
-            converged = True
-            break
+#         if center_shift <= residual_tol:
+#             converged = True
+#             break
     
-    elapsed_single = time.time() - start_total
+#     elapsed_single = time.time() - start_total
     
-    # Only switch to double if not sufficiently converged
-    if not converged and (max_iter_total - total_single_iters) > 0:
-        remaining_iters = max_iter_total - total_single_iters
+#     # Only switch to double if not sufficiently converged
+#     if not converged and (max_iter_total - total_single_iters) > 0:
+#         remaining_iters = max_iter_total - total_single_iters
         
-        centers_double = centers_single.astype(np.float64)
+#         centers_double = centers_single.astype(np.float64)
         
-        start_double = time.time()
+#         start_double = time.time()
         
-        # Double precision refinement
-        kmeans_double = KMeans(
-            n_clusters=n_clusters,
-            init=centers_double,
-            n_init=1,
-            max_iter=remaining_iters,
-            tol=tol_double,
-            algorithm='lloyd',
-            random_state=seed
-        ).fit(X)
+#         # Double precision refinement
+#         kmeans_double = KMeans(
+#             n_clusters=n_clusters,
+#             init=centers_double,
+#             n_init=1,
+#             max_iter=remaining_iters,
+#             tol=tol_double,
+#             algorithm='lloyd',
+#             random_state=seed
+#         ).fit(X)
 
-        elapsed_double = time.time() - start_double
+#         elapsed_double = time.time() - start_double
 
-        labels_final = kmeans_double.labels_
-        centers_final = kmeans_double.cluster_centers_
-        inertia_final = kmeans_double.inertia_
-        total_double_iters = kmeans_double.n_iter_
-    else:
-        labels_final = kmeans_single.labels_
-        centers_final = centers_single.astype(np.float64)
-        inertia_final = kmeans_single.inertia_
-        elapsed_double = 0
-        total_double_iters = 0
+#         labels_final = kmeans_double.labels_
+#         centers_final = kmeans_double.cluster_centers_
+#         inertia_final = kmeans_double.inertia_
+#         total_double_iters = kmeans_double.n_iter_
+#     else:
+#         labels_final = kmeans_single.labels_
+#         centers_final = centers_single.astype(np.float64)
+#         inertia_final = kmeans_single.inertia_
+#         elapsed_double = 0
+#         total_double_iters = 0
 
-    total_time = elapsed_single + elapsed_double
-    total_memory_MB = X_single.nbytes / 1e6 + X.nbytes / 1e6
+#     total_time = elapsed_single + elapsed_double
+#     total_memory_MB = X_single.nbytes / 1e6 + X.nbytes / 1e6
     
-    return (labels_final, centers_final, total_single_iters, total_double_iters,
-            total_time, total_memory_MB, inertia_final)
+#     return (labels_final, centers_final, total_single_iters, total_double_iters,
+#             total_time, total_memory_MB, inertia_final)
 
-
-def svm_double_precision(X, y, max_iter, tol, C=1.0, kernel='rbf', seed=0):
-    """
-    SVM double precision baseline function.
-    """
-    start_time = time.time()
-    
-    svm = SVC(C=C, kernel=kernel, gamma='scale', tol=tol, 
-              max_iter=max_iter, random_state=seed)
-    
-    svm.fit(X, y)
-    
-    elapsed_time = time.time() - start_time
-    iterations = svm.n_iter_
-    support_vectors = svm.support_vectors_
-    memory_MB = X.astype(np.float64).nbytes / 1e6
-
-    return svm, iterations, elapsed_time, memory_MB, len(support_vectors)
-
-def svm_hybrid_precision(X, y, max_iter_total, tol_single, tol_double, 
-                         residual_tol=1e-3, single_iter_cap=200, C=1.0, kernel='rbf', seed=0):
-    """
-    Adaptive hybrid precision method for SVM.
-    """
-    X_single, y_single = X.astype(np.float32), y.astype(np.float32)
-    
-    # Single precision phase
-    start_single = time.time()
-    svm_single = SVC(C=C, kernel=kernel, gamma='scale', tol=tol_single,
-                     max_iter=single_iter_cap, random_state=seed)
-    svm_single.fit(X_single, y_single)
-    elapsed_single = time.time() - start_single
-
-    residual_single = 1 - svm_single.score(X_single, y_single)
-    total_double_iters = 0
-    elapsed_double = 0
-
-    # Adaptive switching condition
-    if residual_single > residual_tol and (max_iter_total - svm_single.n_iter_) > 0:
-        remaining_iters = max_iter_total - svm_single.n_iter_
-        
-        # Double precision refinement
-        start_double = time.time()
-        svm_double = SVC(C=C, kernel=kernel, gamma='scale', tol=tol_double,
-                         max_iter=remaining_iters, random_state=seed)
-        svm_double.fit(X, y)
-        
-        elapsed_double = time.time() - start_double
-        final_model = svm_double
-        total_double_iters = svm_double.n_iter_
-    else:
-        final_model = svm_single
-    
-    total_time = elapsed_single + elapsed_double
-    memory_MB = (X_single.nbytes + X.nbytes) / 1e6
-    
-    return (final_model, svm_single.n_iter_, total_double_iters, 
-            total_time, memory_MB, len(final_model.support_vectors_))
 
 def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A, rows_B):
     if ds_name.startswith("SYNTH"):
