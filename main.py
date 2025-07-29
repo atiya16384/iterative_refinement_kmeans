@@ -564,15 +564,28 @@ columns_B = [
     'Time', 'Memory_MB', 'ARI', 'DBI', 'Inertia'
 ]
 
+columns_C = columns_A  # since it's same structure as A
+
+columns_D = [
+    'DatasetName', 'DatasetSize', 'NumClusters',
+    'Mode', 'tolerance_single', 'Cap', 'iter_single', 'iter_double', 'Suite',
+    'Time', 'Memory_MB', 'ARI', 'DBI', 'Inertia'
+]
+
 df_A = pd.DataFrame(rows_A, columns=columns_A)
 df_B = pd.DataFrame(rows_B, columns=columns_B)
+df_C= pd.DataFrame(rows_C, columns=columns_C)
+df_D = pd.DataFrame(rows_D, columns=columns_D)
 
 df_A.to_csv(RESULTS_DIR / "hybrid_kmeans_results_expA.csv", index=False)
 df_B.to_csv(RESULTS_DIR / "hybrid_kmeans_results_expB.csv", index=False)
+df_C.to_csv(RESULTS_DIR / "hybrid_kmeans_results_expC.csv", index=False)
+df_D.to_csv(RESULTS_DIR / "hybrid_kmeans_results_expD.csv", index=False)
 
 print("Saved:")
 print("- hybrid_kmeans_results_expA.csv")
 print("- hybrid_kmeans_results_expB.csv")
+
 
 # === SUMMARY: Experiment A ===
 print("\n==== SUMMARY: EXPERIMENT A ====")
@@ -587,6 +600,21 @@ print(df_B.groupby([
     'DatasetSize', 'NumClusters', 'Mode',
     'tolerance_single', 'iter_single', 'iter_double', 'Suite'
 ])[['Time', 'Memory_MB', 'ARI', 'DBI', 'Inertia']].mean())
+
+# === SUMMARY: Experiment C ===
+print("\n==== SUMMARY: EXPERIMENT C ====")
+print(df_C.groupby([
+    'DatasetSize', 'NumClusters', 'Mode', 'Cap',
+    'tolerance_single', 'iter_single', 'iter_double', 'Suite'
+])[['Time', 'Memory_MB', 'ARI', 'DBI', 'Inertia']].mean())
+
+# === SUMMARY: Experiment D ===
+print("\n==== SUMMARY: EXPERIMENT D ====")
+print(df_D.groupby([
+    'DatasetSize', 'NumClusters', 'Mode',
+    'tolerance_single', 'Cap', 'iter_single', 'iter_double', 'Suite'
+])[['Time', 'Memory_MB', 'ARI', 'DBI', 'Inertia']].mean())
+
 
 # how to plot for the different types of graphs that we have
 plot_hybrid_cap_vs_inertia()
