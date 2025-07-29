@@ -61,23 +61,30 @@ def run_experiments():
     tol_double = 1e-5
     rows_A, rows_B = [], []
 
-    for kernel in kernels:
-        for cap in caps:
-            res_dbl = svm_double_precision(X, y, max_iter=300, tol=tol_fixed, kernel=kernel)
-            res_hyb = svm_hybrid_precision(X, y, max_iter_total=300, tol_single=tol_fixed, tol_double=tol_fixed, single_iter_cap=cap, kernel=kernel)
-            res_dbl["Cap"] = cap
-            rows_A.append(res_dbl)
-            rows_A.append(res_hyb)
+        for kernel in kernels:
+            for cap in caps:
+                res_dbl = svm_double_precision(X, y, max_iter=300, tol=tol_fixed, kernel=kernel)
+                res_hyb = svm_hybrid_precision(X, y, max_iter_total=300, tol_single=tol_fixed, tol_double=tol_fixed, single_iter_cap=cap, kernel=kernel)
 
-        for tol in tolerances:
-            res_dbl = svm_double_precision(X, y, max_iter=cap_fixed, tol=tol, kernel=kernel)
-            res_hyb = svm_hybrid_precision(X, y, max_iter_total=cap_fixed, tol_single=tol, tol_double=tol_double, single_iter_cap=cap_fixed, kernel=kernel)
-            res_dbl["Tolerance"] = tol
-            rows_B.append(res_dbl)
-            rows_B.append(res_hyb)
+                # Extend the result tuples with Cap
+                res_dbl_extended = res_dbl + (cap,)
+                res_hyb_extended = res_hyb + (cap,)
+                rows_A.append(res_dbl_extended)
+                rows_A.append(res_hyb_extended)
+        
+            for tol in tolerances:
+                res_dbl = svm_double_precision(X, y, max_iter=cap_fixed, tol=tol, kernel=kernel)
+                res_hyb = svm_hybrid_precision(X, y, max_iter_total=cap_fixed, tol_single=tol, tol_double=tol_double, single_iter_cap=cap_fixed, kernel=kernel)
+        
+                # Extend the result tuples with Tolerance
+                res_dbl_extended = res_dbl + (tol,)
+                res_hyb_extended = res_hyb + (tol,)
+                rows_B.append(res_dbl_extended)
+                rows_B.append(res_hyb_extended)
 
-    df_A = pd.DataFrame(rows_A)
-    df_B = pd.DataFrame(rows_B)
+
+    df_A = pd.DataFrame(rows_A, columns=["Kernel", "Mode", "Cap_Original", "Tolerance", "Accuracy", "F1", "Time", "Iter_Single", "Iter_Double", "Cap"])
+    df_B = pd.DataFrame(rows_B, columns=["Kernel", "Mode", "Cap", "Tolerance_Original", "Accuracy", "F1", "Time", "Iter_Single", "Iter_Double", "Tolerance"])
     df_A.to_csv(RESULTS_DIR / "svm_results_expA.csv", index=False)
     df_B.to_csv(RESULTS_DIR / "svm_results_expB.csv", index=False)
     return df_A, df_B
