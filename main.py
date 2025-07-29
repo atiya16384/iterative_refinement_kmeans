@@ -525,7 +525,7 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A, rows_B):
                                            elapsed_hybrid, mem_MB_hybrid, ari_hybrid, dbi_hybrid, inertia_hybrid])
 
         
-    return rows_A, rows_B
+    return rows_A, rows_B, rows_C, rows_D
 
 all_rows = []
 
