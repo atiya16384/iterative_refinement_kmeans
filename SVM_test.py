@@ -1,12 +1,15 @@
 import numpy as np
 import time
 import pandas as pd
+from aoclda.sklearn import skpatch
+skpatch()
 import psutil
 from sklearn.svm import SVC
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
 from sklearn.datasets import make_classification
 import pathlib
+import os
 
 RESULTS_DIR = pathlib.Path("Results")
 RESULTS_DIR.mkdir(exist_ok=True)
@@ -22,9 +25,21 @@ def generate_dataset(n_samples, n_features, n_classes=2, seed=0):
     )
     return X, y
 
+def load_susy(n_rows=1_000_000):
+    df = pd.read_csv("SUSY.csv", header=None, nrows=n_rows)
+    X = df.iloc[:, 1:].values
+    y = df.iloc[:, 0].values.astype(int)
+    return X, y
+
+def load_3d_road(n_rows=1_000_000):
+    df = pd.read_csv("3D_spatial_network.csv", sep=r"\s+|,", engine="python", header=None, usecols=[1, 2, 3], nrows=n_rows)
+    X = df.values
+    y = np.random.randint(0, 2, size=len(X))  # Dummy binary labels
+    return X, y
+
 def measure_memory():
     process = psutil.Process()
-    return process.memory_info().rss / (1024 ** 2)  # memory in MB
+    return process.memory_info().rss / (1024 ** 2)
 
 def svm_double_precision(tag, X, y, max_iter, tol, cap=0, C=1.0, kernel='rbf', test_size=0.2, seed=0):
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=seed)
@@ -68,6 +83,12 @@ def svm_hybrid_precision(tag, X, y, max_iter_total, tol_single, tol_double, sing
         total_time, mem_after - mem_before, accuracy_score(y_test, y_pred)
     )
 
+def print_summary(path, group_by):
+    df = pd.read_csv(path)
+    print(f"\n==== SUMMARY: {path.name.upper()} ====")
+    summary = df.groupby(group_by)[['accuracy', 'Time', 'Memory_MB']].mean()
+    print(summary)
+
 def run_experiments():
     tol_fixed_A = 1e-16
     tol_double_B = 1e-5
@@ -84,30 +105,41 @@ def run_experiments():
         ("SYNTH_C_80_30_n1M", 1_000_000, 30, 80, 2)
     ]
 
+    real_datasets = [
+        ("SUSY", load_susy),
+        ("3D_ROAD", load_3d_road)
+    ]
+
     results_A, results_B, results_C, results_D = [], [], [], []
 
-    for tag, n_samples, n_features, n_classes, seed in synth_specs:
-        X, y = generate_dataset(n_samples=n_samples, n_features=n_features, n_classes=n_classes, seed=seed)
-
+    def run_all(tag, X, y):
         for _ in range(n_repeats):
-            # Experiment A
+            # A
             for cap in caps:
                 results_A.append(svm_double_precision(tag, X, y, max_iter=300, tol=tol_fixed_A, cap=cap))
                 results_A.append(svm_hybrid_precision(tag, X, y, max_iter_total=300, tol_single=tol_fixed_A, tol_double=tol_fixed_A, single_iter_cap=cap))
-
-            # Experiment B
+            # B
             for tol in tolerances:
                 results_B.append(svm_double_precision(tag, X, y, max_iter=1000, tol=tol, cap=1000))
                 results_B.append(svm_hybrid_precision(tag, X, y, max_iter_total=1000, tol_single=tol, tol_double=tol_double_B, single_iter_cap=1000))
-
-            # Experiment C (Fixed % of max_iter)
+            # C
             cap_80 = int(max_iter_C * perc_C)
             results_C.append(svm_double_precision(tag, X, y, max_iter=max_iter_C, tol=tol_fixed_A, cap=cap_80))
             results_C.append(svm_hybrid_precision(tag, X, y, max_iter_total=max_iter_C, tol_single=tol_fixed_A, tol_double=tol_fixed_A, single_iter_cap=cap_80))
-
-            # Experiment D (Fixed Tolerance)
+            # D
             results_D.append(svm_double_precision(tag, X, y, max_iter=1000, tol=tol_D, cap=1000))
             results_D.append(svm_hybrid_precision(tag, X, y, max_iter_total=1000, tol_single=tol_D, tol_double=tol_double_B, single_iter_cap=1000))
+
+    # Synthetic
+    for tag, n, d, c, seed in synth_specs:
+        X, y = generate_dataset(n, d, c, seed)
+        run_all(tag, X, y)
+
+    # Real-world
+    for tag, loader in real_datasets:
+        print(f"Loading {tag} …")
+        X, y = loader()
+        run_all(tag, X, y)
 
     columns = [
         'DatasetName', 'DatasetSize', 'NumClusters',
@@ -130,21 +162,12 @@ def run_experiments():
     print("- svm_expB_tol.csv")
     print("- svm_expC_80percent.csv")
     print("- svm_expD_tol_fixed.csv")
-    print_summary()
 
-    # Print summary for each experiment
-def print_summary(path, group_by):
-    df = pd.read_csv(path)
-    print(f"\n==== SUMMARY: {path.name.upper()} ====")
-    summary = df.groupby(group_by)[['accuracy', 'Time', 'Memory_MB']].mean()
-    print(summary)
-
+    # Summaries
     print_summary(RESULTS_DIR / "svm_expA_caps.csv", ['DatasetName', 'Suite'])
     print_summary(RESULTS_DIR / "svm_expB_tol.csv", ['DatasetName', 'Suite'])
     print_summary(RESULTS_DIR / "svm_expC_80percent.csv", ['DatasetName', 'Suite'])
     print_summary(RESULTS_DIR / "svm_expD_tol_fixed.csv", ['DatasetName', 'Suite'])
-
-    print("\nResults saved to 'Results/' directory.")
 
 def plot_svm_cap_vs_accuracy(df):
     df = df[df["Mode"] == "Hybrid"]
