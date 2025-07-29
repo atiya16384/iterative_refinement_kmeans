@@ -1,6 +1,8 @@
 import numpy as np
 import time
 import pandas as pd
+from aoclda.sklearn import skpatch
+skpatch()
 import matplotlib.pyplot as plt
 import pathlib
 from sklearn.svm import SVC
@@ -19,23 +21,14 @@ def svm_double_precision(X, y, max_iter, tol, C=1.0, kernel='rbf', test_size=0.2
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=seed)
     start_time = time.time()
     svm = SVC(C=C, kernel=kernel, gamma='scale', tol=tol, max_iter=max_iter, random_state=seed)
+
     svm.fit(X_train, y_train)
     elapsed_time = time.time() - start_time
     y_pred = svm.predict(X_test)
     acc = accuracy_score(y_test, y_pred)
     f1 = f1_score(y_test, y_pred, average='weighted')
     iterations = svm.n_iter_
-    return {
-        "Kernel": kernel,
-        "Mode": "Double",
-        "Cap": 0,
-        "Tolerance": tol,
-        "Accuracy": acc,
-        "F1": f1,
-        "Time": elapsed_time,
-        "Iter_Single": 0,
-        "Iter_Double": iterations
-    }
+    return (kernel, "Double", 0, tol, acc, f1, elapsed_time, 0,iterations)
 
 def svm_hybrid_precision(X, y, max_iter_total, tol_single, tol_double, single_iter_cap, C=1.0, kernel='rbf', test_size=0.2, seed=0):
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=seed)
@@ -56,17 +49,7 @@ def svm_hybrid_precision(X, y, max_iter_total, tol_single, tol_double, single_it
     f1 = f1_score(y_test, y_pred, average='weighted')
     iters_double = svm_double.n_iter_
 
-    return {
-        "Kernel": kernel,
-        "Mode": "Hybrid",
-        "Cap": single_iter_cap,
-        "Tolerance": tol_single,
-        "Accuracy": acc,
-        "F1": f1,
-        "Time": elapsed_single + elapsed_double,
-        "Iter_Single": iters_single,
-        "Iter_Double": iters_double
-    }
+    return (kernel, "Hybrid", single_iter_cap, tol_single, acc, f1, elapsed_single + elapsed_double, iters_single,iters_double)
 
 def run_experiments():
     X, y = generate_dataset(n_samples=10000, n_features=20, seed=0)  # Reduce size to speed up
