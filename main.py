@@ -24,6 +24,8 @@ PLOTS_DIR.mkdir(exist_ok = True)
 
 RUN_EXPERIMENT_A = True
 RUN_EXPERIMENT_B = True
+RUN_EXPERIMENT_C = True
+RUN_EXPERIMENT_D = True
 
 def load_3d_road(n_rows=1_000_000):
     path = DATA_DIR / "3D_spatial_network.csv"
@@ -61,17 +63,19 @@ max_iter_B = 1000
 tol_double_B = 1e-5
 tol_single_grid = [1e-1, 1e-2, 1e-3, 1e-4]
 
-# Percentage/value approach
-# 3rd Experiment
-# it can be like a third experiment
-# max_iter_C = 300
-# tol_fixed_C = 1e-5
-# max_percentage = 0.8
-# final_iter_C = max_iter_C * max_percentage
-# cap_grid = [final_iter_C]
+# Experiment C: fixed 80% iteration cap
+max_iter_C = 300
+perc_C = 0.8
+cap_C = int(max_iter_C * perc_C)
+tol_fixed_C = 1e-16  # or same as tol_fixed_A
 
-# tol_scale_C = 100 * tol_fixed_C
-# tol_single_grid = [tol_scale_C]
+# Experiment D - fixed tolerance, percentage-based cap on single precision
+max_iter_D = 1000
+tol_D = 1e-3
+perc_D = 0.8               # 80% of total iterations
+cap_D = int(max_iter_D * perc_D)
+
+
 
 n_repeats = 1
 rng_global = np.random.default_rng(0)
@@ -478,6 +482,49 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A, rows_B):
                                 # filename = (f"{ds_name}_n{n_samples}_k{n_clusters}_B_tol{tol_s:g}")
                                 # title = (f"{ds_name}: n={n_samples}, k={n_clusters},  tol={tol_s:g}")
                                 # plot_clusters(X_vis, labels_hybrid, centers_vis, title=title, filename=filename)
+                  
+                    if RUN_EXPERIMENT_C:
+                        for rep in range(n_repeats):
+                            # Double Precision baseline
+                            centers_double, labels_double, iters_double_tot, iters_single_tot, elapsed, mem_MB_double, ari, dbi, inertia = run_full_double(
+                                X_cur, initial_centers, n_clusters, max_iter_C, tol_fixed_C, y_true_cur
+                            )
+                            rows_A.append([
+                                ds_name, n_samples, n_clusters, "C", cap_C, tol_fixed_C, 0, iters_double_tot, "Double", elapsed, mem_MB_double,
+                                ari, dbi, inertia
+                            ])
+        
+                            # Hybrid Run
+                            labels_hybrid, centers_hybrid, iters_single, iters_double, elapsed_hybrid, mem_MB_hybrid, ari_hybrid, dbi_hybrid, inertia_hybrid = run_hybrid(
+                                X_cur, initial_centers, n_clusters, max_iter_total=max_iter_C,
+                                single_iter_cap=cap_C, tol_single=tol_fixed_C, tol_double=tol_fixed_C,
+                                y_true=y_true_cur, seed=rep
+                            )
+                            rows_A.append([
+                                ds_name, n_samples, n_clusters, "C", cap_C, tol_fixed_C, iters_single, iters_double, "Hybrid", elapsed_hybrid, mem_MB_hybrid,
+                                ari_hybrid, dbi_hybrid, inertia_hybrid
+                            ])
+
+                    if RUN_EXPERIMENT_D:
+                        for rep in range(n_repeats):
+                            # Double baseline for Experiment D
+                            centers_double, labels_double, iters_double_tot, iters_single_tot, elapsed, mem_MB_double, ari, dbi, inertia = run_full_double(
+                                X_cur, initial_centers, n_clusters, max_iter_D, tol_D, y_true_cur
+                            )
+                            rows_D.append([ds_name, n_samples, n_clusters, "D", tol_D, cap_D, iters_single_tot, iters_double_tot, "Double",
+                                           elapsed, mem_MB_double, ari, dbi, inertia])
+                    
+                        for rep in range(n_repeats):
+                            # Hybrid with percentage-based cap
+                            labels_hybrid, centers_hybrid, iters_single, iters_double, elapsed_hybrid, mem_MB_hybrid, ari_hybrid, dbi_hybrid, inertia_hybrid = run_hybrid(
+                                X_cur, initial_centers, n_clusters, max_iter_total=max_iter_D,
+                                tol_single=tol_D, tol_double=tol_D, single_iter_cap=cap_D,
+                                y_true=y_true_cur, seed=rep
+                            )
+                            rows_D.append([ds_name, n_samples, n_clusters, "D", tol_D, cap_D, iters_single, iters_double, "Hybrid",
+                                           elapsed_hybrid, mem_MB_hybrid, ari_hybrid, dbi_hybrid, inertia_hybrid])
+
+        
     return rows_A, rows_B
 
 all_rows = []
