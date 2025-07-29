@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.pyplot as plt
 import time
 import pandas as pd
 from aoclda.sklearn import skpatch
@@ -14,13 +15,10 @@ import os
 RESULTS_DIR = pathlib.Path("Results")
 RESULTS_DIR.mkdir(exist_ok=True)
 
-def generate_dataset(n_samples, n_features, n_classes=2, seed=0):
+def generate_dataset(n_samples, n_features, seed=0):
     X, y = make_classification(
         n_samples=n_samples,
         n_features=n_features,
-        n_informative=n_features,
-        n_redundant=0,
-        n_classes=n_classes,
         random_state=seed
     )
     return X, y
