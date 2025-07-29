@@ -145,10 +145,18 @@ def run_experiments():
         'Time', 'Memory_MB', 'accuracy'
     ]
 
+
+
     df_A = pd.DataFrame(results_A, columns=columns)
     df_B = pd.DataFrame(results_B, columns=columns)
     df_C = pd.DataFrame(results_C, columns=columns)
     df_D = pd.DataFrame(results_D, columns=columns)
+    
+    df_A["Mode"] = "A"
+    df_B["Mode"] = "B"
+    df_C["Mode"] = "C"
+    df_D["Mode"] = "D"
+
 
     df_A.to_csv(RESULTS_DIR / "svm_expA_caps.csv", index=False)
     df_B.to_csv(RESULTS_DIR / "svm_expB_tol.csv", index=False)
