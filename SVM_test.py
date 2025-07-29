@@ -174,6 +174,7 @@ def run_experiments():
     print_summary(RESULTS_DIR / "svm_expB_tol.csv", ['DatasetName', 'Suite'])
     print_summary(RESULTS_DIR / "svm_expC_80percent.csv", ['DatasetName', 'Suite'])
     print_summary(RESULTS_DIR / "svm_expD_tol_fixed.csv", ['DatasetName', 'Suite'])
+    return df_A, df_B, df_C df_D
 
 def plot_svm_cap_vs_accuracy(df):
     df = df[df["Mode"] == "Hybrid"]
