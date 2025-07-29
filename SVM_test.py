@@ -61,7 +61,7 @@ def run_experiments():
     tol_double = 1e-5
     rows_A, rows_B = [], []
 
-        for kernel in kernels:
+    for kernel in kernels:
             for cap in caps:
                 res_dbl = svm_double_precision(X, y, max_iter=300, tol=tol_fixed, kernel=kernel)
                 res_hyb = svm_hybrid_precision(X, y, max_iter_total=300, tol_single=tol_fixed, tol_double=tol_fixed, single_iter_cap=cap, kernel=kernel)
