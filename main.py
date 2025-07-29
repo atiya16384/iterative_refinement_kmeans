@@ -47,10 +47,9 @@ dataset_sizes = [100000]
 n_clusters_list = [30]
 
 max_iter = 300
-
 # Understand what the experiment parameters mean
 # Have the cap grid based on a percentage of the max iteration
-tol_fixed_A = 0
+tol_fixed_A = 1e-16
 # varying the capmax_percentage
 max_iter_A = 300
     # start time 

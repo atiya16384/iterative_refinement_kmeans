@@ -20,7 +20,7 @@ def generate_dataset(n_samples, n_features, seed=0):
 def svm_double_precision(X, y, max_iter, tol, C=1.0, kernel='rbf', test_size=0.2, seed=0):
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=seed)
     start_time = time.time()
-    svm = SVC(C=C, kernel=kernel, gamma='scale', tol=tol, max_iter=max_iter, random_state=seed)
+    svm = SVC(C=C, kernel=kernel, gamma='scale', tol=tol, max_iter=int(max_iter), random_state=seed)
 
     svm.fit(X_train, y_train)
     elapsed_time = time.time() - start_time
@@ -34,14 +34,14 @@ def svm_hybrid_precision(X, y, max_iter_total, tol_single, tol_double, single_it
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=seed)
     X_train_single = X_train.astype(np.float32)
     start_single = time.time()
-    svm_single = SVC(C=C, kernel=kernel, gamma='scale', tol=tol_single, max_iter=single_iter_cap, random_state=seed)
+    svm_single = SVC(C=C, kernel=kernel, gamma='scale', tol=tol_single, max_iter=int(single_iter_cap), random_state=seed)
     svm_single.fit(X_train_single, y_train)
     elapsed_single = time.time() - start_single
     iters_single = svm_single.n_iter_
 
     remaining_iters = max(1, max_iter_total - iters_single)
     start_double = time.time()
-    svm_double = SVC(C=C, kernel=kernel, gamma='scale', tol=tol_double, max_iter=remaining_iters, random_state=seed)
+    svm_double = SVC(C=C, kernel=kernel, gamma='scale', tol=tol_double, max_iter=int(remaining_iters), random_state=seed)
     svm_double.fit(X_train, y_train)
     elapsed_double = time.time() - start_double
     y_pred = svm_double.predict(X_test)
@@ -54,9 +54,9 @@ def svm_hybrid_precision(X, y, max_iter_total, tol_single, tol_double, single_it
 def run_experiments():
     X, y = generate_dataset(n_samples=10000, n_features=20, seed=0)  # Reduce size to speed up
     kernels = ['linear', 'rbf']
-    tol_fixed = 1e-3
-    caps = [0, 10, 20, 30, 40, 50]
-    cap_fixed = 100
+    tol_fixed = 1e-16
+    caps = [0, 50, 100, 150, 200, 250, 300]
+    cap_fixed = 300
     tolerances = [1e-1, 1e-2, 1e-3, 1e-4]
     tol_double = 1e-5
     rows_A, rows_B = [], []
@@ -73,8 +73,8 @@ def run_experiments():
                 rows_A.append(res_hyb_extended)
         
             for tol in tolerances:
-                res_dbl = svm_double_precision(X, y, max_iter=cap_fixed, tol=tol, kernel=kernel)
-                res_hyb = svm_hybrid_precision(X, y, max_iter_total=cap_fixed, tol_single=tol, tol_double=tol_double, single_iter_cap=cap_fixed, kernel=kernel)
+                res_dbl = svm_double_precision(X, y, max_iter=1000, tol=tol, kernel=kernel)
+                res_hyb = svm_hybrid_precision(X, y, max_iter_total=1000, tol_single=tol, tol_double=tol_double, single_iter_cap=1000, kernel=kernel)
         
                 # Extend the result tuples with Tolerance
                 res_dbl_extended = res_dbl + (tol,)
