@@ -2,8 +2,9 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
 import pathlib
-
 from sklearn.decomposition import PCA
+import numpy as np
+
 
 def plot_with_ci(df, x_col, y_col, hue_col, title, xlabel, ylabel, filename, output_dir="Results"):
     output_dir = pathlib.Path(output_dir)
@@ -157,8 +158,22 @@ def plot_tolerance_vs_inertia(results_path="Results/hybrid_kmeans_results_expB.c
     plt.close()
     print(f"Saved: {filename}")
 
-def pca_2d_view(X_full, centers_full, random_state=0):
+
+def pca_2d_view(X_full, centers_full, resolution=300, random_state=0):
     pca = PCA(n_components=2, random_state=random_state)
     X_vis = pca.fit_transform(X_full)
     centers_vis = pca.transform(centers_full)
-    return X_vis, centers_vis
+
+    # Create a meshgrid for decision boundaries
+    x_min, x_max = X_vis[:, 0].min() - 1, X_vis[:, 0].max() + 1
+    y_min, y_max = X_vis[:, 1].min() - 1, X_vis[:, 1].max() + 1
+    xx, yy = np.meshgrid(np.linspace(x_min, x_max, resolution),
+                         np.linspace(y_min, y_max, resolution))
+    grid_points = np.c_[xx.ravel(), yy.ravel()]
+
+    # Assign each grid point to nearest center
+    from sklearn.metrics import pairwise_distances_argmin
+    labels_grid = pairwise_distances_argmin(grid_points, centers_vis)
+    labels_grid = labels_grid.reshape(xx.shape)
+
+    return X_vis, centers_vis, xx, yy, labels_grid
