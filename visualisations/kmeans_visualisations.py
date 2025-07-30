@@ -177,3 +177,22 @@ def pca_2d_view(X_full, centers_full, resolution=300, random_state=0):
     labels_grid = labels_grid.reshape(xx.shape)
 
     return X_vis, centers_vis, xx, yy, labels_grid
+
+
+def plot_clusters(X_vis, labels, centers_vis, xx, yy, labels_grid, title="", filename=""):
+    import matplotlib.pyplot as plt
+
+    plt.figure(figsize=(8, 6))
+    # Decision boundary
+    plt.contourf(xx, yy, labels_grid, cmap="Pastel1", alpha=0.4)
+
+    # Scatter actual points
+    plt.scatter(X_vis[:, 0], X_vis[:, 1], c=labels, s=10, cmap="tab10", alpha=0.8, edgecolors="k")
+    plt.scatter(centers_vis[:, 0], centers_vis[:, 1], c='black', marker='x', s=100, label="Centers")
+
+    plt.title(title)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(f"ClusterPlots/{filename}.png")
+    plt.close()
+
