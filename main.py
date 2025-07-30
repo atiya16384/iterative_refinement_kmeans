@@ -106,60 +106,35 @@ def evaluate_metrics(X, labels, y_true, inertia):
     db_index = davies_bouldin_score(X, labels)
     return ari, db_index, inertia
 
-def plot_clusters(
-        X, labels, centers,
-        title="",
-        do_plot=True,
-        filename=None,
-        max_grid_pts=4_000_000,   
-        max_scatter=25_000):
-
-    if not do_plot or X.shape[1] != 2:
-        print("Skipping plot (not 2-D)")
+def plot_clusters(X_2d, labels, centers_2d, title="", filename=None, max_scatter=25000):
+    if X_2d.shape[1] != 2 or centers_2d.shape[1] != 2:
+        print("Skipping plot — data is not 2D")
         return
 
-    # bounding box 
-    h = 0.02
-    x_min, x_max = X[:, 0].min() - 1, X[:, 0].max() + 1
-    y_min, y_max = X[:, 1].min() - 1, X[:, 1].max() + 1
-    nx = int((x_max - x_min) / h) + 1
-    ny = int((y_max - y_min) / h) + 1
-    need_mesh = (nx * ny) <= max_grid_pts
-
-    # figure 
     plt.figure(figsize=(6, 5))
 
-    if need_mesh:
-        xx, yy = np.meshgrid(
-            np.linspace(x_min, x_max, nx),
-            np.linspace(y_min, y_max, ny)
-        )
-        Z = KMeans(
-            n_clusters=len(centers),
-            init=centers, n_init=1, max_iter=1
-        ).predict(np.c_[xx.ravel(), yy.ravel()]).reshape(xx.shape)
-        plt.contourf(xx, yy, Z, alpha=0.25, cmap="Pastel2")
+    # Downsample points if necessary
+    if len(X_2d) > max_scatter:
+        sel = np.random.default_rng(0).choice(len(X_2d), max_scatter, replace=False)
+        X_plot, labels_plot = X_2d[sel], labels[sel]
     else:
-        print("Mesh too large; plotting points only")
+        X_plot, labels_plot = X_2d, labels
 
-    # scatter
-    if len(X) > max_scatter:
-        sel = np.random.default_rng(0).choice(len(X), max_scatter, replace=False)
-        X_plot, labels_plot = X[sel], labels[sel]
-    else:
-        X_plot, labels_plot = X, labels
+    # Plot clusters
+    plt.scatter(X_plot[:, 0], X_plot[:, 1], c=labels_plot, s=5, cmap="Dark2", alpha=0.8)
 
-    plt.scatter(X_plot[:, 0], X_plot[:, 1], c=labels_plot, s=5, cmap="Dark2")
-    plt.scatter(centers[:, 0], centers[:, 1], c="k", s=80, marker="x")
+    # Plot centers
+    plt.scatter(centers_2d[:, 0], centers_2d[:, 1], c="black", s=80, marker="x")
+
     plt.title(title)
     plt.tight_layout()
 
-    # save 
     if filename:
         out_path = PLOTS_DIR / f"{filename}.png"
         plt.savefig(out_path, dpi=150)
         print(f"Plot saved to {out_path}")
     plt.close()
+
 
 def plot_hybrid_cap_vs_inertia(results_path = "Results/hybrid_kmeans_results_expA.csv", output_dir = "Results"):
     output_dir = pathlib.Path(output_dir)
