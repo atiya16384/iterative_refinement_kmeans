@@ -1,4 +1,5 @@
 from visualisations.kmeans_visualisations import pca_2d_view, plot_clusters
+from experiments.kmeans_precision import run_full_double, run_hybrid
 
 def run_experiment_A(ds_name, X, y_true, n_clusters, initial_centers, config):
     rows_A = []
