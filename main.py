@@ -86,11 +86,6 @@ precisions = {
     "Double Precision": np.float64
 }
 
-def generate_data(n_samples, n_features, n_clusters, random_state):
-    X, y_true = make_blobs(n_samples=n_samples, n_features=n_features, centers=n_clusters, random_state=random_state)
-    
-    return X.astype(np.float64), y_true
-
 def evaluate_metrics(X, labels, y_true, inertia):
     if y_true is None:
         ari = np.nan                
