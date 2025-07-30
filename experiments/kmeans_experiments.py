@@ -57,8 +57,8 @@ def run_experiment_B(ds_name, X, y_true, n_clusters, initial_centers, config):
     X_cur = X
     y_true_cur = y_true
 
-    max_iter = config["max_iter_A"]
-    tol_fixed_A = config["tol_fixed_A"]
+    max_iter = config["max_iter_B"]
+    tol_double_B = config["tol_double_B"]
     tol_single_grid = config["tol_single_grid"]
     n_repeats = config["n_repeats"]
 
@@ -107,10 +107,10 @@ def run_experiment_C(ds_name, X, y_true, n_clusters, initial_centers, config):
     n_features = X.shape[1]
     X_cur = X
     y_true_cur = y_true
-
-    max_iter = config["max_iter_A"]
-    tol_fixed_A = config["tol_fixed_A"]
-    tol_single_grid = config["tol_single_grid"]
+    
+    max_iter = config["max_iter_C"]
+    tol_fixed = config["tol_fixed_C"]
+    cap_C = config["cap_C"]
     n_repeats = config["n_repeats"]
 
     for rep in range(n_repeats):
@@ -145,9 +145,9 @@ def run_experiment_D(ds_name, X, y_true, n_clusters, initial_centers, config):
     X_cur = X
     y_true_cur = y_true
 
-    max_iter = config["max_iter_A"]
-    tol_fixed_A = config["tol_fixed_A"]
-    tol_single_grid = config["tol_single_grid"]
+    max_iter = config["max_iter_D"]
+    tol_double = config["tol_double_D"]
+    tol_single = config["tol_single_D"]
     n_repeats = config["n_repeats"]
 
     for rep in range(n_repeats):
