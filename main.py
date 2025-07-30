@@ -538,6 +538,8 @@ synth_specs = [
 
 rows_A = []
 rows_B = []
+rows_C = []
+rows_D = []
 
 for tag, n, d, k, seed in synth_specs:
     X, y = generate_data(n, d, k, random_state=seed)
