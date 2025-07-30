@@ -617,10 +617,18 @@ print(df_D.groupby([
 
 
 # how to plot for the different types of graphs that we have
-plot_hybrid_cap_vs_inertia()
-plot_cap_vs_time() 
-plot_tolerance_vs_inertia()
-plot_tolerance_vs_time()
+# Plots for Experiment A and C (Cap-based)
+plot_cap_vs_time("Results/hybrid_kmeans_results_expA.csv")
+plot_hybrid_cap_vs_inertia("Results/hybrid_kmeans_results_expA.csv")
+plot_cap_vs_time("Results/hybrid_kmeans_results_expC.csv")
+plot_hybrid_cap_vs_inertia("Results/hybrid_kmeans_results_expC.csv")
+
+# Plots for Experiment B and D (Tolerance-based)
+plot_tolerance_vs_time("Results/hybrid_kmeans_results_expB.csv")
+plot_tolerance_vs_inertia("Results/hybrid_kmeans_results_expB.csv")
+plot_tolerance_vs_time("Results/hybrid_kmeans_results_expD.csv")
+plot_tolerance_vs_inertia("Results/hybrid_kmeans_results_expD.csv")
+
 
 print("\nResults saved to 'hybrid_kmeans_results_expA.csv")
 print("\nResults saved to 'hybrid_kmeans_results_expB.csv")
