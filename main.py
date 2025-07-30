@@ -23,6 +23,13 @@ from visualisation.kmeans_visualisation import (
     boxplot_comparison
 )
 
+from datasets.kmeans_datasets import (
+    generate_synthetic_data, load_susy, load_3d_road,
+    synth_specs, real_datasets,
+    columns_A, columns_B, columns_C, columns_D
+)
+
+
 DATA_DIR = pathlib.Path(".")         
 RESULTS_DIR = pathlib.Path("Results")
 RESULTS_DIR.mkdir(exist_ok=True)
@@ -35,21 +42,6 @@ RUN_EXPERIMENT_B = True
 RUN_EXPERIMENT_C = True
 RUN_EXPERIMENT_D = True
 
-def load_3d_road(n_rows=1_000_000):
-    path = DATA_DIR / "3D_spatial_network.csv"
-    
-    X = pd.read_csv(path, sep=r"\s+|,", engine="python",  
-                    header=None, usecols=[1, 2, 3],
-                    nrows=n_rows, dtype=np.float64).to_numpy()
-    return X, None
-    
-def load_susy(n_rows=1_000_000):
-    path = DATA_DIR / "SUSY.csv"
-    df = pd.read_csv(path, header=None, nrows=n_rows,
-                     dtype=np.float64, names=[f"c{i}" for i in range(9)])
-    # start time 
-    X = df.iloc[:, 1:].to_numpy()     
-    return X, None
 
 # CONFIGURATION PARAMETERS 
 dataset_sizes = [100000]
@@ -84,15 +76,9 @@ perc_tol = 0.8                     # Percentage for single precision tolerance
 tol_single_D = perc_tol * tol_double_D
 
 
-
 n_repeats = 1
 rng_global = np.random.default_rng(0)
 
-# Real-dataset
-real_datasets = {
-    "3D_ROAD": load_3d_road,
-    "SUSY":    load_susy,
-} 
 
 # Define dictionary of precisions
 precisions = {
@@ -113,7 +99,6 @@ def evaluate_metrics(X, labels, y_true, inertia):
 
     db_index = davies_bouldin_score(X, labels)
     return ari, db_index, inertia
-
 
 # FULL DOUBLE PRECISION RUN
 def run_full_double(X, initial_centers, n_clusters, max_iter, tol, y_true):
@@ -365,12 +350,6 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A, rows_B):
 
 all_rows = []
 
-synth_specs = [
-    # number of samples; number of features, number of clusters, random seeds
-    ("SYNTH_C_5_F_80_n100k", 1000_000, 80,  5, 0),
-    ("SYNTH_C_80_F_5_n100k", 1000_000, 5, 80, 1),
-    ("SYNTH_C_80_30_n100k", 1000_000, 30, 80, 1)
-]
 
 rows_A = []
 rows_B = []
@@ -378,7 +357,7 @@ rows_C = []
 rows_D = []
 
 for tag, n, d, k, seed in synth_specs:
-    X, y = generate_data(n, d, k, random_state=seed)
+    X, y = generate_synthetic_data(n, d, k, seed)
     print(f"[SYNTH] {tag:14s}  shape={X.shape}  any_NaN={np.isnan(X).any()}",
           flush=True)
     # check if the mappings are correct to the run_one_dataset
@@ -389,26 +368,6 @@ for tag, n, d, k, seed in synth_specs:
 #    print(f"loading {tag} …")
 #    X_real, y_real = loader()
 #    all_rows += run_one_dataset(tag, X_real, y_real, rows_A, rows_B)
-
-columns_A = [
-    'DatasetName', 'DatasetSize', 'NumClusters', 
-    'Mode', 'Cap', 'tolerance_single', 'iter_single', 'iter_double', 'Suite',
-    'Time', 'Memory_MB', 'ARI', 'DBI', 'Inertia'
-]
-
-columns_B = [
-    'DatasetName', 'DatasetSize', 'NumClusters',
-    'Mode', 'tolerance_single', 'iter_single', 'iter_double', 'Suite',
-    'Time', 'Memory_MB', 'ARI', 'DBI', 'Inertia'
-]
-
-columns_C = columns_A  # since it's same structure as A
-
-columns_D = [
-    'DatasetName', 'DatasetSize', 'NumClusters',
-    'Mode', 'tolerance_single', 'Cap', 'iter_single', 'iter_double', 'Suite',
-    'Time', 'Memory_MB', 'ARI', 'DBI', 'Inertia'
-]
 
 df_A = pd.DataFrame(rows_A, columns=columns_A)
 df_B = pd.DataFrame(rows_B, columns=columns_B)
