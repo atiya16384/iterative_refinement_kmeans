@@ -14,6 +14,14 @@ import pathlib
 from sklearn.decomposition import PCA
 import time
 import numpy as np
+from visualisation.kmeans_visualisation import (
+    plot_cap_vs_time,
+    plot_hybrid_cap_vs_inertia,
+    plot_tolerance_vs_time,
+    plot_tolerance_vs_inertia,
+    plot_with_ci,
+    boxplot_comparison
+)
 
 DATA_DIR = pathlib.Path(".")         
 RESULTS_DIR = pathlib.Path("Results")
@@ -106,161 +114,6 @@ def evaluate_metrics(X, labels, y_true, inertia):
     db_index = davies_bouldin_score(X, labels)
     return ari, db_index, inertia
 
-def plot_clusters(X_2d, labels, centers_2d, title="", filename=None, max_scatter=25000):
-    if X_2d.shape[1] != 2 or centers_2d.shape[1] != 2:
-        print("Skipping plot — data is not 2D")
-        return
-
-    plt.figure(figsize=(6, 5))
-
-    # Downsample points if necessary
-    if len(X_2d) > max_scatter:
-        sel = np.random.default_rng(0).choice(len(X_2d), max_scatter, replace=False)
-        X_plot, labels_plot = X_2d[sel], labels[sel]
-    else:
-        X_plot, labels_plot = X_2d, labels
-
-    # Plot clusters
-    plt.scatter(X_plot[:, 0], X_plot[:, 1], c=labels_plot, s=5, cmap="Dark2", alpha=0.8)
-
-    # Plot centers
-    plt.scatter(centers_2d[:, 0], centers_2d[:, 1], c="black", s=80, marker="x")
-
-    plt.title(title)
-    plt.tight_layout()
-
-    if filename:
-        out_path = PLOTS_DIR / f"{filename}.png"
-        plt.savefig(out_path, dpi=150)
-        print(f"Plot saved to {out_path}")
-    plt.close()
-
-
-def plot_hybrid_cap_vs_inertia(results_path = "Results/hybrid_kmeans_results_expA.csv", output_dir = "Results"):
-    output_dir = pathlib.Path(output_dir)
-    df = pd.read_csv(results_path)
-    df_hybrid = df[df["Suite"] == "Hybrid"]
-    df_double = df[df["Suite"] == "Double"]
-    group_cols = ["DatasetName", "NumClusters", "Cap"]
-    df_grouped = df_hybrid.groupby(group_cols)[["Inertia"]].mean().reset_index()
-
-
-    plt.figure(figsize=(7,5))
-    for (ds, k), group in df_grouped.groupby(["DatasetName", "NumClusters"]):
-            group_sorted = group.sort_values("Cap")
-            base_inertia = df[(df["Suite"] == "Double") & (df["DatasetName"] == ds) & (df["NumClusters"] == k)]["Inertia"].mean()
-        
-            group_sorted["Inertia"] = group_sorted["Inertia"] / base_inertia
-                          
-            plt.plot(group_sorted["Cap"], group_sorted["Inertia"], marker = 'o', label=f"{ds}-C{k}")
-    
-    plt.title("Cap vs Intertia ( Hybrid)")
-    plt.xlabel("Cap (Single Precision Iteration Cap)")
-
-    plt.ylabel("Final Inertia")
-    plt.grid(True)
-    plt.legend()
-    plt.tight_layout()
-
-    filename = output_dir / "cap_vs_inertia_hybrid.png"
-    plt.savefig(filename)
-    plt.close()
-    print(f"saved: {filename}")
-
-def plot_cap_vs_time(results_path="Results/hybrid_kmeans_results_expA.csv", output_dir="Results"):
-    output_dir = pathlib.Path(output_dir)
-    df = pd.read_csv(results_path)
-    df_hybrid = df[df["Suite"] == "Hybrid"]
-    group_cols = ["DatasetName", "NumClusters", "Cap"]
-    df_grouped = df_hybrid.groupby(group_cols)[["Time"]].mean().reset_index()
-
-    plt.figure(figsize=(7,5))
-    for (ds, k), group in df_grouped.groupby(["DatasetName", "NumClusters"]):
-            
-            base_time = df[(df["Suite"] == "Double") & (df["DatasetName"] == ds) & (df["NumClusters"] == k)]["Time"].mean()
-            group_sorted = group.sort_values("Cap")
-            group_sorted["Time"] = group_sorted["Time"] / base_time
-        
-            plt.plot(group_sorted["Cap"], group_sorted["Time"], marker = 'o', label=f"{ds}-C{k}")
-    
-    plt.title("Cap vs Time (Hybrid)")
-    plt.xlabel("Cap (Single Precision Iteration Cap)")
-    plt.ylabel("Total Time (seconds)")
-    plt.grid(True)
-    plt.legend()
-    plt.tight_layout()
-
-    filename = output_dir / "cap_vs_time_hybrid.png"
-    plt.savefig(filename)
-    plt.close()
-    print(f"Saved: {filename}")
-
-def plot_tolerance_vs_time(results_path="Results/hybrid_kmeans_results_expB.csv", output_dir="Results"):
-    output_dir = pathlib.Path(output_dir)
-    df = pd.read_csv(results_path)
-    df_hybrid = df[df["Suite"] == "Hybrid"]
-    group_cols = ["DatasetName", "NumClusters",  "tolerance_single"]
-    df_grouped = df_hybrid.groupby(group_cols)[["Time"]].mean().reset_index()
-
-    plt.figure(figsize=(7, 5))
-    for (ds, k), group in df_grouped.groupby(["DatasetName", "NumClusters"]):
-
-        base_time = df[(df["Suite"] == "Double") & (df["DatasetName"] == ds) & (df["NumClusters"] == k) ]["Time"].mean()
-        group_sorted = group.sort_values("tolerance_single")
-        group_sorted["Time"] = group_sorted["Time"] / base_time
-
-        plt.plot(group_sorted["tolerance_single"], group_sorted["Time"], marker='o', label=f"{ds}-C{k}")
-
-    plt.title("Tolerance vs Time (Hybrid)")
-    # plt.ylim(0.99, 1.01)
-    plt.xlabel("Single Precision Tolerance")
-    plt.xscale('log')
-    plt.ylabel("Total Time (seconds)")
-    plt.grid(True)
-    plt.legend()
-    plt.tight_layout()
-
-    filename = output_dir / "tolerance_vs_time_hybrid.png"
-    plt.savefig(filename)
-    plt.close()
-    print(f"Saved: {filename}")
-
-def plot_tolerance_vs_inertia(results_path="Results/hybrid_kmeans_results_expB.csv", output_dir="Results"):
-    output_dir = pathlib.Path(output_dir)
-    df = pd.read_csv(results_path)
-    df_hybrid = df[df["Suite"] == "Hybrid"]
-    group_cols = ["DatasetName", "NumClusters", "tolerance_single"]
-    df_grouped = df_hybrid.groupby(group_cols)[["Inertia"]].mean().reset_index()
-
-    plt.figure(figsize=(7, 5))
-    for (ds, k ), group in df_grouped.groupby(["DatasetName", "NumClusters"]):
-        base_inertia = df[(df["Suite"] == "Double") & (df["DatasetName"] == ds) & (df["NumClusters"] == k) ]["Inertia"].mean()
-        
-        group_sorted = group.sort_values("tolerance_single")
-        group_sorted["Inertia"] = group_sorted["Inertia"] / base_inertia
-
-        plt.plot(group_sorted["tolerance_single"], group_sorted["Inertia"], marker='o', label=f"{ds}-C{k}")
-
-    plt.title("Tolerance vs Inertia (Hybrid)")
-    # plt.ylim(0.9999, 1.0001)
-    plt.xlabel("Single Precision Tolerance")
-    plt.xscale('log')
-    plt.ylabel("Final Inertia")
-
-    plt.grid(True)
-    plt.legend()
-    plt.tight_layout()
-
-    filename = output_dir / "tolerance_vs_inertia_hybrid.png"
-    plt.savefig(filename)
-    plt.close()
-    print(f"Saved: {filename}")
-
-def pca_2d_view(X_full, centers_full, random_state=0):
-    pca = PCA(n_components=2, random_state=random_state)
-    X_vis = pca.fit_transform(X_full)
-    centers_vis = pca.transform(centers_full)
-    return X_vis, centers_vis
 
 # FULL DOUBLE PRECISION RUN
 def run_full_double(X, initial_centers, n_clusters, max_iter, tol, y_true):
@@ -603,14 +456,17 @@ print(df_D.groupby([
 
 # how to plot for the different types of graphs that we have
 # Plots for Experiment A and C (Cap-based)
+# Cap-based plots (Experiments A & C)
 plot_cap_vs_time("Results/hybrid_kmeans_results_expA.csv")
 plot_hybrid_cap_vs_inertia("Results/hybrid_kmeans_results_expA.csv")
+
 plot_cap_vs_time("Results/hybrid_kmeans_results_expC.csv")
 plot_hybrid_cap_vs_inertia("Results/hybrid_kmeans_results_expC.csv")
 
-# Plots for Experiment B and D (Tolerance-based)
+# Tolerance-based plots (Experiments B & D)
 plot_tolerance_vs_time("Results/hybrid_kmeans_results_expB.csv")
 plot_tolerance_vs_inertia("Results/hybrid_kmeans_results_expB.csv")
+
 plot_tolerance_vs_time("Results/hybrid_kmeans_results_expD.csv")
 plot_tolerance_vs_inertia("Results/hybrid_kmeans_results_expD.csv")
 
