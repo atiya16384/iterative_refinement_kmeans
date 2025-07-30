@@ -28,7 +28,7 @@ from experiments.kmeans_experiments import (
     run_experiment_C, run_experiment_D
 )
 from datasets.kmeans_datasets import (
-    generate_synthetic_data, real_datasets, synth_specs,
+    generate_synthetic_data, real_datasets, synth_specs, load_3d_road, load_susy,
     columns_A, columns_B, columns_C, columns_D
 )
 
@@ -132,20 +132,15 @@ for tag, n, d, k, seed in synth_specs:
     run_one_dataset(tag, X, y, rows_A, rows_B, rows_C, rows_D)
 
 # real datasets
-# for tag, loader in real_datasets.items():
-#    print(f"loading {tag} …")
-#    X_real, y_real = loader()
-#    all_rows += run_one_dataset(tag, X_real, y_real, rows_A, rows_B)
+for tag, loader in real_datasets.items():
+   print(f"loading {tag} …")
+   X_real, y_real = loader()
+   all_rows += run_one_dataset(tag, X_real, y_real, rows_A, rows_B)
 
 df_A = pd.DataFrame(rows_A, columns=columns_A)
 df_B = pd.DataFrame(rows_B, columns=columns_B)
 df_C= pd.DataFrame(rows_C, columns=columns_C)
 df_D = pd.DataFrame(rows_D, columns=columns_D)
-
-df_A.to_csv(RESULTS_DIR / "hybrid_kmeans_results_expA.csv", index=False)
-df_B.to_csv(RESULTS_DIR / "hybrid_kmeans_results_expB.csv", index=False)
-df_C.to_csv(RESULTS_DIR / "hybrid_kmeans_results_expC.csv", index=False)
-df_D.to_csv(RESULTS_DIR / "hybrid_kmeans_results_expD.csv", index=False)
 
 print("Saved:")
 print("- hybrid_kmeans_results_expA.csv")
@@ -183,18 +178,15 @@ print(df_D.groupby([
 # how to plot for the different types of graphs that we have
 # Plots for Experiment A and C (Cap-based)
 # Cap-based plots (Experiments A & C)
-plot_cap_vs_time("Results/hybrid_kmeans_results_expA.csv")
-plot_hybrid_cap_vs_inertia("Results/hybrid_kmeans_results_expA.csv")
-plot_cap_vs_time("Results/hybrid_kmeans_results_expC.csv")
-plot_hybrid_cap_vs_inertia("Results/hybrid_kmeans_results_expC.csv")
+plot_cap_vs_time(df_A)
+plot_hybrid_cap_vs_inertia(df_A)
+plot_cap_vs_time(df_C)
+plot_hybrid_cap_vs_inertia(df_C)
 # Tolerance-based plots (Experiments B & D)
-plot_tolerance_vs_time("Results/hybrid_kmeans_results_expB.csv")
-plot_tolerance_vs_inertia("Results/hybrid_kmeans_results_expB.csv")
-plot_tolerance_vs_time("Results/hybrid_kmeans_results_expD.csv")
-plot_tolerance_vs_inertia("Results/hybrid_kmeans_results_expD.csv")
+plot_tolerance_vs_time(df_B)
+plot_tolerance_vs_inertia(df_B)
+plot_tolerance_vs_time(df_D)
+plot_tolerance_vs_inertia(df_D)
 
-
-print("\nResults saved to 'hybrid_kmeans_results_expA.csv")
-print("\nResults saved to 'hybrid_kmeans_results_expB.csv")
 print(os.getcwd())
 
