@@ -70,10 +70,10 @@ cap_C = int(max_iter_C * perc_C)
 tol_fixed_C = 1e-16  # or same as tol_fixed_A
 
 # Experiment D - fixed tolerance, percentage-based cap on single precision
-max_iter_D = 1000
-tol_D = 1e-3
-perc_D = 0.8               # 80% of total iterations
-cap_D = int(max_iter_D * perc_D)
+max_iter_D = 1000                  # Fixed maximum iterations
+tol_double_D = 1e-3                # Double precision tolerance
+perc_tol = 0.8                     # Percentage for single precision tolerance
+tol_single_D = perc_tol * tol_double_D
 
 
 
@@ -507,24 +507,32 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A, rows_B):
 
                     if RUN_EXPERIMENT_D:
                         for rep in range(n_repeats):
-                            # Double baseline for Experiment D
+                            # Double baseline
                             centers_double, labels_double, iters_double_tot, iters_single_tot, elapsed, mem_MB_double, ari, dbi, inertia = run_full_double(
-                                X_cur, initial_centers, n_clusters, max_iter_D, tol_D, y_true_cur
+                                X_cur, initial_centers, n_clusters, max_iter=max_iter_D, tol=tol_double_D, y_true=y_true_cur
                             )
-                            rows_D.append([ds_name, n_samples, n_clusters, "D", tol_D, cap_D, iters_single_tot, iters_double_tot, "Double",
-                                           elapsed, mem_MB_double, ari, dbi, inertia])
+                            rows_D.append([
+                                ds_name, n_samples, n_clusters, "D",
+                                tol_double_D, 0,                        # Cap = 0 or NA
+                                iters_single_tot, iters_double_tot, "Double",
+                                elapsed, mem_MB_double, ari, dbi, inertia
+                            ])
                     
                         for rep in range(n_repeats):
-                            # Hybrid with percentage-based cap
+                            # Hybrid run using scaled tolerance
                             labels_hybrid, centers_hybrid, iters_single, iters_double, elapsed_hybrid, mem_MB_hybrid, ari_hybrid, dbi_hybrid, inertia_hybrid = run_hybrid(
                                 X_cur, initial_centers, n_clusters, max_iter_total=max_iter_D,
-                                tol_single=tol_D, tol_double=tol_D, single_iter_cap=cap_D,
+                                tol_single=tol_single_D, tol_double=tol_double_D,
+                                single_iter_cap=max_iter_D,            # Cap = full iterations
                                 y_true=y_true_cur, seed=rep
                             )
-                            rows_D.append([ds_name, n_samples, n_clusters, "D", tol_D, cap_D, iters_single, iters_double, "Hybrid",
-                                           elapsed_hybrid, mem_MB_hybrid, ari_hybrid, dbi_hybrid, inertia_hybrid])
-
-        
+                            rows_D.append([
+                                ds_name, n_samples, n_clusters, "D",
+                                tol_single_D, 0,                       # Cap = 0 or NA
+                                iters_single, iters_double, "Hybrid",
+                                elapsed_hybrid, mem_MB_hybrid, ari_hybrid, dbi_hybrid, inertia_hybrid
+                            ])
+                    
     return rows_A, rows_B, rows_C, rows_D
 
 all_rows = []
