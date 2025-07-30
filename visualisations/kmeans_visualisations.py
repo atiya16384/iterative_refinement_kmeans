@@ -3,6 +3,8 @@ import seaborn as sns
 import pandas as pd
 import pathlib
 
+from sklearn.decomposition import PCA
+
 def plot_with_ci(df, x_col, y_col, hue_col, title, xlabel, ylabel, filename, output_dir="Results"):
     output_dir = pathlib.Path(output_dir)
     plt.figure(figsize=(8, 6))
