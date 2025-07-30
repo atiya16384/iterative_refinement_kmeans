@@ -3,7 +3,6 @@ import numpy as np
 from sklearn.cluster import KMeans
 from sklearn.metrics import adjusted_rand_score, davies_bouldin_score
 
-
 def evaluate_metrics(X, labels, y_true, inertia):
     if y_true is None:
         ari = np.nan                

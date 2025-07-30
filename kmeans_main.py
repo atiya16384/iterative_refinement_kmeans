@@ -40,7 +40,7 @@ PLOTS_DIR= pathlib.Path("ClusterPlots")
 PLOTS_DIR.mkdir(exist_ok = True)
 
 # CONFIGURATION PARAMETERS 
-dataset_sizes = [100000]
+dataset_sizes = [1000000]
 # for the cluster size we are varying this for all datasets
 n_clusters_list = [30]
 
@@ -185,14 +185,11 @@ print(df_D.groupby([
 # Cap-based plots (Experiments A & C)
 plot_cap_vs_time("Results/hybrid_kmeans_results_expA.csv")
 plot_hybrid_cap_vs_inertia("Results/hybrid_kmeans_results_expA.csv")
-
 plot_cap_vs_time("Results/hybrid_kmeans_results_expC.csv")
 plot_hybrid_cap_vs_inertia("Results/hybrid_kmeans_results_expC.csv")
-
 # Tolerance-based plots (Experiments B & D)
 plot_tolerance_vs_time("Results/hybrid_kmeans_results_expB.csv")
 plot_tolerance_vs_inertia("Results/hybrid_kmeans_results_expB.csv")
-
 plot_tolerance_vs_time("Results/hybrid_kmeans_results_expD.csv")
 plot_tolerance_vs_inertia("Results/hybrid_kmeans_results_expD.csv")
 

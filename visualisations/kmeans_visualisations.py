@@ -4,7 +4,7 @@ import pandas as pd
 import pathlib
 from sklearn.decomposition import PCA
 import numpy as np
-
+from sklearn.metrics import pairwise_distances_argmin
 
 def plot_with_ci(df, x_col, y_col, hue_col, title, xlabel, ylabel, filename, output_dir="Results"):
     output_dir = pathlib.Path(output_dir)
@@ -38,9 +38,9 @@ def boxplot_comparison(df, x_col, y_col, hue_col, title, xlabel, ylabel, filenam
     plt.close()
     print(f"Saved boxplot to {output_path}")
 
-def plot_hybrid_cap_vs_inertia(results_path = "Results/hybrid_kmeans_results_expA.csv", output_dir = "Results"):
+def plot_hybrid_cap_vs_inertia(df, output_dir = "Results"):
     output_dir = pathlib.Path(output_dir)
-    df = pd.read_csv(results_path)
+    df = pd.read_csv(df)
     df_hybrid = df[df["Suite"] == "Hybrid"]
     df_double = df[df["Suite"] == "Double"]
     group_cols = ["DatasetName", "NumClusters", "Cap"]
@@ -69,9 +69,9 @@ def plot_hybrid_cap_vs_inertia(results_path = "Results/hybrid_kmeans_results_exp
     plt.close()
     print(f"saved: {filename}")
 
-def plot_cap_vs_time(results_path="Results/hybrid_kmeans_results_expA.csv", output_dir="Results"):
+def plot_cap_vs_time(df, output_dir="Results"):
     output_dir = pathlib.Path(output_dir)
-    df = pd.read_csv(results_path)
+    df = pd.read_csv(df)
     df_hybrid = df[df["Suite"] == "Hybrid"]
     group_cols = ["DatasetName", "NumClusters", "Cap"]
     df_grouped = df_hybrid.groupby(group_cols)[["Time"]].mean().reset_index()
@@ -97,9 +97,9 @@ def plot_cap_vs_time(results_path="Results/hybrid_kmeans_results_expA.csv", outp
     plt.close()
     print(f"Saved: {filename}")
 
-def plot_tolerance_vs_time(results_path="Results/hybrid_kmeans_results_expB.csv", output_dir="Results"):
+def plot_tolerance_vs_time(df, output_dir="Results"):
     output_dir = pathlib.Path(output_dir)
-    df = pd.read_csv(results_path)
+    df = pd.read_csv(df)
     df_hybrid = df[df["Suite"] == "Hybrid"]
     group_cols = ["DatasetName", "NumClusters",  "tolerance_single"]
     df_grouped = df_hybrid.groupby(group_cols)[["Time"]].mean().reset_index()
@@ -127,9 +127,9 @@ def plot_tolerance_vs_time(results_path="Results/hybrid_kmeans_results_expB.csv"
     plt.close()
     print(f"Saved: {filename}")
 
-def plot_tolerance_vs_inertia(results_path="Results/hybrid_kmeans_results_expB.csv", output_dir="Results"):
+def plot_tolerance_vs_inertia(df, output_dir="Results"):
     output_dir = pathlib.Path(output_dir)
-    df = pd.read_csv(results_path)
+    df = pd.read_csv(df)
     df_hybrid = df[df["Suite"] == "Hybrid"]
     group_cols = ["DatasetName", "NumClusters", "tolerance_single"]
     df_grouped = df_hybrid.groupby(group_cols)[["Inertia"]].mean().reset_index()
@@ -172,7 +172,7 @@ def pca_2d_view(X_full, centers_full, resolution=300, random_state=0):
     grid_points = np.c_[xx.ravel(), yy.ravel()]
 
     # Assign each grid point to nearest center
-    from sklearn.metrics import pairwise_distances_argmin
+  
     labels_grid = pairwise_distances_argmin(grid_points, centers_vis)
     labels_grid = labels_grid.reshape(xx.shape)
 
