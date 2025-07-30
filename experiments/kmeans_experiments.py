@@ -1,5 +1,4 @@
-from visualisations.kmeans_visualisations import pca_2d_view
-
+from visualisations.kmeans_visualisations import pca_2d_view, plot_clusters
 
 def run_experiment_A(ds_name, X, y_true, n_clusters, initial_centers, config):
     rows_A = []
@@ -94,12 +93,12 @@ def run_experiment_B(ds_name, X, y_true, n_clusters, initial_centers, config):
             print(f"The total number of features is : F={n_features}")
 
 
-        # plot clusters
-        if rep == 0:
-            X_vis, centers_vis = pca_2d_view(X_cur, centers_hybrid)
-            filename = (f"{ds_name}_n{n_samples}_k{n_clusters}_B_tol{tol_s:g}")
-            title = (f"{ds_name}: n={n_samples}, k={n_clusters},  tol={tol_s:g}")
-            pca_2d_view(X_vis, labels_hybrid, centers_vis, title=title, filename=filename)
+            # plot clusters
+            if rep == 0:
+                X_vis, centers_vis = pca_2d_view(X_cur, centers_hybrid)
+                filename = (f"{ds_name}_n{n_samples}_k{n_clusters}_B_tol{tol_s:g}")
+                title = (f"{ds_name}: n={n_samples}, k={n_clusters},  tol={tol_s:g}")
+                pca_2d_view(X_vis, labels_hybrid, centers_vis, title=title, filename=filename)
 
     return rows_B
 
@@ -137,8 +136,13 @@ def run_experiment_C(ds_name, X, y_true, n_clusters, initial_centers, config):
             ari_hybrid, dbi_hybrid, inertia_hybrid
         ])
 
+         # Only plot for the first repeat
+        if rep == 0:
+            X_vis, centers_vis = pca_2d_view(X_cur, centers_hybrid)
+            filename = f"{ds_name}_n{n_samples}_k{n_clusters}_C_{cap_C}"
+            title = f"{ds_name}: n={n_samples}, k={n_clusters}, cap={cap_C}"
+            plot_clusters(X_vis, labels_hybrid, centers_vis, title=title, filename=filename)
     return rows_C
-
 
 def run_experiment_D(ds_name, X, y_true, n_clusters, initial_centers, config):
     rows_D = []
@@ -178,6 +182,13 @@ def run_experiment_D(ds_name, X, y_true, n_clusters, initial_centers, config):
             iters_single, iters_double, "Hybrid",
             elapsed_hybrid, mem_MB_hybrid, ari_hybrid, dbi_hybrid, inertia_hybrid
         ])
+
+         # Only plot for the first repeat
+        if rep == 0:
+            X_vis, centers_vis = pca_2d_view(X_cur, centers_hybrid)
+            filename = f"{ds_name}_n{n_samples}_k{n_clusters}_D_{tol_single_D}"
+            title = f"{ds_name}: n={n_samples}, k={n_clusters}, cap={tol_single_D}"
+            plot_clusters(X_vis, labels_hybrid, centers_vis, title=title, filename=filename)
 
     return rows_D
 

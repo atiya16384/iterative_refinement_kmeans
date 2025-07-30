@@ -178,7 +178,6 @@ def pca_2d_view(X_full, centers_full, resolution=300, random_state=0):
 
     return X_vis, centers_vis, xx, yy, labels_grid
 
-
 def plot_clusters(X_vis, labels, centers_vis, xx, yy, labels_grid, title="", filename=""):
     import matplotlib.pyplot as plt
 
