@@ -437,11 +437,11 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A, rows_B):
                             print(f"The total number of features is : F={n_features}")
                 
                         # plot clusters
-                        # if rep == 0:
-                        #     X_vis, centers_vis = pca_2d_view(X_cur, centers_hybrid)
-                        #     filename = (f"{ds_name}_n{n_samples}_k{n_clusters}_A_{cap}")
-                        #     title = (f"{ds_name}: n={n_samples}, k={n_clusters}, "f"cap={cap}")
-                        #     plot_clusters(X_vis, labels_hybrid, centers_vis, title=title, filename=filename)
+                        if rep == 0:
+                            X_vis, centers_vis = pca_2d_view(X_cur, centers_hybrid)
+                            filename = (f"{ds_name}_n{n_samples}_k{n_clusters}_A_{cap}")
+                            title = (f"{ds_name}: n={n_samples}, k={n_clusters}, "f"cap={cap}")
+                            plot_clusters(X_vis, labels_hybrid, centers_vis, title=title, filename=filename)
                     
 
                     if RUN_EXPERIMENT_B:
@@ -477,11 +477,11 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A, rows_B):
                 
 
                             # plot clusters
-                            # if rep == 0:
-                                # X_vis, centers_vis = pca_2d_view(X_cur, centers_hybrid)
-                                # filename = (f"{ds_name}_n{n_samples}_k{n_clusters}_B_tol{tol_s:g}")
-                                # title = (f"{ds_name}: n={n_samples}, k={n_clusters},  tol={tol_s:g}")
-                                # plot_clusters(X_vis, labels_hybrid, centers_vis, title=title, filename=filename)
+                            if rep == 0:
+                                X_vis, centers_vis = pca_2d_view(X_cur, centers_hybrid)
+                                filename = (f"{ds_name}_n{n_samples}_k{n_clusters}_B_tol{tol_s:g}")
+                                title = (f"{ds_name}: n={n_samples}, k={n_clusters},  tol={tol_s:g}")
+                                plot_clusters(X_vis, labels_hybrid, centers_vis, title=title, filename=filename)
                   
                     if RUN_EXPERIMENT_C:
                         for rep in range(n_repeats):
