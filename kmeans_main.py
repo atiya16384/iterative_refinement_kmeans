@@ -108,10 +108,10 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A, rows_B, ro
                 initial_fit = init_kmeans.fit(X_cur)
                 initial_centers = init_kmeans.cluster_centers_
 
-                rows_A += run_experiment_A(tag, X, y, n_clusters, initial_centers, config)
-                rows_B += run_experiment_B(tag, X, y, n_clusters, initial_centers, config)
-                rows_C += run_experiment_C(tag, X, y, n_clusters, initial_centers, config)
-                rows_D += run_experiment_D(tag, X, y, n_clusters, initial_centers, config)
+                rows_A += run_experiment_A(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
+                rows_B += run_experiment_B(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
+                rows_C += run_experiment_C(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
+                rows_D += run_experiment_D(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
 
                     
     return rows_A, rows_B, rows_C, rows_D
@@ -133,9 +133,8 @@ for tag, n, d, k, seed in synth_specs:
 
 # real datasets
 for tag, loader in real_datasets.items():
-   print(f"loading {tag} …")
-   X_real, y_real = loader()
-   all_rows += run_one_dataset(tag, X_real, y_real, rows_A, rows_B)
+    X_real, y_real = loader()
+    run_one_dataset(tag, X_real, y_real, rows_A, rows_B, rows_C, rows_D)
 
 df_A = pd.DataFrame(rows_A, columns=columns_A)
 df_B = pd.DataFrame(rows_B, columns=columns_B)
