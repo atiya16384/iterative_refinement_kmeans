@@ -5,6 +5,7 @@ import pathlib
 from sklearn.decomposition import PCA
 import numpy as np
 from sklearn.metrics import pairwise_distances_argmin
+import matplotlib.pyplot as plt
 
 def plot_with_ci(df, x_col, y_col, hue_col, title, xlabel, ylabel, filename, output_dir="Results"):
     output_dir = pathlib.Path(output_dir)
@@ -179,7 +180,7 @@ def pca_2d_view(X_full, centers_full, resolution=300, random_state=0):
     return X_vis, centers_vis, xx, yy, labels_grid
 
 def plot_clusters(X_vis, labels, centers_vis, xx, yy, labels_grid, title="", filename=""):
-    import matplotlib.pyplot as plt
+
 
     plt.figure(figsize=(8, 6))
     # Decision boundary
