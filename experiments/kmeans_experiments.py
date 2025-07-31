@@ -46,10 +46,11 @@ def run_experiment_A(ds_name, X, y_true, n_clusters, initial_centers, config):
 
             # Only plot for the first repeat
             if rep == 0:
-                X_vis, centers_vis = pca_2d_view(X_cur, centers_hybrid)
+                X_vis, centers_vis, xx, yy, labels_grid = pca_2d_view(X_cur, centers_hybrid)
                 filename = f"{ds_name}_n{n_samples}_k{n_clusters}_A_{cap}"
                 title = f"{ds_name}: n={n_samples}, k={n_clusters}, cap={cap}"
-                plot_clusters(X_vis, labels_hybrid, centers_vis, title=title, filename=filename)
+                plot_clusters(X_vis, labels_hybrid, centers_vis, xx, yy, labels_grid, title=title, filename=filename)
+                
 
     return rows_A
 
@@ -96,11 +97,11 @@ def run_experiment_B(ds_name, X, y_true, n_clusters, initial_centers, config):
 
             # plot clusters
             if rep == 0:
-                X_vis, centers_vis = pca_2d_view(X_cur, centers_hybrid)
-                filename = (f"{ds_name}_n{n_samples}_k{n_clusters}_B_tol{tol_s:g}")
-                title = (f"{ds_name}: n={n_samples}, k={n_clusters},  tol={tol_s:g}")
-                pca_2d_view(X_vis, labels_hybrid, centers_vis, title=title, filename=filename)
-
+                X_vis, centers_vis, xx, yy, labels_grid = pca_2d_view(X_cur, centers_hybrid)
+                filename = f"{ds_name}_n{n_samples}_k{n_clusters}_A_{cap}"
+                title = f"{ds_name}: n={n_samples}, k={n_clusters}, cap={cap}"
+                plot_clusters(X_vis, labels_hybrid, centers_vis, xx, yy, labels_grid, title=title, filename=filename)
+                
     return rows_B
 
 
@@ -139,10 +140,10 @@ def run_experiment_C(ds_name, X, y_true, n_clusters, initial_centers, config):
 
          # Only plot for the first repeat
         if rep == 0:
-            X_vis, centers_vis = pca_2d_view(X_cur, centers_hybrid)
-            filename = f"{ds_name}_n{n_samples}_k{n_clusters}_C_{cap_C}"
-            title = f"{ds_name}: n={n_samples}, k={n_clusters}, cap={cap_C}"
-            plot_clusters(X_vis, labels_hybrid, centers_vis, title=title, filename=filename)
+            X_vis, centers_vis, xx, yy, labels_grid = pca_2d_view(X_cur, centers_hybrid)
+            filename = f"{ds_name}_n{n_samples}_k{n_clusters}_A_{cap}"
+            title = f"{ds_name}: n={n_samples}, k={n_clusters}, cap={cap}"
+            plot_clusters(X_vis, labels_hybrid, centers_vis, xx, yy, labels_grid, title=title, filename=filename)
     return rows_C
 
 def run_experiment_D(ds_name, X, y_true, n_clusters, initial_centers, config):
@@ -186,11 +187,11 @@ def run_experiment_D(ds_name, X, y_true, n_clusters, initial_centers, config):
 
          # Only plot for the first repeat
         if rep == 0:
-            X_vis, centers_vis = pca_2d_view(X_cur, centers_hybrid)
-            filename = f"{ds_name}_n{n_samples}_k{n_clusters}_D_{tol_single_D}"
-            title = f"{ds_name}: n={n_samples}, k={n_clusters}, cap={tol_single_D}"
-            plot_clusters(X_vis, labels_hybrid, centers_vis, title=title, filename=filename)
-
+            X_vis, centers_vis, xx, yy, labels_grid = pca_2d_view(X_cur, centers_hybrid)
+            filename = f"{ds_name}_n{n_samples}_k{n_clusters}_A_{cap}"
+            title = f"{ds_name}: n={n_samples}, k={n_clusters}, cap={cap}"
+            plot_clusters(X_vis, labels_hybrid, centers_vis, xx, yy, labels_grid, title=title, filename=filename)
+            
     return rows_D
 
   
