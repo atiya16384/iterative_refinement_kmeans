@@ -180,19 +180,28 @@ def pca_2d_view(X_full, centers_full, resolution=300, random_state=0):
     return X_vis, centers_vis, xx, yy, labels_grid
 
 def plot_clusters(X_vis, labels, centers_vis, xx, yy, labels_grid, title="", filename=""):
-
+    import matplotlib.pyplot as plt
+    import numpy as np
+    import matplotlib.cm as cm
 
     plt.figure(figsize=(8, 6))
-    # Decision boundary
-    plt.contourf(xx, yy, labels_grid, cmap="Pastel1", alpha=0.4)
 
-    # Scatter actual points
-    plt.scatter(X_vis[:, 0], X_vis[:, 1], c=labels, s=10, cmap="tab10", alpha=0.8, edgecolors="k")
-    plt.scatter(centers_vis[:, 0], centers_vis[:, 1], c='black', marker='x', s=100, label="Centers")
+    # Decision boundaries (optional or with low alpha)
+    plt.contourf(xx, yy, labels_grid, cmap="Pastel1", alpha=0.2)
+
+    # Downsample
+    if len(X_vis) > 5000:
+        idx = np.random.choice(len(X_vis), size=5000, replace=False)
+    else:
+        idx = np.arange(len(X_vis))
+
+    cmap = cm.get_cmap("tab20", np.unique(labels).size)
+
+    plt.scatter(X_vis[idx, 0], X_vis[idx, 1], c=labels[idx], s=8, cmap=cmap, alpha=0.7, edgecolors="none")
+    plt.scatter(centers_vis[:, 0], centers_vis[:, 1], c='black', marker='x', s=120, linewidths=2, label="Centers")
 
     plt.title(title)
     plt.legend()
     plt.tight_layout()
     plt.savefig(f"ClusterPlots/{filename}.png")
     plt.close()
-
