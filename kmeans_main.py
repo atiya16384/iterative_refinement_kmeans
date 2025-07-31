@@ -32,7 +32,6 @@ from datasets.kmeans_datasets import (
     columns_A, columns_B, columns_C, columns_D
 )
 
-DATA_DIR = pathlib.Path(".")         
 RESULTS_DIR = pathlib.Path("Results")
 RESULTS_DIR.mkdir(exist_ok=True)
 
@@ -62,7 +61,7 @@ config = {
     "cap_C": int(300 * 0.8),
 
     "max_iter_D": 1000,
-    "tol_double_D": 1e-3,
+    "tol_double_D": 1e-5,
     "tol_single_D": 0.8 * 1e-3
 }
 
@@ -132,9 +131,9 @@ for tag, n, d, k, seed in synth_specs:
     run_one_dataset(tag, X, y, rows_A, rows_B, rows_C, rows_D)
 
 # real datasets
-for tag, loader in real_datasets.items():
-    X_real, y_real = loader()
-    run_one_dataset(tag, X_real, y_real, rows_A, rows_B, rows_C, rows_D)
+# for tag, loader in real_datasets.items():
+#     X_real, y_real = loader()
+#     run_one_dataset(tag, X_real, y_real, rows_A, rows_B, rows_C, rows_D)
 
 df_A = pd.DataFrame(rows_A, columns=columns_A)
 df_B = pd.DataFrame(rows_B, columns=columns_B)

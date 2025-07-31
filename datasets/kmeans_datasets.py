@@ -4,7 +4,7 @@ import numpy as np
 from sklearn.datasets import make_blobs
 import pathlib
 
-DATA_DIR = pathlib.Path(".") 
+DATA_DIR = pathlib.Path("datasets") 
 
 def generate_synthetic_data(n_samples, n_features, n_clusters, random_state):
     X, y_true = make_blobs(n_samples=n_samples, n_features=n_features, centers=n_clusters, random_state=random_state)
@@ -30,8 +30,8 @@ def load_susy(n_rows=1_000_000):
 synth_specs = [
     # number of samples; number of features, number of clusters, random seeds
     ("SYNTH_C_5_F_80_n100k", 1000_000, 80,  5, 0),
-    ("SYNTH_C_80_F_5_n100k", 1000_000, 5, 80, 1),
-    ("SYNTH_C_80_30_n100k", 1000_000, 30, 80, 1)
+    # ("SYNTH_C_80_F_5_n100k", 1000_000, 5, 80, 1),
+    # ("SYNTH_C_80_30_n100k", 1000_000, 30, 80, 1)
 ]
 
 
