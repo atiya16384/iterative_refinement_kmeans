@@ -108,90 +108,102 @@ def run_experiment_B(ds_name, X, y_true, n_clusters, initial_centers, config):
 def run_experiment_C(ds_name, X, y_true, n_clusters, initial_centers, config):
     rows_C = []
     n_samples = len(X)
-    n_features = X.shape[1]
     X_cur = X
     y_true_cur = y_true
-    
+
     max_iter_C = config["max_iter_C"]
     tol_fixed_C = config["tol_fixed_C"]
-    cap_C = config["cap_C"]
+    cap_C_pct = config["cap_C"]  # e.g., 0.8 (i.e., 80% of max_iter_C)
     n_repeats = config["n_repeats"]
 
+    cap_range = range(0, int(max_iter_C * cap_C_pct) + 1)
+
     for rep in range(n_repeats):
-        # Double Precision baseline
+        # Baseline double
         centers_double, labels_double, iters_double_tot, iters_single_tot, elapsed, mem_MB_double, ari, dbi, inertia = run_full_double(
             X_cur, initial_centers, n_clusters, max_iter_C, tol_fixed_C, y_true_cur
         )
         rows_C.append([
-            ds_name, n_samples, n_clusters, "C", cap_C, tol_fixed_C, 0, iters_double_tot, "Double", elapsed, mem_MB_double,
-            ari, dbi, inertia
+            ds_name, n_samples, n_clusters, "C", cap_C_pct, tol_fixed_C,
+            0, iters_double_tot, "Double", elapsed, mem_MB_double, ari, dbi, inertia
         ])
 
-        # Hybrid Run
-        labels_hybrid, centers_hybrid, iters_single, iters_double, elapsed_hybrid, mem_MB_hybrid, ari_hybrid, dbi_hybrid, inertia_hybrid = run_hybrid(
-            X_cur, initial_centers, n_clusters, max_iter_total=max_iter_C,
-            single_iter_cap=cap_C, tol_single=tol_fixed_C, tol_double=tol_fixed_C,
-            y_true=y_true_cur, seed=rep
-        )
-        rows_C.append([
-            ds_name, n_samples, n_clusters, "C", cap_C, tol_fixed_C, iters_single, iters_double, "Hybrid", elapsed_hybrid, mem_MB_hybrid,
-            ari_hybrid, dbi_hybrid, inertia_hybrid
-        ])
+        # Sweep over cap values
+        for cap in cap_range:
+            labels_hybrid, centers_hybrid, iters_single, iters_double, elapsed_hybrid, mem_MB_hybrid, ari_hybrid, dbi_hybrid, inertia_hybrid = run_hybrid(
+                X_cur, initial_centers, n_clusters,
+                max_iter_total=max_iter_C,
+                single_iter_cap=cap,
+                tol_single=tol_fixed_C,
+                tol_double=tol_fixed_C,
+                y_true=y_true_cur,
+                seed=rep
+            )
 
-         # Only plot for the first repeat
-        if rep == 0:
-            X_vis, centers_vis, xx, yy, labels_grid = pca_2d_view(X_cur, centers_hybrid)
-            filename = f"{ds_name}_n{n_samples}_c{n_clusters}_cap_{cap_C}"
-            title = f"{ds_name}: n={n_samples}, c={n_clusters}, cap={cap_C}"
-            plot_clusters(X_vis, labels_hybrid, centers_vis, xx, yy, labels_grid, title=title, filename=filename)
+            rows_C.append([
+                ds_name, n_samples, n_clusters, "C", cap_C_pct, tol_fixed_C,
+                iters_single, iters_double, "Hybrid", elapsed_hybrid, mem_MB_hybrid,
+                ari_hybrid, dbi_hybrid, inertia_hybrid
+            ])
+
+            if rep == 0 and cap == cap_range[-1]:  # Plot only once at final cap
+                X_vis, centers_vis, xx, yy, labels_grid = pca_2d_view(X_cur, centers_hybrid)
+                filename = f"{ds_name}_n{n_samples}_c{n_clusters}_C_cap{cap_C_pct}"
+                title = f"{ds_name}: n={n_samples}, c={n_clusters}, cap={cap_C_pct}"
+                plot_clusters(X_vis, labels_hybrid, centers_vis, xx, yy, labels_grid, title=title, filename=filename)
+
     return rows_C
 
 def run_experiment_D(ds_name, X, y_true, n_clusters, initial_centers, config):
     rows_D = []
     n_samples = len(X)
-    n_features = X.shape[1]
     X_cur = X
     y_true_cur = y_true
 
     max_iter_D = config["max_iter_D"]
     tol_double_D = config["tol_double_D"]
-    tol_single_D = config["tol_single_D"]
+    tol_single_D = config["tol_single_D"]  # e.g., 1e-3
     n_repeats = config["n_repeats"]
 
+    # Dynamically build grid: from 1e-1 down to tol_single_D (inclusive)
+    tol_grid = []
+    current = 1e-1
+    while current >= tol_single_D:
+        tol_grid.append(current)
+        current /= 10
+
     for rep in range(n_repeats):
-          # Double baseline
-          centers_double, labels_double, iters_double_tot, iters_single_tot, elapsed, mem_MB_double, ari, dbi, inertia = run_full_double(
-              X_cur, initial_centers, n_clusters, max_iter=max_iter_D, tol=tol_double_D, y_true=y_true_cur
-          )
-          rows_D.append([
-              ds_name, n_samples, n_clusters, "D",
-              tol_double_D, 0,                        # Cap = 0 or NA
-              iters_single_tot, iters_double_tot, "Double",
-              elapsed, mem_MB_double, ari, dbi, inertia
-          ])
-  
-    for rep in range(n_repeats):
-        # Hybrid run using scaled tolerance
-        labels_hybrid, centers_hybrid, iters_single, iters_double, elapsed_hybrid, mem_MB_hybrid, ari_hybrid, dbi_hybrid, inertia_hybrid = run_hybrid(
-            X_cur, initial_centers, n_clusters, max_iter_total=max_iter_D,
-            tol_single=tol_single_D, tol_double=tol_double_D,
-            single_iter_cap=max_iter_D,            # Cap = full iterations
-            y_true=y_true_cur, seed=rep
+        # Double precision baseline
+        centers_double, labels_double, iters_double_tot, iters_single_tot, elapsed, mem_MB_double, ari, dbi, inertia = run_full_double(
+            X_cur, initial_centers, n_clusters, max_iter_D, tol_double_D, y_true_cur
         )
         rows_D.append([
-            ds_name, n_samples, n_clusters, "D",
-            tol_single_D, 0,                       # Cap = 0 or NA
-            iters_single, iters_double, "Hybrid",
-            elapsed_hybrid, mem_MB_hybrid, ari_hybrid, dbi_hybrid, inertia_hybrid
+            ds_name, n_samples, n_clusters, "D", tol_double_D, 0,
+            iters_single_tot, iters_double_tot, "Double", elapsed, mem_MB_double,
+            ari, dbi, inertia
         ])
 
-         # Only plot for the first repeat
-        if rep == 0:
-            X_vis, centers_vis, xx, yy, labels_grid = pca_2d_view(X_cur, centers_hybrid)
-            filename = f"{ds_name}_n{n_samples} c={n_clusters}_D_{tol_single_D}"
-            title = f"{ds_name}: n={n_samples}, c={n_clusters}, tol_s={tol_single_D}"
-            plot_clusters(X_vis, labels_hybrid, centers_vis, xx, yy, labels_grid, title=title, filename=filename)
-            
-    return rows_D
+        for tol_s in tol_grid:
+            labels_hybrid, centers_hybrid, iters_single, iters_double, elapsed_hybrid, mem_MB_hybrid, ari_hybrid, dbi_hybrid, inertia_hybrid = run_hybrid(
+                X_cur, initial_centers, n_clusters,
+                max_iter_total=max_iter_D,
+                single_iter_cap=max_iter_D,
+                tol_single=tol_s,
+                tol_double=tol_double_D,
+                y_true=y_true_cur,
+                seed=rep
+            )
 
-  
+            rows_D.append([
+                ds_name, n_samples, n_clusters, "D", tol_s, 0,
+                iters_single, iters_double, "Hybrid", elapsed_hybrid, mem_MB_hybrid,
+                ari_hybrid, dbi_hybrid, inertia_hybrid
+            ])
+
+            if rep == 0 and tol_s == tol_single_D:
+                X_vis, centers_vis, xx, yy, labels_grid = pca_2d_view(X_cur, centers_hybrid)
+                filename = f"{ds_name}_n{n_samples}_c{n_clusters}_D_tol{tol_s}"
+                title = f"{ds_name}: n={n_samples}, c={n_clusters}, tol={tol_s}"
+                plot_clusters(X_vis, labels_hybrid, centers_vis, xx, yy, labels_grid, title=title, filename=filename)
+
+    return rows_D
