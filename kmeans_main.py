@@ -169,7 +169,7 @@ print(df_C.groupby([
 print("\n==== SUMMARY: EXPERIMENT D ====")
 print(df_D.groupby([
     'DatasetSize', 'NumClusters', 'Mode',
-    'tolerance_single', 'Cap', 'iter_single', 'iter_double', 'Suite'
+    'tolerance_single', 'iter_single', 'iter_double', 'Suite'
 ])[['Time', 'Memory_MB', 'ARI', 'DBI', 'Inertia']].mean())
 
 

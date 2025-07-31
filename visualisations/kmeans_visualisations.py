@@ -6,6 +6,7 @@ from sklearn.decomposition import PCA
 import numpy as np
 from sklearn.metrics import pairwise_distances_argmin
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
 
 def plot_with_ci(df, x_col, y_col, hue_col, title, xlabel, ylabel, filename, output_dir="Results"):
     output_dir = pathlib.Path(output_dir)
@@ -41,7 +42,6 @@ def boxplot_comparison(df, x_col, y_col, hue_col, title, xlabel, ylabel, filenam
 
 def plot_hybrid_cap_vs_inertia(df, output_dir = "Results"):
     output_dir = pathlib.Path(output_dir)
-    df = pd.read_csv(df)
     df_hybrid = df[df["Suite"] == "Hybrid"]
     df_double = df[df["Suite"] == "Double"]
     group_cols = ["DatasetName", "NumClusters", "Cap"]
@@ -72,7 +72,6 @@ def plot_hybrid_cap_vs_inertia(df, output_dir = "Results"):
 
 def plot_cap_vs_time(df, output_dir="Results"):
     output_dir = pathlib.Path(output_dir)
-    df = pd.read_csv(df)
     df_hybrid = df[df["Suite"] == "Hybrid"]
     group_cols = ["DatasetName", "NumClusters", "Cap"]
     df_grouped = df_hybrid.groupby(group_cols)[["Time"]].mean().reset_index()
@@ -100,7 +99,6 @@ def plot_cap_vs_time(df, output_dir="Results"):
 
 def plot_tolerance_vs_time(df, output_dir="Results"):
     output_dir = pathlib.Path(output_dir)
-    df = pd.read_csv(df)
     df_hybrid = df[df["Suite"] == "Hybrid"]
     group_cols = ["DatasetName", "NumClusters",  "tolerance_single"]
     df_grouped = df_hybrid.groupby(group_cols)[["Time"]].mean().reset_index()
@@ -130,11 +128,9 @@ def plot_tolerance_vs_time(df, output_dir="Results"):
 
 def plot_tolerance_vs_inertia(df, output_dir="Results"):
     output_dir = pathlib.Path(output_dir)
-    df = pd.read_csv(df)
     df_hybrid = df[df["Suite"] == "Hybrid"]
     group_cols = ["DatasetName", "NumClusters", "tolerance_single"]
     df_grouped = df_hybrid.groupby(group_cols)[["Inertia"]].mean().reset_index()
-
     plt.figure(figsize=(7, 5))
     for (ds, k ), group in df_grouped.groupby(["DatasetName", "NumClusters"]):
         base_inertia = df[(df["Suite"] == "Double") & (df["DatasetName"] == ds) & (df["NumClusters"] == k) ]["Inertia"].mean()
@@ -158,7 +154,6 @@ def plot_tolerance_vs_inertia(df, output_dir="Results"):
     plt.savefig(filename)
     plt.close()
     print(f"Saved: {filename}")
-
 
 def pca_2d_view(X_full, centers_full, resolution=300, random_state=0):
     pca = PCA(n_components=2, random_state=random_state)
