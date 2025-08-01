@@ -1,5 +1,7 @@
 import time
 import numpy as np
+from aoclda.sklearn import skpatch
+skpatch()
 from sklearn.cluster import KMeans
 from sklearn.metrics import adjusted_rand_score, davies_bouldin_score
 

@@ -3,17 +3,9 @@ import matplotlib.pyplot as plt
 import time
 import pandas as pd
 from aoclda.sklearn import skpatch
-from experiments.svm_experiments import run_all
 skpatch()
 import pathlib
-from visualisations.SVM_visualisations import (
-    plot_svm_cap_vs_accuracy,
-    plot_svm_cap_vs_time,
-    plot_svm_tolerance_vs_accuracy,
-    plot_svm_tolerance_vs_time,
-)
 from experiments.svm_experiments import SVMExperimentRunner
-
 from datasets.utils import (
     generate_synthetic_data, load_3d_road, load_susy, 
     synth_specs, real_datasets, columns_A, columns_B,
@@ -25,7 +17,7 @@ from experiments.svm_precision import (
     svm_double_precision, svm_hybrid_precision
 
 )
-from visualisations.svm_visualisations import SVMVisualizer
+from visualisations.SVM_visualisations import SVMVisualizer
 
 RESULTS_DIR = pathlib.Path("Results")
 RESULTS_DIR.mkdir(exist_ok=True)
@@ -38,9 +30,6 @@ def print_summary(path, group_by):
 
 def run_experiments():
     results_A, results_B, results_C, results_D = [], [], [], []
-
-from experiments.svm_experiments import SVMExperimentRunner
-
     config = {
         "n_repeats": 1,
         "tol_fixed_A": 1e-16,
@@ -101,10 +90,11 @@ if __name__ == "__main__":
     df_A, df_B, df_C, df_D = run_experiments()
     visualizer = SVMVisualizer()
     visualizer.plot_cap_vs_accuracy(df_A)
+    visualizer.plot_cap_vs_time(df_A)
+    visualizer.plot_tolerance_vs_accuracy(df_B)
     visualizer.plot_tolerance_vs_time(df_B)
-    
-    plot_svm_cap_vs_accuracy(df_A)
-    plot_svm_cap_vs_time(df_A)
-    plot_svm_tolerance_vs_accuracy(df_B)
-    plot_svm_tolerance_vs_time(df_B)
+    visualizer.plot_cap_vs_accuracy(df_C)
+    visualizer.plot_cap_vs_time(df_C)
+    visualizer.plot_tolerance_vs_accuracy(df_D)
+    visualizer.plot_tolerance_vs_time(df_D)
 

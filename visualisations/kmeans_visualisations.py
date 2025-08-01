@@ -6,7 +6,6 @@ from sklearn.decomposition import PCA
 from sklearn.metrics import pairwise_distances_argmin
 import matplotlib.cm as cm
 
-
 class KMeansVisualizer:
     def __init__(self, output_dir="Results", cluster_dir="ClusterPlots"):
         self.output_dir = pathlib.Path(output_dir)
@@ -26,9 +25,9 @@ class KMeansVisualizer:
     
         plt.savefig(self.output_dir / filename)
         plt.close()
-        print(f"Saved CI plot to {output_path}")
+        print(f"Saved CI plot to {self.output_dir / filename}")
     
-    def boxplot_comparison(df, x_col, y_col, hue_col, title, xlabel, ylabel, filename):
+    def boxplot_comparison(self, df, x_col, y_col, hue_col, title, xlabel, ylabel, filename):
         output_dir = pathlib.Path(output_dir)
         plt.figure(figsize=(8, 6))
         sns.boxplot(data=df, x=x_col, y=y_col, hue=hue_col)
@@ -40,7 +39,7 @@ class KMeansVisualizer:
         plt.tight_layout()
         plt.savefig(self.output_dir / filename)
         plt.close()
-        print(f"Saved boxplot to {output_path}")
+        print(f"Saved boxplot to {self.output_dir / filename}")
     
     def plot_hybrid_cap_vs_inertia(self, df):
         df_hybrid = df[df["Suite"] == "Hybrid"]
@@ -67,9 +66,8 @@ class KMeansVisualizer:
         plt.tight_layout()
     
         plt.savefig(self.output_dir / "cap_vs_inertia_hybrid.png")
-        plt.savefig(filename)
         plt.close()
-        print(f"saved: {filename}")
+        print(f"saved: {self.output_dir/ "cap_vs_inertia_hybrid.png"}")
     
     def plot_cap_vs_time(self, df):
         df_hybrid = df[df["Suite"] == "Hybrid"]
@@ -94,7 +92,7 @@ class KMeansVisualizer:
     
         plt.savefig(self.output_dir / "cap_vs_time_hybrid.png")
         plt.close()
-        print(f"Saved: {filename}")
+        print(f"Saved: {self.output_dir / "cap_vs_time_hybrid.png"}")
     
     def plot_tolerance_vs_time(self, df):
         output_dir = pathlib.Path(output_dir)
@@ -121,7 +119,7 @@ class KMeansVisualizer:
         plt.tight_layout()
         plt.savefig(self.output_dir / "tolerance_vs_time_hybrid.png")
         plt.close()
-        print(f"Saved: {filename}")
+        print(f"Saved: {self.output_dir / "tolerance_vs_time_hybrid.png"}")
     
     def plot_tolerance_vs_inertia(self, df):
         output_dir = pathlib.Path(output_dir)
@@ -149,7 +147,7 @@ class KMeansVisualizer:
     
         plt.savefig(self.output_dir / "tolerance_vs_inertia_hybrid.png")
         plt.close()
-        print(f"Saved: {filename}")
+        print(f"Saved: {self.output_dir / "tolerance_vs_inertia_hybrid.png"}")
     
     def pca_2d_view(self, X_full, centers_full, resolution=300, random_state=0):
         pca = PCA(n_components=2, random_state=random_state)

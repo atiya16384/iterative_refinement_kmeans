@@ -2,17 +2,12 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from aoclda.sklearn import skpatch
 skpatch() # Apply AOCL patch before any KMeans usage
-from sklearn.datasets import make_blobs
 from sklearn.metrics import adjusted_rand_score, davies_bouldin_score
 from sklearn.cluster import KMeans
 import warnings
 warnings.filterwarnings("ignore")
-from scipy.spatial import Voronoi, voronoi_plot_2d
-import sys
 import os
 import pathlib
-from sklearn.decomposition import PCA
-import time
 import numpy as np
 from visualisations.kmeans_visualisations import KMeansVisualizer
 
@@ -24,8 +19,6 @@ from datasets.utils import (
     generate_synthetic_data, real_datasets, synth_specs, load_3d_road, load_susy,
     columns_A, columns_B, columns_C, columns_D
 )
-
-
 
 RESULTS_DIR = pathlib.Path("Results")
 RESULTS_DIR.mkdir(exist_ok=True)
@@ -112,7 +105,6 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A, rows_B, ro
 
 all_rows = []
 
-
 rows_A = []
 rows_B = []
 rows_C = []
@@ -171,17 +163,15 @@ print(df_D.groupby([
 # how to plot for the different types of graphs that we have
 # Plots for Experiment A and C (Cap-based)
 # Cap-based plots (Experiments A & C)
-plot_cap_vs_time(df_A)
-plot_hybrid_cap_vs_inertia(df_A)
-plot_cap_vs_time(df_C)
-plot_hybrid_cap_vs_inertia(df_C)
-# Tolerance-based plots (Experiments B & D)
-plot_tolerance_vs_time(df_B)
-plot_tolerance_vs_inertia(df_B)
-plot_tolerance_vs_time(df_D)
-plot_tolerance_vs_inertia(df_D)
-kmeans_viz = KMeansVisualizer()
-kmeans_viz.plot_cap_vs_time(df_results)
 
+kmeans_vis = KMeansVisualizer()
+kmeans_vis.plot_cap_vs_time(df_A)
+kmeans_vis.plot_hybrid_cap_vs_inertia(df_A)
+kmeans_vis.plot_cap_vs_time(df_C)
+kmeans_vis.plot_hybrid_cap_vs_inertia(df_C)
+kmeans_vis.plot_tolerance_vs_inertia(df_B)
+kmeans_vis.plot_tolerance_vs_time(df_B)
+kmeans_vis.plot_tolerance_vs_inertia(df_D)
+kmeans_vis.plot_tolerance_vs_time(df_D)
 print(os.getcwd())
 
