@@ -12,6 +12,7 @@ from visualisations.SVM_visualisations import (
     plot_svm_tolerance_vs_accuracy,
     plot_svm_tolerance_vs_time,
 )
+from experiments.svm_experiments import SVMExperimentRunner
 
 from datasets.utils import (
     generate_synthetic_data, load_3d_road, load_susy, 
@@ -38,6 +39,8 @@ def print_summary(path, group_by):
 def run_experiments():
     results_A, results_B, results_C, results_D = [], [], [], []
 
+from experiments.svm_experiments import SVMExperimentRunner
+
     config = {
         "n_repeats": 1,
         "tol_fixed_A": 1e-16,
@@ -49,16 +52,19 @@ def run_experiments():
         "tol_D": 1e-3,
     }
     
-
+    runner = SVMExperimentRunner(config)
+    
+    # Synthetic datasets
     for tag, n, d, c, seed in synth_specs:
         X, y = generate_synthetic_data(n, d, c, seed)
-        run_all(tag, X, y, config, results_A, results_B, results_C, results_D)
+        runner.run_all(tag, X, y)
     
+    # Real-world datasets
     for tag, loader in real_datasets:
-        print(f"Loading {tag} …")
         X, y = loader()
-        run_all(tag, X, y, config, results_A, results_B, results_C, results_D)
+        runner.run_all(tag, X, y)
     
+    results_A, results_B, results_C, results_D = runner.get_results()
 
     df_A = pd.DataFrame(results_A, columns=columns_A)
     df_B = pd.DataFrame(results_B, columns=columns_B)
