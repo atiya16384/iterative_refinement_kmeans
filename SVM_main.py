@@ -38,7 +38,7 @@ def print_summary(path, group_by):
 def run_experiments():
     results_A, results_B, results_C, results_D = [], [], [], []
 
-        config = {
+    config = {
         "n_repeats": 1,
         "tol_fixed_A": 1e-16,
         "tol_double_B": 1e-5,
@@ -59,7 +59,6 @@ def run_experiments():
         X, y = loader()
         run_all(tag, X, y, config, results_A, results_B, results_C, results_D)
     
-
 
     df_A = pd.DataFrame(results_A, columns=columns_A)
     df_B = pd.DataFrame(results_B, columns=columns_B)
