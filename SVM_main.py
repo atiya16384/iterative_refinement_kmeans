@@ -25,7 +25,7 @@ from experiments.svm_precision import (
     svm_double_precision, svm_hybrid_precision
 
 )
-
+from visualisations.svm_visualisations import SVMVisualizer
 
 RESULTS_DIR = pathlib.Path("Results")
 RESULTS_DIR.mkdir(exist_ok=True)
@@ -99,6 +99,10 @@ from experiments.svm_experiments import SVMExperimentRunner
 
 if __name__ == "__main__":
     df_A, df_B, df_C, df_D = run_experiments()
+    visualizer = SVMVisualizer()
+    visualizer.plot_cap_vs_accuracy(df_A)
+    visualizer.plot_tolerance_vs_time(df_B)
+    
     plot_svm_cap_vs_accuracy(df_A)
     plot_svm_cap_vs_time(df_A)
     plot_svm_tolerance_vs_accuracy(df_B)
