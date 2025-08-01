@@ -36,28 +36,29 @@ def print_summary(path, group_by):
     print(summary)
 
 def run_experiments():
-    tol_fixed_A = 1e-16
-    tol_double_B = 1e-5
-    caps = [0, 50, 100, 150, 200, 250, 300]
-    tolerances = [1e-1, 1e-2, 1e-3, 1e-4]
-    max_iter_C = 300
-    perc_C = 0.8
-    tol_D = 1e-3
-    n_repeats = 1
-
-
     results_A, results_B, results_C, results_D = [], [], [], []
 
-    # Synthetic
+        config = {
+        "n_repeats": 1,
+        "tol_fixed_A": 1e-16,
+        "tol_double_B": 1e-5,
+        "caps": [0, 50, 100, 150, 200, 250, 300],
+        "tolerances": [1e-1, 1e-2, 1e-3, 1e-4],
+        "max_iter_C": 300,
+        "perc_C": 0.8,
+        "tol_D": 1e-3,
+    }
+    
+
     for tag, n, d, c, seed in synth_specs:
         X, y = generate_synthetic_data(n, d, c, seed)
-        run_all(tag, X, y)
-
-    # Real-world
+        run_all(tag, X, y, config, results_A, results_B, results_C, results_D)
+    
     for tag, loader in real_datasets:
         print(f"Loading {tag} …")
         X, y = loader()
-        run_all(tag, X, y)
+        run_all(tag, X, y, config, results_A, results_B, results_C, results_D)
+    
 
 
     df_A = pd.DataFrame(results_A, columns=columns_A)
