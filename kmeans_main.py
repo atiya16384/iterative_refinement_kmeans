@@ -27,7 +27,7 @@ from experiments.kmeans_experiments import (
     run_experiment_A, run_experiment_B,
     run_experiment_C, run_experiment_D
 )
-from datasets.kmeans_datasets import (
+from datasets.utils import (
     generate_synthetic_data, real_datasets, synth_specs, load_3d_road, load_susy,
     columns_A, columns_B, columns_C, columns_D
 )
@@ -73,7 +73,7 @@ precisions = {
     "Double Precision": np.float64
 }
 
-def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A, rows_B):
+def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A, rows_B, rows_C, rows_D):
     if ds_name.startswith("SYNTH"):
         sample_sizes = dataset_sizes
     else:
@@ -109,26 +109,26 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A, rows_B):
 
                 rows_A += run_experiment_A(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
                 rows_B += run_experiment_B(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
-                # rows_C += run_experiment_C(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
-                # rows_D += run_experiment_D(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
+                rows_C += run_experiment_C(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
+                rows_D += run_experiment_D(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
 
                     
-    return rows_A, rows_B
+    return rows_A, rows_B, rows_C, rows_D
 
 all_rows = []
 
 
 rows_A = []
 rows_B = []
-# rows_C = []
-# rows_D = []
+rows_C = []
+rows_D = []
 
 for tag, n, d, k, seed in synth_specs:
     X, y = generate_synthetic_data(n, d, k, seed)
     print(f"[SYNTH] {tag:14s}  shape={X.shape}  any_NaN={np.isnan(X).any()}",
           flush=True)
     # check if the mappings are correct to the run_one_dataset
-    run_one_dataset(tag, X, y, rows_A, rows_B)
+    run_one_dataset(tag, X, y, rows_A, rows_B, rows_C, rows_D)
 
 # real datasets
 # for tag, loader in real_datasets.items():
@@ -137,8 +137,8 @@ for tag, n, d, k, seed in synth_specs:
 
 df_A = pd.DataFrame(rows_A, columns=columns_A)
 df_B = pd.DataFrame(rows_B, columns=columns_B)
-# df_C= pd.DataFrame(rows_C, columns=columns_C)
-# df_D = pd.DataFrame(rows_D, columns=columns_D)
+df_C= pd.DataFrame(rows_C, columns=columns_C)
+df_D = pd.DataFrame(rows_D, columns=columns_D)
 
 print("Saved:")
 print("- hybrid_kmeans_results_expA.csv")
@@ -158,19 +158,19 @@ print(df_B.groupby([
     'tolerance_single', 'iter_single', 'iter_double', 'Suite'
 ])[['Time', 'Memory_MB', 'ARI', 'DBI', 'Inertia']].mean())
 
-# # === SUMMARY: Experiment C ===
-# print("\n==== SUMMARY: EXPERIMENT C ====")
-# print(df_C.groupby([
-#     'DatasetSize', 'NumClusters', 'Mode', 'Cap',
-#     'tolerance_single', 'iter_single', 'iter_double', 'Suite'
-# ])[['Time', 'Memory_MB', 'ARI', 'DBI', 'Inertia']].mean())
+# === SUMMARY: Experiment C ===
+print("\n==== SUMMARY: EXPERIMENT C ====")
+print(df_C.groupby([
+    'DatasetSize', 'NumClusters', 'Mode', 'Cap',
+    'tolerance_single', 'iter_single', 'iter_double', 'Suite'
+])[['Time', 'Memory_MB', 'ARI', 'DBI', 'Inertia']].mean())
 
-# # === SUMMARY: Experiment D ===
-# print("\n==== SUMMARY: EXPERIMENT D ====")
-# print(df_D.groupby([
-#     'DatasetSize', 'NumClusters', 'Mode',
-#     'tolerance_single', 'iter_single', 'iter_double', 'Suite'
-# ])[['Time', 'Memory_MB', 'ARI', 'DBI', 'Inertia']].mean())
+# === SUMMARY: Experiment D ===
+print("\n==== SUMMARY: EXPERIMENT D ====")
+print(df_D.groupby([
+    'DatasetSize', 'NumClusters', 'Mode',
+    'tolerance_single','iter_single', 'iter_double', 'Suite'
+])[['Time', 'Memory_MB', 'ARI', 'DBI', 'Inertia']].mean())
 
 
 # how to plot for the different types of graphs that we have
@@ -178,13 +178,13 @@ print(df_B.groupby([
 # Cap-based plots (Experiments A & C)
 plot_cap_vs_time(df_A)
 plot_hybrid_cap_vs_inertia(df_A)
-# plot_cap_vs_time(df_C)
-# plot_hybrid_cap_vs_inertia(df_C)
+plot_cap_vs_time(df_C)
+plot_hybrid_cap_vs_inertia(df_C)
 # Tolerance-based plots (Experiments B & D)
 plot_tolerance_vs_time(df_B)
 plot_tolerance_vs_inertia(df_B)
-# plot_tolerance_vs_time(df_D)
-# plot_tolerance_vs_inertia(df_D)
+plot_tolerance_vs_time(df_D)
+plot_tolerance_vs_inertia(df_D)
 
 print(os.getcwd())
 

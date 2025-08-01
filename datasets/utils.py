@@ -34,13 +34,11 @@ synth_specs = [
     # ("SYNTH_C_80_30_n100k", 1000_000, 30, 80, 1)
 ]
 
-
 # Real-dataset
 real_datasets = {
     "3D_ROAD": load_3d_road,
     "SUSY":    load_susy,
 } 
-
 
 columns_A = [
     'DatasetName', 'DatasetSize', 'NumClusters', 
