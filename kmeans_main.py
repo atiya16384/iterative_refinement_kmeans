@@ -14,14 +14,7 @@ import pathlib
 from sklearn.decomposition import PCA
 import time
 import numpy as np
-from visualisations.kmeans_visualisations import (
-    plot_cap_vs_time,
-    plot_hybrid_cap_vs_inertia,
-    plot_tolerance_vs_time,
-    plot_tolerance_vs_inertia,
-    plot_with_ci,
-    boxplot_comparison
-)
+from visualisations.kmeans_visualisations import KMeansVisualizer
 
 from experiments.kmeans_experiments import (
     run_experiment_A, run_experiment_B,
@@ -31,6 +24,8 @@ from datasets.utils import (
     generate_synthetic_data, real_datasets, synth_specs, load_3d_road, load_susy,
     columns_A, columns_B, columns_C, columns_D
 )
+
+
 
 RESULTS_DIR = pathlib.Path("Results")
 RESULTS_DIR.mkdir(exist_ok=True)
@@ -185,6 +180,8 @@ plot_tolerance_vs_time(df_B)
 plot_tolerance_vs_inertia(df_B)
 plot_tolerance_vs_time(df_D)
 plot_tolerance_vs_inertia(df_D)
+kmeans_viz = KMeansVisualizer()
+kmeans_viz.plot_cap_vs_time(df_results)
 
 print(os.getcwd())
 
