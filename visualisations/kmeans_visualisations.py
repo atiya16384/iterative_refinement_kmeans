@@ -67,7 +67,7 @@ class KMeansVisualizer:
     
         plt.savefig(self.output_dir / "cap_vs_inertia_hybrid.png")
         plt.close()
-        print(f"saved: {self.output_dir/ "cap_vs_inertia_hybrid.png"}")
+        print(f"saved: {self.output_dir/ 'cap_vs_inertia_hybrid.png'}")
     
     def plot_cap_vs_time(self, df):
         df_hybrid = df[df["Suite"] == "Hybrid"]
@@ -92,7 +92,7 @@ class KMeansVisualizer:
     
         plt.savefig(self.output_dir / "cap_vs_time_hybrid.png")
         plt.close()
-        print(f"Saved: {self.output_dir / "cap_vs_time_hybrid.png"}")
+        print(f"Saved: {self.output_dir / 'cap_vs_time_hybrid.png'}")
     
     def plot_tolerance_vs_time(self, df):
         output_dir = pathlib.Path(output_dir)
@@ -119,7 +119,7 @@ class KMeansVisualizer:
         plt.tight_layout()
         plt.savefig(self.output_dir / "tolerance_vs_time_hybrid.png")
         plt.close()
-        print(f"Saved: {self.output_dir / "tolerance_vs_time_hybrid.png"}")
+        print(f"Saved: {self.output_dir / 'tolerance_vs_time_hybrid.png'}")
     
     def plot_tolerance_vs_inertia(self, df):
         output_dir = pathlib.Path(output_dir)
@@ -147,9 +147,10 @@ class KMeansVisualizer:
     
         plt.savefig(self.output_dir / "tolerance_vs_inertia_hybrid.png")
         plt.close()
-        print(f"Saved: {self.output_dir / "tolerance_vs_inertia_hybrid.png"}")
+        print(f"Saved: {self.output_dir / 'tolerance_vs_inertia_hybrid.png'}")
     
-    def pca_2d_view(self, X_full, centers_full, resolution=300, random_state=0):
+    @staticmethod
+    def pca_2d_view(X_full, centers_full, resolution=300, random_state=0):
         pca = PCA(n_components=2, random_state=random_state)
         X_vis = pca.fit_transform(X_full)
         centers_vis = pca.transform(centers_full)
@@ -168,7 +169,8 @@ class KMeansVisualizer:
     
         return X_vis, centers_vis, xx, yy, labels_grid
     
-    def plot_clusters(self, X_vis, labels, centers_vis, xx, yy, labels_grid, title="", filename=""):
+    @staticmethod
+    def plot_clusters(X_vis, labels, centers_vis, xx, yy, labels_grid, title="", filename=""):
         plt.figure(figsize=(8, 6))
     
         # Decision boundaries (optional or with low alpha)
@@ -188,6 +190,8 @@ class KMeansVisualizer:
         plt.title(title)
         plt.legend()
         plt.tight_layout()
-        plt.savefig(self.cluster_dir / f"{filename}.png")
+        cluster_dir = pathlib.Path("ClusterPlots")
+        cluster_dir.mkdir(parents=True, exist_ok= True)
+        plt.savefig(cluster_dir / f"{filename}.png")
         plt.close()
     

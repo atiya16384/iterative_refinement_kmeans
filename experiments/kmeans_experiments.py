@@ -1,5 +1,6 @@
-from visualisations.kmeans_visualisations import pca_2d_view, plot_clusters
+from visualisations.kmeans_visualisations import KMeansVisualizer
 from experiments.kmeans_precision import run_full_double, run_hybrid
+import numpy as np
 
 def run_experiment_A(ds_name, X, y_true, n_clusters, initial_centers, config):
     rows_A = []
@@ -46,12 +47,11 @@ def run_experiment_A(ds_name, X, y_true, n_clusters, initial_centers, config):
 
             # Only plot for the first repeat
             if rep == 0:
-                X_vis, centers_vis, xx, yy, labels_grid = pca_2d_view(X_cur, centers_hybrid)
+                X_vis, centers_vis, xx, yy, labels_grid = KMeansVisualizer.pca_2d_view(X_cur, centers_hybrid)
                 filename = f"{ds_name}_n{n_samples}_c{n_clusters}_A_{cap}"
                 title = f"{ds_name}: n={n_samples}, c={n_clusters}, cap={cap}"
-                plot_clusters(X_vis, labels_hybrid, centers_vis, xx, yy, labels_grid, title=title, filename=filename)
+                KMeansVisualizer.plot_clusters(X_vis, labels_hybrid, centers_vis, xx, yy, labels_grid, title=title, filename=filename)
                 
-
     return rows_A
 
 def run_experiment_B(ds_name, X, y_true, n_clusters, initial_centers, config):
@@ -97,10 +97,10 @@ def run_experiment_B(ds_name, X, y_true, n_clusters, initial_centers, config):
 
             # plot clusters
             if rep == 0:
-                X_vis, centers_vis, xx, yy, labels_grid = pca_2d_view(X_cur, centers_hybrid)
+                X_vis, centers_vis, xx, yy, labels_grid = KMeansVisualizer.pca_2d_view(X_cur, centers_hybrid)
                 filename = f"{ds_name}_n{n_samples}_c{n_clusters}_B_{tol_s}"
                 title = f"{ds_name}: n={n_samples}, c={n_clusters}, tol={tol_s}"
-                plot_clusters(X_vis, labels_hybrid, centers_vis, xx, yy, labels_grid, title=title, filename=filename)
+                KMeansVisualizer.plot_clusters(X_vis, labels_hybrid, centers_vis, xx, yy, labels_grid, title=title, filename=filename)
                 
     return rows_B
 
@@ -147,57 +147,10 @@ def run_experiment_C(ds_name, X, y_true, n_clusters, initial_centers, config):
             ])
 
             if rep == 0 and cap == cap_range[-1]:  # Plot only once at final cap
-                X_vis, centers_vis, xx, yy, labels_grid = pca_2d_view(X_cur, centers_hybrid)
+                X_vis, centers_vis, xx, yy, labels_grid = KMeansVisualizer.pca_2d_view(X_cur, centers_hybrid)
                 filename = f"{ds_name}_n{n_samples}_c{n_clusters}_C_cap{cap_C_pct}"
                 title = f"{ds_name}: n={n_samples}, c={n_clusters}, cap={cap_C_pct}"
-                plot_clusters(X_vis, labels_hybrid, centers_vis, xx, yy, labels_grid, title=title, filename=filename)
+                KMeansVisualizer.plot_clusters(X_vis, labels_hybrid, centers_vis, xx, yy, labels_grid, title=title, filename=filename)
 
     return rows_C
 
-def run_experiment_D(ds_name, X, y_true, n_clusters, initial_centers, config):
-    rows_D = []
-    n_samples = len(X)
-
-    # Load hyperparameters
-    max_iter = config["max_iter_D"]
-    tol_final = config["tol_double_D"]
-    tol_single_switch = config.get("tol_single_D", 1e-3)
-    switch_tol = config.get("switch_tol", 1e-5)        # Switch if inertia doesn't improve by this
-    switch_shift = config.get("switch_shift", 1e-4)    # Switch if centroid movement is small
-    n_repeats = config["n_repeats"]
-
-    for rep in range(n_repeats):
-        # === Double precision baseline ===
-        centers_double, labels_double, iters_double_tot, iters_single_tot, elapsed_double, mem_MB_double, ari_double, dbi_double, inertia_double = run_full_double(
-            X, initial_centers, n_clusters, max_iter, tol_final, y_true
-        )
-        rows_D.append([
-            ds_name, n_samples, n_clusters, "D", tol_final, 0,
-            iters_single_tot, iters_double_tot, "Double", elapsed_double, mem_MB_double,
-            ari_double, dbi_double, inertia_double
-        ])
-
-        # === Adaptive hybrid run ===
-        labels_hybrid, centers_hybrid, iters_single, iters_double, elapsed_hybrid, mem_MB_hybrid, ari_hybrid, dbi_hybrid, inertia_hybrid = run_adaptive_hybrid(
-            X, initial_centers, n_clusters,
-            max_iter=max_iter,
-            tol_final=tol_final,
-            y_true=y_true,
-            switch_tol=switch_tol,
-            switch_shift=switch_shift,
-            seed=rep
-        )
-        rows_D.append([
-            ds_name, n_samples, n_clusters, "D", tol_single_switch, 0,
-            iters_single, iters_double, "Hybrid", elapsed_hybrid, mem_MB_hybrid,
-            ari_hybrid, dbi_hybrid, inertia_hybrid
-        ])
-
-        # Optional: Save visualization of clustering
-        if rep == 0:
-            X_vis, centers_vis, xx, yy, labels_grid = KMeansVisualizer.pca_2d_view(X, centers_hybrid)
-            filename = f"{ds_name}_n{n_samples}_c{n_clusters}_D_adaptive"
-            title = f"{ds_name}: n={n_samples}, c={n_clusters}, Adaptive Hybrid"
-            KMeansVisualizer.plot_clusters(X_vis, labels_hybrid, centers_vis, xx, yy, labels_grid, title=title, filename=filename)
-
-    return rows_D
