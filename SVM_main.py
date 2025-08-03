@@ -57,31 +57,22 @@ def run_experiments():
 
     df_A = pd.DataFrame(results_A, columns=columns_A)
     df_B = pd.DataFrame(results_B, columns=columns_B)
-    df_C = pd.DataFrame(results_C, columns=columns_C)
-    df_D = pd.DataFrame(results_D, columns=columns_D)
-    
+
     df_A["Mode"] = "A"
     df_B["Mode"] = "B"
-    df_C["Mode"] = "C"
-    df_D["Mode"] = "D"
-
 
     df_A.to_csv(RESULTS_DIR / "svm_expA_caps.csv", index=False)
     df_B.to_csv(RESULTS_DIR / "svm_expB_tol.csv", index=False)
-    df_C.to_csv(RESULTS_DIR / "svm_expC_80percent.csv", index=False)
-    df_D.to_csv(RESULTS_DIR / "svm_expD_tol_fixed.csv", index=False)
 
     print("Saved:")
     print("- svm_expA_caps.csv")
     print("- svm_expB_tol.csv")
-    print("- svm_expC_80percent.csv")
-    print("- svm_expD_tol_fixed.csv")
+
 
     # Summaries
     print_summary(RESULTS_DIR / "svm_expA_caps.csv", ['DatasetName', 'Suite'])
     print_summary(RESULTS_DIR / "svm_expB_tol.csv", ['DatasetName', 'Suite'])
-    print_summary(RESULTS_DIR / "svm_expC_80percent.csv", ['DatasetName', 'Suite'])
-    print_summary(RESULTS_DIR / "svm_expD_tol_fixed.csv", ['DatasetName', 'Suite'])
+
 
     return df_A, df_B, df_C , df_D
 
@@ -93,8 +84,4 @@ if __name__ == "__main__":
     visualizer.plot_cap_vs_time(df_A)
     visualizer.plot_tolerance_vs_accuracy(df_B)
     visualizer.plot_tolerance_vs_time(df_B)
-    visualizer.plot_cap_vs_accuracy(df_C)
-    visualizer.plot_cap_vs_time(df_C)
-    visualizer.plot_tolerance_vs_accuracy(df_D)
-    visualizer.plot_tolerance_vs_time(df_D)
 
