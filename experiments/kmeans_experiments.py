@@ -168,7 +168,7 @@ def run_experiment_D(ds_name, X, y_true, n_clusters, initial_centers, config):
     n_repeats = config["n_repeats"]
 
     for rep in range(n_repeats):
-        # === Double precision baseline ===
+        # Double precision baseline
         centers_double, labels_double, iters_double_tot, iters_single_tot, elapsed_double, mem_MB_double, inertia_double = run_full_double(
             X, initial_centers, n_clusters, max_iter, tol_final, y_true
         )
@@ -178,7 +178,7 @@ def run_experiment_D(ds_name, X, y_true, n_clusters, initial_centers, config):
             inertia_double
         ])
 
-        # === Adaptive hybrid run ===
+        #  Adaptive hybrid run
         labels_hybrid, centers_hybrid, iters_single, iters_double, elapsed_hybrid, mem_MB_hybrid, inertia_hybrid = run_adaptive_hybrid(
             X, initial_centers, n_clusters,
             max_iter=max_iter,

@@ -2,7 +2,6 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from aoclda.sklearn import skpatch
 skpatch() # Apply AOCL patch before any KMeans usage
-from sklearn.metrics import adjusted_rand_score, davies_bouldin_score
 from sklearn.cluster import KMeans
 import warnings
 warnings.filterwarnings("ignore")
@@ -31,11 +30,10 @@ dataset_sizes = [1000000]
 # for the cluster size we are varying this for all datasets
 n_clusters_list = [30]
 
-max_iter = 300
 # Understand what the experiment parameters mean
 
 config = {
-    "n_repeats": 5,
+    "n_repeats": 1,
     "cap_grid": [0, 50, 100, 150, 200, 250, 300],
     "tol_fixed_A": 1e-16,
     "max_iter_A": 300,
@@ -63,8 +61,7 @@ precisions = {
     "Double Precision": np.float64
 }
 
-def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A, rows_B, rows_C #rows_D#
-                    ):
+def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A, rows_B, rows_C, rows_D):
     if ds_name.startswith("SYNTH"):
         sample_sizes = dataset_sizes
     else:
@@ -104,25 +101,25 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A, rows_B, ro
                 rows_B += run_experiment_B(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
                 print("Running C")
                 rows_C += run_experiment_C(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
-                # rows_D += run_experiment_D(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
+                print("Running D")
+                rows_D += run_experiment_D(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
 
                     
-    return rows_A, rows_B, rows_C #*rows_D*#
+    return rows_A, rows_B, rows_C, rows_D
 
 all_rows = []
 
 rows_A = []
 rows_B = []
 rows_C = []
-# rows_D = []
+rows_D = []
 
 for tag, n, d, k, seed in synth_specs:
     X, y = generate_synthetic_data(n, d, k, seed)
     print(f"[SYNTH] {tag:14s}  shape={X.shape}  any_NaN={np.isnan(X).any()}",
           flush=True)
     # check if the mappings are correct to the run_one_dataset
-    run_one_dataset(tag, X, y, rows_A, rows_B, rows_C #rows_D#
-    )
+    run_one_dataset(tag, X, y, rows_A, rows_B, rows_C ,rows_D)
 
 # real datasets
 # for tag, loader in real_datasets.items():
@@ -132,7 +129,7 @@ for tag, n, d, k, seed in synth_specs:
 df_A = pd.DataFrame(rows_A, columns=columns_A)
 df_B = pd.DataFrame(rows_B, columns=columns_B)
 df_C= pd.DataFrame(rows_C, columns=columns_C)
-# df_D = pd.DataFrame(rows_D, columns=columns_D)
+df_D = pd.DataFrame(rows_D, columns=columns_D)
 
 print("Saved:")
 print("- hybrid_kmeans_results_expA.csv")
@@ -160,11 +157,11 @@ print(df_C.groupby([
 ])[['Time', 'Memory_MB','Inertia']].mean())
 
 # === SUMMARY: Experiment D ===
-# print("\n==== SUMMARY: EXPERIMENT D ====")
-# print(df_D.groupby([
-#     'DatasetSize', 'NumClusters', 'Mode',
-#     'tolerance_single','iter_single', 'iter_double', 'Suite'
-# ])[['Time', 'Memory_MB', 'Inertia']].mean())
+print("\n==== SUMMARY: EXPERIMENT D ====")
+print(df_D.groupby([
+    'DatasetSize', 'NumClusters', 'Mode',
+    'tolerance_single','iter_single', 'iter_double', 'Suite'
+])[['Time', 'Memory_MB', 'Inertia']].mean())
 
 
 # how to plot for the different types of graphs that we have
@@ -178,7 +175,7 @@ kmeans_vis.plot_cap_vs_time(df_C)
 kmeans_vis.plot_hybrid_cap_vs_inertia(df_C)
 kmeans_vis.plot_tolerance_vs_inertia(df_B)
 kmeans_vis.plot_tolerance_vs_time(df_B)
-# kmeans_vis.plot_tolerance_vs_inertia(df_D)
-# kmeans_vis.plot_tolerance_vs_time(df_D)
+kmeans_vis.plot_tolerance_vs_inertia(df_D)
+kmeans_vis.plot_tolerance_vs_time(df_D)
 print(os.getcwd())
 

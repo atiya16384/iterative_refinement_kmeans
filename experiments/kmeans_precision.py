@@ -3,16 +3,10 @@ import numpy as np
 from aoclda.sklearn import skpatch
 skpatch()
 from sklearn.cluster import KMeans
-from sklearn.metrics import adjusted_rand_score, davies_bouldin_score
 
-def evaluate_metrics(X, labels, y_true, inertia):
-    if y_true is None:
-        ari = np.nan                
-    else:
-        ari = adjusted_rand_score(y_true, labels)
+def evaluate_metrics(inertia):
 
-    db_index = davies_bouldin_score(X, labels)
-    return ari, db_index, inertia
+    return inertia
 
 def run_full_double(X, initial_centers, n_clusters, max_iter, tol, y_true):
     start_time = time.time()
@@ -27,7 +21,7 @@ def run_full_double(X, initial_centers, n_clusters, max_iter, tol, y_true):
     print(f"This is total for double run: {iters_double_tot}")
     iters_single_tot = 0
 
-    ari, dbi, inertia = evaluate_metrics(X, labels, y_true, inertia)
+    inertia = evaluate_metrics(inertia)
     mem_MB_double = X.astype(np.float64).nbytes / 1e6
     return centers, labels, iters_double_tot, iters_single_tot,  elapsed, mem_MB_double, inertia, 
 
@@ -66,7 +60,7 @@ def run_hybrid(X, initial_centers, n_clusters, max_iter_total, tol_single, tol_d
     centers_final = kmeans_double.cluster_centers_
     inertia = kmeans_double.inertia_
 
-    ari, dbi, inertia = evaluate_metrics(X, labels_final, y_true, inertia)
+    inertia = evaluate_metrics(inertia)
     mem_MB_double = X.astype(np.float64).nbytes / 1e6
     mem_MB_total = mem_MB_double + X_single.nbytes / 1e6
     iters_double = kmeans_double.n_iter_
