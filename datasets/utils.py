@@ -43,13 +43,13 @@ real_datasets = {
 columns_A = [
     'DatasetName', 'DatasetSize', 'NumClusters', 
     'Mode', 'Cap', 'tolerance_single', 'iter_single', 'iter_double', 'Suite',
-    'Time', 'Memory_MB', 'ARI', 'DBI', 'Inertia'
+    'Time', 'Memory_MB', 'Inertia'
 ]
 
 columns_B = [
     'DatasetName', 'DatasetSize', 'NumClusters',
     'Mode', 'tolerance_single', 'iter_single', 'iter_double', 'Suite',
-    'Time', 'Memory_MB', 'ARI', 'DBI', 'Inertia'
+    'Time', 'Memory_MB',  'Inertia'
 ]
 
 columns_C = columns_A  # since it's same structure as A
@@ -57,5 +57,5 @@ columns_C = columns_A  # since it's same structure as A
 columns_D = [
     'DatasetName', 'DatasetSize', 'NumClusters',
     'Mode', 'tolerance_single', 'Cap', 'iter_single', 'iter_double', 'Suite',
-    'Time', 'Memory_MB', 'ARI', 'DBI', 'Inertia'
+    'Time', 'Memory_MB', 'Inertia'
 ]

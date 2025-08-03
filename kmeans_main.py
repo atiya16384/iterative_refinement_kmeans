@@ -138,28 +138,28 @@ print("\n==== SUMMARY: EXPERIMENT A ====")
 print(df_A.groupby([
     'DatasetSize', 'NumClusters', 'Mode', 'Cap',
     'tolerance_single', 'iter_single', 'iter_double', 'Suite'
-])[['Time', 'Memory_MB', 'ARI', 'DBI', 'Inertia']].mean())
+])[['Time', 'Memory_MB', 'Inertia']].mean())
 
 # === SUMMARY: Experiment B ===
 print("\n==== SUMMARY: EXPERIMENT B ====")
 print(df_B.groupby([
     'DatasetSize', 'NumClusters', 'Mode',
     'tolerance_single', 'iter_single', 'iter_double', 'Suite'
-])[['Time', 'Memory_MB', 'ARI', 'DBI', 'Inertia']].mean())
+])[['Time', 'Memory_MB', 'Inertia']].mean())
 
 # === SUMMARY: Experiment C ===
 print("\n==== SUMMARY: EXPERIMENT C ====")
 print(df_C.groupby([
     'DatasetSize', 'NumClusters', 'Mode', 'Cap',
     'tolerance_single', 'iter_single', 'iter_double', 'Suite'
-])[['Time', 'Memory_MB', 'ARI', 'DBI', 'Inertia']].mean())
+])[['Time', 'Memory_MB','Inertia']].mean())
 
 # === SUMMARY: Experiment D ===
 # print("\n==== SUMMARY: EXPERIMENT D ====")
 # print(df_D.groupby([
 #     'DatasetSize', 'NumClusters', 'Mode',
 #     'tolerance_single','iter_single', 'iter_double', 'Suite'
-# ])[['Time', 'Memory_MB', 'ARI', 'DBI', 'Inertia']].mean())
+# ])[['Time', 'Memory_MB', 'Inertia']].mean())
 
 
 # how to plot for the different types of graphs that we have

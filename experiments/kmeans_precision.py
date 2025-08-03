@@ -29,7 +29,7 @@ def run_full_double(X, initial_centers, n_clusters, max_iter, tol, y_true):
 
     ari, dbi, inertia = evaluate_metrics(X, labels, y_true, inertia)
     mem_MB_double = X.astype(np.float64).nbytes / 1e6
-    return centers, labels, iters_double_tot, iters_single_tot,  elapsed, mem_MB_double, ari, dbi, inertia, 
+    return centers, labels, iters_double_tot, iters_single_tot,  elapsed, mem_MB_double, inertia, 
 
 # Hybrid precison loop 
 def run_hybrid(X, initial_centers, n_clusters, max_iter_total, tol_single, tol_double, single_iter_cap, y_true, seed=0):
@@ -73,7 +73,7 @@ def run_hybrid(X, initial_centers, n_clusters, max_iter_total, tol_single, tol_d
     print(f"This is iters_double: {iters_double}")
     total_time = end_time_single + end_time_double
     
-    return ( labels_final, centers_final, iters_single, iters_double,total_time, mem_MB_total, ari, dbi, inertia)
+    return ( labels_final, centers_final, iters_single, iters_double,total_time, mem_MB_total, inertia)
     
 def run_adaptive_hybrid(X, initial_centers, n_clusters, max_iter, tol_final, y_true=None,
                         switch_tol=1e-5, switch_shift=1e-4, seed=0):
@@ -145,13 +145,8 @@ def run_adaptive_hybrid(X, initial_centers, n_clusters, max_iter, tol_final, y_t
 
     # Final Evaluation
     # Optionally evaluate clustering quality if true labels are known
-    ari, dbi = None, None
-    if y_true is not None:
-        ari = adjusted_rand_score(y_true, labels)
-    if len(np.unique(labels)) > 1:  # DBI requires at least 2 clusters
-        dbi = davies_bouldin_score(X, labels)
 
     # Estimate memory usage: data + centers
     mem_MB = (X_float32.nbytes + centers.nbytes) / 2**20
 
-    return labels, centers, iters_single, iters_double, elapsed_total, mem_MB, ari, dbi, inertia
+    return labels, centers, iters_single, iters_double, elapsed_total, mem_MB, inertia
