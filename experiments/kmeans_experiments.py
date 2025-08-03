@@ -157,53 +157,47 @@ def run_experiment_C(ds_name, X, y_true, n_clusters, initial_centers, config):
 def run_experiment_D(ds_name, X, y_true, n_clusters, initial_centers, config):
     rows_D = []
     n_samples = len(X)
-    X_cur = X
-    y_true_cur = y_true
 
-    max_iter_D = config["max_iter_D"]
-    tol_double_D = config["tol_double_D"]
-    tol_single_D = config["tol_single_D"]  # e.g., 1e-3
+    # Load hyperparameters
+    max_iter = config["max_iter_D"]
+    tol_final = config["tol_double_D"]
+    tol_single_switch = config.get("tol_single_D", 1e-3)
+    switch_tol = config.get("switch_tol", 1e-5)        # Switch if inertia doesn't improve by this
+    switch_shift = config.get("switch_shift", 1e-4)    # Switch if centroid movement is small
     n_repeats = config["n_repeats"]
 
-    # Dynamically build grid: from 1e-1 down to tol_single_D (inclusive)
-    tol_grid = []
-    current = 1e-1
-    while current >= tol_single_D:
-        tol_grid.append(current)
-        current /= 10
-
     for rep in range(n_repeats):
-        # Double precision baseline
-        centers_double, labels_double, iters_double_tot, iters_single_tot, elapsed, mem_MB_double, ari, dbi, inertia = run_full_double(
-            X_cur, initial_centers, n_clusters, max_iter_D, tol_double_D, y_true_cur
+        # === Double precision baseline ===
+        centers_double, labels_double, iters_double_tot, iters_single_tot, elapsed_double, mem_MB_double, ari_double, dbi_double, inertia_double = run_full_double(
+            X, initial_centers, n_clusters, max_iter, tol_final, y_true
         )
         rows_D.append([
-            ds_name, n_samples, n_clusters, "D", tol_double_D, 0,
-            iters_single_tot, iters_double_tot, "Double", elapsed, mem_MB_double,
-            ari, dbi, inertia
+            ds_name, n_samples, n_clusters, "D", tol_final, 0,
+            iters_single_tot, iters_double_tot, "Double", elapsed_double, mem_MB_double,
+            ari_double, dbi_double, inertia_double
         ])
 
-        for tol_s in tol_grid:
-            labels_hybrid, centers_hybrid, iters_single, iters_double, elapsed_hybrid, mem_MB_hybrid, ari_hybrid, dbi_hybrid, inertia_hybrid = run_hybrid(
-                X_cur, initial_centers, n_clusters,
-                max_iter_total=max_iter_D,
-                single_iter_cap=max_iter_D,
-                tol_single=tol_s,
-                tol_double=tol_double_D,
-                y_true=y_true_cur,
-                seed=rep
-            )
+        # === Adaptive hybrid run ===
+        labels_hybrid, centers_hybrid, iters_single, iters_double, elapsed_hybrid, mem_MB_hybrid, ari_hybrid, dbi_hybrid, inertia_hybrid = run_adaptive_hybrid(
+            X, initial_centers, n_clusters,
+            max_iter=max_iter,
+            tol_final=tol_final,
+            y_true=y_true,
+            switch_tol=switch_tol,
+            switch_shift=switch_shift,
+            seed=rep
+        )
+        rows_D.append([
+            ds_name, n_samples, n_clusters, "D", tol_single_switch, 0,
+            iters_single, iters_double, "Hybrid", elapsed_hybrid, mem_MB_hybrid,
+            ari_hybrid, dbi_hybrid, inertia_hybrid
+        ])
 
-            rows_D.append([
-                ds_name, n_samples, n_clusters, "D", tol_s, 0,
-                iters_single, iters_double, "Hybrid", elapsed_hybrid, mem_MB_hybrid,
-                ari_hybrid, dbi_hybrid, inertia_hybrid
-            ])
-
-            if rep == 0 and tol_s == tol_single_D:
-                X_vis, centers_vis, xx, yy, labels_grid = pca_2d_view(X_cur, centers_hybrid)
-                filename = f"{ds_name}_n{n_samples}_c{n_clusters}_D_tol{tol_s}"
-                title = f"{ds_name}: n={n_samples}, c={n_clusters}, tol={tol_s}"
-                plot_clusters(X_vis, labels_hybrid, centers_vis, xx, yy, labels_grid, title=title, filename=filename)
+        # Optional: Save visualization of clustering
+        if rep == 0:
+            X_vis, centers_vis, xx, yy, labels_grid = KMeansVisualizer.pca_2d_view(X, centers_hybrid)
+            filename = f"{ds_name}_n{n_samples}_c{n_clusters}_D_adaptive"
+            title = f"{ds_name}: n={n_samples}, c={n_clusters}, Adaptive Hybrid"
+            KMeansVisualizer.plot_clusters(X_vis, labels_hybrid, centers_vis, xx, yy, labels_grid, title=title, filename=filename)
 
     return rows_D
