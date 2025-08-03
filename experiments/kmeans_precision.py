@@ -96,7 +96,7 @@ def run_adaptive_hybrid(X, initial_centers, n_clusters, max_iter, tol_final, y_t
     for i in range(max_iter):
         t0 = time.perf_counter()
 
-        # === Distance computation ===
+        # Distance computation 
         # Compute distance matrix using current precision mode
         if mode == "single":
             # Compute in float32 for speed
@@ -105,17 +105,17 @@ def run_adaptive_hybrid(X, initial_centers, n_clusters, max_iter, tol_final, y_t
             # Compute in float64 for final refinement
             dists = np.linalg.norm(X_float64[:, None, :] - centers[None, :, :], axis=2)
 
-        # === Assignment step ===
+        # Assignment step 
         new_labels = np.argmin(dists, axis=1)
 
-        # === Update step ===
+        # Update step
         new_centers = np.zeros_like(centers)  # Keep in float64
         for k in range(n_clusters):
             members = X_float64[new_labels == k]  # Always use float64 for accuracy
             if len(members) > 0:
                 new_centers[k] = np.mean(members, axis=0)
 
-        # === Convergence metrics ===
+        # Convergence metrics 
         # Calculate total inertia (sum of squared errors) in float64
         inertia = np.sum((X_float64 - new_centers[new_labels])**2)
 
@@ -135,15 +135,15 @@ def run_adaptive_hybrid(X, initial_centers, n_clusters, max_iter, tol_final, y_t
         else:
             iters_double += 1
 
-        # === Check for convergence ===
+        # Check for convergence
         if center_shift < tol_final or inertia_diff < tol_final:
             break  # We have converged
 
-        # === Check for adaptive switch to double ===
+        # Check for adaptive switch to double
         if mode == "single" and (inertia_diff < switch_tol or center_shift < switch_shift):
             mode = "double"  # Upgrade to full precision
 
-    # === Final Evaluation ===
+    # Final Evaluation
     # Optionally evaluate clustering quality if true labels are known
     ari, dbi = None, None
     if y_true is not None:
