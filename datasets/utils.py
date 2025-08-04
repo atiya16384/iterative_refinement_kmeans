@@ -72,7 +72,6 @@ columns_D = [
   "iter_single","iter_double","Suite","Time","Memory_MB","Inertia","Repeat"
 ]
 
-
 columns_E = [
     "DatasetName", "DatasetSize", "NumClusters", "Mode", "MB_Iter", "MB_Batch", "RefineIter", "iter_single", "iter_double", "Suite", "Time", "Memory_MB", "Inertia"]
 
