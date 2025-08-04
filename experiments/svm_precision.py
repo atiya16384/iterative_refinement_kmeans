@@ -370,7 +370,7 @@ def run_svc_experiments(
 
 
 # 1) Nonlinear dataset (RBF-friendly)
-X, y = make_circles_like(m=100_0000, noise=0.15, factor=0.45, seed=1)
+X, y = make_circles_like(m=10000, noise=0.15, factor=0.45, seed=1)
 grid = {
     # "linear", "poly", "sigmoid"
 
@@ -387,11 +387,11 @@ grid = {
     "min_rel_drop": [0.05],
 }
 df, df_mean = run_svc_experiments(X, y, dataset_name="circles", grid=grid,
-                                  approaches=("single","double","hybrid","adaptive"),
+                                  approaches=("single","double","hybrid"),
                                   repeats=3)
 
 # 2) Linear-ish dataset (hybrid may help less because 'double' is already quick)
-X, y = make_shifted_gaussian(m=1000_000, n=120, delta=0.7, seed=2)
+X, y = make_shifted_gaussian(m=10000, n=120, delta=0.7, seed=2)
 df, df_mean = run_svc_experiments(X, y, dataset_name="gauss", grid=grid,
-                                  approaches=("single","double","hybrid","adaptive"),
+                                  approaches=("single","double","hybrid"),
                                   repeats=3)
