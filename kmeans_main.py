@@ -40,7 +40,7 @@ config = {
 
     "max_iter_C": 300,
     "tol_fixed_C": 1e-16,
-    "cap_C": int(300 * 0.8),
+    "cap_C_pct": int(300 * 0.8),
 
     "max_iter_D": 300,
     "tol_shift_D": 1e-2,

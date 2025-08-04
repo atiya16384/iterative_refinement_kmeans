@@ -169,7 +169,7 @@ def run_experiment_D(ds_name, X, y_true, n_clusters, initial_centers, config):
         y_true=y_true
     )
     labels_b, centers_b, _, it_b, time_b, mem_b, inertia_b = base
-    rows_D.append([ds_name, len(X), n_clusters, "Baseline-Double", False, it_b, time_b, mem_b, inertia_b])
+    rows_D.append([ds_name, len(X), n_clusters, "Double", False, it_b, time_b, mem_b, inertia_b])
 
     # === Adaptive hybrid run ===
     adv = run_adaptive_hybrid(

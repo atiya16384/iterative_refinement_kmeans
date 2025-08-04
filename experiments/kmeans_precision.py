@@ -75,7 +75,7 @@ def run_adaptive_hybrid(X, initial_centers, n_clusters,
                         inertia_improvement_threshold=0.02,
                         refine_iterations=2,
                         tol_shift=1e-3,
-                        seed=0):
+                        seed=0, y_true = None):
   
     # Adaptive Hybrid K-Means clustering with multi-signal switching:
     # - Starts in single precision
