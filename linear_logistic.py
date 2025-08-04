@@ -2,7 +2,6 @@ import sys
 from aoclda.linear_model import linmod
 import numpy as np
 
-
 def linmod_example():
     """
     Linear regression with an intercept variable

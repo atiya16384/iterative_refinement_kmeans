@@ -404,6 +404,11 @@ def run_experiments(X, y,
 
     df_mean = df.groupby(group_cols, as_index=False)[metric_cols].mean()
 
+    
+
+
+
+
     # === Print comparison grouped by hyperparams ===
     print("\n=== Mean Results over Repeats ===")
     for keys, sub in df_mean.groupby(["dataset", "penalty", "lambda", "solver", "max_iter", "tol", "max_iter_single"]):
@@ -427,7 +432,7 @@ if __name__ == "__main__":
     if dataset == "gaussian":
         X, y = make_shifted_gaussian(m=5000, n=200, delta=0.5, seed=42)
     elif dataset == "uniform":
-        X, y = make_uniform_binary(m=5000, n=200, shift=0.25, seed=42)
+        X, y = make_uniform_binary(m=1000_000, n=100, shift=0.25, seed=42)
     else:
         raise ValueError("Unknown dataset")
 
