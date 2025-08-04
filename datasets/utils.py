@@ -37,9 +37,9 @@ synth_specs = [
     # number of samples; number of features, number of clusters, random seeds
     # ("SYNTH_C_2_F_50_n1000k_logistic", 1000_000, 5,  2, 0),
     # number of features should be greater than the number of clusters
-    ("SYNTH_C_30_F_50_n1000_000k_kmeans", 1000_000, 50, 30, 1),
-    ("SYNTH_C_5_F_50_n1000_000k_kmeans", 1000_000, 50, 5, 1),
-    ("SYNTH_C_80_F_120_n1000_000k_kmeans", 1000_000, 120, 80, 1),
+    ("SYNTH_C_30_F_50_n1000_000k_kmeans", 100_00, 50, 30, 1),
+    ("SYNTH_C_5_F_50_n1000_000k_kmeans", 1000_0, 50, 5, 1),
+    ("SYNTH_C_80_F_120_n1000_000k_kmeans", 1000_0, 120, 80, 1),
 ]
 
 # Real-dataset
