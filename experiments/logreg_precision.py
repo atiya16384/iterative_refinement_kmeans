@@ -356,7 +356,7 @@ def run_experiments(X, y,
 
     # Summary
     group_cols = [
-        "dataset", "penalty", "alpha", "lambda", "solver",
+        "dataset", "penalty", "alpha", "C",  "lambda", "solver",
         "max_iter", "tol_single", "max_iter_single", "tol_double",
         "double_budget_frac", "approach"
     ]
@@ -380,14 +380,16 @@ if __name__ == "__main__":
     datasets = ["gaussian"]  # adjust as needed
 
     base_grid = {
+
         "penalty": ["l1", "l2"],
-        "alpha":   [0.0, 0.25, 0.75, 1.0],
+        "alpha":   [None, 0.0,  0.25, 0.75, 1.0],
         "lambda":  [None, 1e-4, 1e-6, 1e-8],
         "C":       [None, 0.01, 0.1, 1.0, 10, 100],
-        "solver":  ["coord", "sparse_cg"],
-        "max_iter": [800],                   # f64 budget in hybrid
+        # "sparse_cg"
+        "solver":  ["coord"],
+        "max_iter": [500],                   # f64 budget in hybrid
         "tol":      [1e-4, 1e-6, 1e-8],      # f32 tol
-        "max_iter_single": [300, 500, 800],  # f32 work
+        "max_iter_single": [50, 100, 150, 200, 300, 500],  # f32 work
         "tol_double": [1e-6],                # f64 tol
         "double_budget_frac": [0.10],        # used only if you don't pass max_iter_double
         "approaches": ["single", "double", "hybrid"],
@@ -396,7 +398,7 @@ if __name__ == "__main__":
     all_df, all_df_mean = [], []
     for dataset in datasets:
         if dataset == "gaussian":
-            X, y = make_shifted_gaussian(m=100_000, n=120, delta=0.5, seed=42)
+            X, y = make_shifted_gaussian(m=40_000, n=20, delta=0.5, seed=42)
         elif dataset == "uniform":
             X, y = make_uniform_binary(m=100_000, n=120, shift=0.25, seed=42)
         elif dataset == "blobs":
