@@ -280,8 +280,9 @@ class KMeansVisualizer:
         plt.tight_layout()
         plt.savefig(self.output_dir / f"cap_vs_peakmem_hybrid_vs_{baseline.lower()}.png")
         plt.close()
+        
     def plot_cap_vs_memtraffic(self, df, baseline_double_label: str = "Double"):
-    """
+        """
         Cap vs Estimated Memory Traffic (Hybrid), relative to Double.
         TrafficRel = (T - 0.5*C) / Tdouble, where:
             C = ItersSingle (float32 iters)
