@@ -12,7 +12,7 @@ class SVMVisualizer:
       time_sec, accuracy, roc_auc,
       max_iter_single, tol_single, time_stageA, time_stageB, ...
     """
-    def __init__(self, output_dir="Results/SUMMARY_SVM"):
+    def __init__(self, output_dir="../Results/SUMMARY_SVM"):
         self.out = Path(output_dir)
         self.out.mkdir(parents=True, exist_ok=True)
 
@@ -205,30 +205,29 @@ class SVMVisualizer:
         pass
 
 
-import pandas as pd
-from visualisations.svm_visualisations import SVMVisualizer
+if __name__ == "__main__":
 
-# Load the tidy runs CSV written by run_svc_experiments
-df = pd.read_csv("svm_precision_runs.csv")
+    # Load the tidy runs CSV written by run_svc_experiments
+    df = pd.read_csv("../experiments/svm_precision_runs.csv")
 
-viz = SVMVisualizer(output_dir="Results/SUMMARY_SVM")
+    viz = SVMVisualizer(output_dir="../Results/SUMMARY_SVM")
 
-# pick one grid setting to slice by (adjust to your grid)
-dataset = "circles"
-kernel  = "rbf"
-C       = 1.0
-gamma   = "scale"
+    # pick one grid setting to slice by (adjust to your grid)
+    dataset = "circles"
+    kernel  = "rbf"
+    C       = 1.0
+    gamma   = "scale"
 
-viz.plot_time_vs_maxiter(df, dataset=dataset, kernel=kernel, C=C, gamma=gamma)
-viz.plot_time_vs_tol(df,      dataset=dataset, kernel=kernel, C=C, gamma=gamma)
+    viz.plot_time_vs_maxiter(df, dataset=dataset, kernel=kernel, C=C, gamma=gamma)
+    viz.plot_time_vs_tol(df,      dataset=dataset, kernel=kernel, C=C, gamma=gamma)
 
-# accuracy (or roc_auc) relative to double
-viz.plot_accuracy_vs_param(df, dataset=dataset, kernel=kernel, C=C, gamma=gamma,
-                           param="max_iter_single", metric="accuracy")
-viz.plot_accuracy_vs_param(df, dataset=dataset, kernel=kernel, C=C, gamma=gamma,
-                           param="tol_single", metric="roc_auc")
+    # accuracy (or roc_auc) relative to double
+    viz.plot_accuracy_vs_param(df, dataset=dataset, kernel=kernel, C=C, gamma=gamma,
+                            param="max_iter_single", metric="accuracy")
+    viz.plot_accuracy_vs_param(df, dataset=dataset, kernel=kernel, C=C, gamma=gamma,
+                            param="tol_single", metric="roc_auc")
 
-# stage breakdown (hybrid only)
-viz.plot_hybrid_stage_breakdown(df, dataset=dataset, kernel=kernel, C=C, gamma=gamma,
-                                param="max_iter_single")
+    # stage breakdown (hybrid only)
+    viz.plot_hybrid_stage_breakdown(df, dataset=dataset, kernel=kernel, C=C, gamma=gamma,
+                                    param="max_iter_single")
 
