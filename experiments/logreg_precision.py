@@ -438,7 +438,7 @@ if __name__ == "__main__":
         "alpha":   [None],
         "lambda":  [1e-2, 1e-3, 1e-4, 1e-6, 1e-8],
         "C":       [None],
-        "solver":  ["lbfgs"],
+        "solver":  ["l"],
         "max_iter": [10000],
         "tol":      [1e-2, 1e-4, 1e-6, 1e-8],
         "max_iter_single": [10, 100, 150, 200, 250, 300],
