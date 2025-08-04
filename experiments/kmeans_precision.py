@@ -127,6 +127,14 @@ def run_adaptive_hybrid(X, initial_centers, n_clusters,
             precision = 'double'
             switched = True
             stable_count = 0
+            switch_iter = it + 1
+
+        total_iters = it + 1
+        iters_single = total_iters if not switched else switch_iter
+        iters_double = 0 if not switched else total_iters - switch_iter
+        elapsed = time.perf_counter() - start
+        elapsed_time = elapsed
+        precision_switched = switched
 
         if switched and stable_count >= refine_iterations:
             print("Final convergence reached in DOUBLE")
@@ -134,7 +142,7 @@ def run_adaptive_hybrid(X, initial_centers, n_clusters,
 
         labels, centers, prev_inertia = new_labels, new_centers, inertia
 
-    elapsed = time.perf_counter() - start
+
     mem_MB = (X_f32.nbytes + centers.nbytes) / 2**20
-    return labels, centers, precision_switched, total_iters, elapsed_time, mem_MB, inertia, iters_single, iters_double
+    return labels, centers, iters_single, iters_double,  precision_switched, total_iters, elapsed_time, mem_MB, inertia, 
 

@@ -95,7 +95,6 @@ class KMeansVisualizer:
         print(f"Saved: {self.output_dir / 'cap_vs_time_hybrid.png'}")
     
     def plot_tolerance_vs_time(self, df):
-        output_dir = pathlib.Path(output_dir)
         df_hybrid = df[df["Suite"] == "Hybrid"]
         group_cols = ["DatasetName", "NumClusters",  "tolerance_single"]
         df_grouped = df_hybrid.groupby(group_cols)[["Time"]].mean().reset_index()
@@ -122,7 +121,6 @@ class KMeansVisualizer:
         print(f"Saved: {self.output_dir / 'tolerance_vs_time_hybrid.png'}")
     
     def plot_tolerance_vs_inertia(self, df):
-        output_dir = pathlib.Path(output_dir)
         df_hybrid = df[df["Suite"] == "Hybrid"]
         group_cols = ["DatasetName", "NumClusters", "tolerance_single"]
         df_grouped = df_hybrid.groupby(group_cols)[["Inertia"]].mean().reset_index()
