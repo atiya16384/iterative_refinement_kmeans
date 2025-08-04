@@ -1,6 +1,7 @@
 from visualisations.kmeans_visualisations import KMeansVisualizer
 from experiments.kmeans_precision import run_full_double, run_hybrid, run_adaptive_hybrid
 import numpy as np
+import time
 
 def run_experiment_A(ds_name, X, y_true, n_clusters, initial_centers, config):
     rows_A = []
@@ -154,37 +155,74 @@ def run_experiment_C(ds_name, X, y_true, n_clusters, initial_centers, config):
 
     return rows_C
 
-def run_experiment_D(ds_name, X, n_clusters, initial_centers, config):
-    rows_D = []
 
-    # Double-precision baseline
-    labels_base, centers_base, _, iters_base, elapsed_base, mem_MB_base, inertia_base = run_adaptive_hybrid(
-        X, initial_centers, n_clusters,
-        max_iter=config["max_iter_D"],
-        initial_precision='double',    # Full double precision for baseline
-        stability_threshold=0.0,       # Always run until true convergence
-        inertia_improvement_threshold=0.0,
-        refine_iterations=0            # No refinement needed, full double run
-    )
 
-    rows_D.append([
-        ds_name, len(X), n_clusters, "Baseline-Double", False,
-        iters_base, elapsed_base, mem_MB_base, inertia_base
-    ])
+def run_adaptive_hybrid(X, initial_centers, n_clusters,
+                        max_iter=300,
+                        initial_precision='single',
+                        stability_threshold=0.02,
+                        inertia_improvement_threshold=0.02,
+                        refine_iterations=2,
+                        tol_shift=1e-3,
+                        seed=0):
+    """
+    Adaptive Hybrid K-Means clustering with multi-signal switching:
+    - Starts in single precision
+    - Monitors label stability, inertia improvement, centroid shift
+    - Switches to double for final refinement after stable state
+    """
+    np.random.seed(seed)
+    X_f32 = X.astype(np.float32, copy=False)
+    X_f64 = X.astype(np.float64, copy=False)
+    centers = initial_centers.astype(np.float64)
+    labels = np.zeros(X.shape[0], dtype=int)
+    prev_inertia = np.inf
+    precision = initial_precision
+    stable_count = 0
+    switched = False
+    start = time.perf_counter()
 
-    # Adaptive hybrid experiment
-    labels_adapt, centers_adapt, precision_switched, iters_adapt, elapsed_adapt, mem_MB_adapt, inertia_adapt = run_adaptive_hybrid(
-        X, initial_centers, n_clusters,
-        max_iter=config["max_iter_D"],
-        initial_precision='single',
-        stability_threshold=0.01,
-        inertia_improvement_threshold=0.01,
-        refine_iterations=3
-    )
+    for it in range(max_iter):
+        data = X_f32 if precision == 'single' else X_f64
+        cent = centers.astype(np.float32) if precision == 'single' else centers
+        dist = np.linalg.norm(data[:, None, :] - cent, axis=2)
+        new_labels = np.argmin(dist, axis=1)
 
-    rows_D.append([
-        ds_name, len(X), n_clusters, "Adaptive-Hybrid", precision_switched,
-        iters_adapt, elapsed_adapt, mem_MB_adapt, inertia_adapt
-    ])
+        label_changes = np.sum(labels != new_labels)
+        stability = label_changes / X.shape[0]
 
-    return rows_D
+        new_centers = np.array([X_f64[new_labels == k].mean(axis=0)
+                                if np.any(new_labels == k) else centers[k]
+                                for k in range(n_clusters)])
+
+        inertia = np.sum((X_f64 - new_centers[new_labels])**2)
+        inertia_improve = (prev_inertia - inertia) / prev_inertia if prev_inertia != np.inf else np.inf
+        shift = np.linalg.norm(new_centers - centers)
+
+        print(f"[{precision.upper()}] Iter {it+1}: inertia={inertia:.4e}, "
+              f"Δinertia={inertia_improve:.4f}, shift={shift:.4e}, stability={stability:.4f}")
+
+        # Stabilty logic
+        if (inertia_improve < inertia_improvement_threshold or
+            shift < tol_shift or
+            stability < stability_threshold):
+            stable_count += 1
+        else:
+            stable_count = 0
+
+        # Trigger refinement switch
+        if stable_count >= refine_iterations and not switched:
+            print("⮕ Switching to DOUBLE precision for refinement")
+            precision = 'double'
+            switched = True
+            stable_count = 0
+
+        if switched and stable_count >= refine_iterations:
+            print(" Final convergence reached in DOUBLE")
+            break
+
+        labels, centers, prev_inertia = new_labels, new_centers, inertia
+
+    elapsed = time.perf_counter() - start
+    mem_MB = (X_f32.nbytes + centers.nbytes) / 2**20
+    return labels, centers, switched, it+1, elapsed, mem_MB, inertia
