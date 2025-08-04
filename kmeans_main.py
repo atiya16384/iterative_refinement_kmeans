@@ -25,13 +25,8 @@ RESULTS_DIR.mkdir(exist_ok=True)
 PLOTS_DIR= pathlib.Path("ClusterPlots")
 PLOTS_DIR.mkdir(exist_ok = True)
 
-# CONFIGURATION PARAMETERS 
-dataset_sizes = 1000000
 # for the cluster size we are varying this for all datasets
 n_clusters_list = [30]
-
-# Understand what the experiment parameters mean
-
 config = {
     "n_repeats": 1,
     "cap_grid": [0, 50, 100, 150, 200, 250, 300],
@@ -62,49 +57,33 @@ precisions = {
 }
 
 def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A, rows_B, rows_C, rows_D):
-    if ds_name.startswith("SYNTH"):
-        sample_sizes = dataset_sizes
-    else:
-        sample_sizes = [len(X_full)]
-    
-    print(f"\n=== Starting dataset: {ds_name}  |  total rows={len(X_full):,} ===",
-          flush=True)
+    X_ns, y_ns = X_full, y_full
 
-    for n_samples in sample_sizes:
-        if n_samples < len(X_full):
-            sel      = rng_global.choice(len(X_full), n_samples, replace=False)
-            X_ns     = X_full[sel]
-            y_ns     = None if y_full is None else y_full[sel]
-        else:
-            X_ns, y_ns = X_full, y_full
+    n_features = X_ns.shape[1]
+    for n_clusters in n_clusters_list:      
+            X_cur = X_ns  
+            y_true_cur = y_ns          
 
-        n_features = X_ns.shape[1]
-        for n_clusters in n_clusters_list:      
+            print(f"→ n={len(X_ns)} F={n_features} C={n_clusters}  "f"({ds_name})", flush=True)
+            print(f"The total number of features is : F={n_features}")
+            
+            np.random.seed(0)
+            # random_indices = np.random.choice(X_cur.shape[0], size=n_clusters, replace=False)
+            # initial_centers = X_cur[random_indices].copy()
 
-                X_cur = X_ns  
-                y_true_cur = y_ns          
+            init_kmeans = KMeans(n_clusters=n_clusters, init='random', n_init=1, random_state=0,  max_iter = 1)
+            initial_fit = init_kmeans.fit(X_cur)
+            initial_centers = init_kmeans.cluster_centers_
 
-                print(f"→ n={n_samples:,} F={n_features} C={n_clusters}  "f"({ds_name})", flush=True)
-                print(f"The total number of features is : F={n_features}")
-                
-                np.random.seed(0)
-                # random_indices = np.random.choice(X_cur.shape[0], size=n_clusters, replace=False)
-                # initial_centers = X_cur[random_indices].copy()
+            print("Running A")
+            rows_A += run_experiment_A(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
+            print("Running B")
+            rows_B += run_experiment_B(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
+            print("Running C")
+            rows_C += run_experiment_C(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
+            print("Running D")
+            rows_D += run_experiment_D(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
 
-                init_kmeans = KMeans(n_clusters=n_clusters, init='random', n_init=1, random_state=0,  max_iter = 1)
-                initial_fit = init_kmeans.fit(X_cur)
-                initial_centers = init_kmeans.cluster_centers_
-
-                print("Running A")
-                rows_A += run_experiment_A(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
-                print("Running B")
-                rows_B += run_experiment_B(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
-                print("Running C")
-                rows_C += run_experiment_C(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
-                print("Running D")
-                rows_D += run_experiment_D(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
-
-                    
     return rows_A, rows_B, rows_C, rows_D
 
 all_rows = []
