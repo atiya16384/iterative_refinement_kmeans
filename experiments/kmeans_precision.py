@@ -76,12 +76,14 @@ def run_adaptive_hybrid(X, initial_centers, n_clusters,
                         inertia_improvement_threshold=0.02,
                         refine_iterations=2,
                         tol_shift=1e-3,
-                        seed=0, y_true =None):
+                        tol_final=1e-5,
+                        y_true=None,
+                        force_switch_iter=250,  # fallback switch
+                        seed=0):
     """
-    Adaptive Hybrid K-Means clustering with multi-signal switching:
+    Adaptive Hybrid K-Means:
     - Starts in single precision
-    - Monitors label stability, inertia improvement, centroid shift
-    - Switches to double for final refinement after stable state
+    - Switches to double near convergence or after fallback
     """
     np.random.seed(seed)
     X_f32 = X.astype(np.float32, copy=False)
@@ -92,6 +94,8 @@ def run_adaptive_hybrid(X, initial_centers, n_clusters,
     precision = initial_precision
     stable_count = 0
     switched = False
+    iters_single = 0
+    iters_double = 0
     start = time.perf_counter()
 
     for it in range(max_iter):
@@ -103,9 +107,11 @@ def run_adaptive_hybrid(X, initial_centers, n_clusters,
         label_changes = np.sum(labels != new_labels)
         stability = label_changes / X.shape[0]
 
-        new_centers = np.array([X_f64[new_labels == k].mean(axis=0)
-                                if np.any(new_labels == k) else centers[k]
-                                for k in range(n_clusters)])
+        new_centers = np.array([
+            X_f64[new_labels == k].mean(axis=0)
+            if np.any(new_labels == k) else centers[k]
+            for k in range(n_clusters)
+        ])
 
         inertia = np.sum((X_f64 - new_centers[new_labels])**2)
         inertia_improve = (prev_inertia - inertia) / prev_inertia if prev_inertia != np.inf else np.inf
@@ -114,7 +120,13 @@ def run_adaptive_hybrid(X, initial_centers, n_clusters,
         print(f"[{precision.upper()}] Iter {it+1}: inertia={inertia:.4e}, "
               f"Δinertia={inertia_improve:.4f}, shift={shift:.4e}, stability={stability:.4f}")
 
-        # Stabilty logic
+        # Count iterations by precision
+        if precision == 'single':
+            iters_single += 1
+        else:
+            iters_double += 1
+
+        # Convergence signals
         if (inertia_improve < inertia_improvement_threshold or
             shift < tol_shift or
             stability < stability_threshold):
@@ -122,19 +134,22 @@ def run_adaptive_hybrid(X, initial_centers, n_clusters,
         else:
             stable_count = 0
 
-        # Trigger refinement switch
-        if stable_count >= refine_iterations and not switched:
+        #  Soft-triggered switch OR forced switch
+        if (not switched and
+            (stable_count >= refine_iterations or it >= force_switch_iter)):
             print("Switching to DOUBLE precision for refinement")
             precision = 'double'
             switched = True
             stable_count = 0
 
-        if switched and stable_count >= refine_iterations:
-            print("Final convergence reached in DOUBLE")
+        # Final convergence in double
+        if switched and (stable_count >= refine_iterations or shift < tol_final):
+            print(" Final convergence reached in DOUBLE")
             break
 
         labels, centers, prev_inertia = new_labels, new_centers, inertia
 
     elapsed = time.perf_counter() - start
     mem_MB = (X_f32.nbytes + centers.nbytes) / 2**20
-    return labels, centers, switched, it+1, elapsed, mem_MB, inertia
+
+    return labels, centers, switched, it+1, iters_single, iters_double, elapsed, mem_MB, inertia
