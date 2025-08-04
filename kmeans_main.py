@@ -27,6 +27,7 @@ PLOTS_DIR.mkdir(exist_ok = True)
 
 # for the cluster size we are varying this for all datasets
 n_clusters_list = [30]
+
 config = {
     "n_repeats": 1,
     "cap_grid": [0, 50, 100, 150, 200, 250, 300],

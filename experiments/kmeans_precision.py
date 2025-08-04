@@ -5,7 +5,6 @@ skpatch()
 from sklearn.cluster import KMeans
 
 def evaluate_metrics(inertia):
-
     return inertia
 
 def run_full_double(X, initial_centers, n_clusters, max_iter, tol, y_true):
@@ -68,71 +67,73 @@ def run_hybrid(X, initial_centers, n_clusters, max_iter_total, tol_single, tol_d
     total_time = end_time_single + end_time_double
     
     return ( labels_final, centers_final, iters_single, iters_double,total_time, mem_MB_total, inertia)
-
+    
 def run_adaptive_hybrid(X, initial_centers, n_clusters,
                         max_iter=300,
-                        tol_shift=1e-2,
-                        inertia_drop=0.01,
-                        label_change_thresh=0.02,
-                        refine_iters=2,
+                        initial_precision='single',
+                        stability_threshold=0.02,
+                        inertia_improvement_threshold=0.02,
+                        refine_iterations=2,
+                        tol_shift=1e-3,
                         seed=0):
-    """
-    Simplified Adaptive Hybrid KMeans:
-    - Starts in single precision
-    - Switches to double as soon as convergence signs appear
-    - Uses: shift < tol_shift, inertia drop %, label stability
-    """
-    np.random.seed(seed)
-    X32 = X.astype(np.float32)
-    X64 = X.astype(np.float64)
-    centers = initial_centers.astype(np.float64)
+  
+    # Adaptive Hybrid K-Means clustering with multi-signal switching:
+    # - Starts in single precision
+    # - Monitors label stability, inertia improvement, centroid shift
+    # - Switches to double for final refinement after stable state
 
+    np.random.seed(seed)
+    X_f32 = X.astype(np.float32, copy=False)
+    X_f64 = X.astype(np.float64, copy=False)
+    centers = initial_centers.astype(np.float64)
     labels = np.zeros(X.shape[0], dtype=int)
     prev_inertia = np.inf
-    mode = "single"
-    switch_made = False
+    precision = initial_precision
     stable_count = 0
+    switched = False
     start = time.perf_counter()
 
-    for i in range(max_iter):
-        data = X32 if mode == "single" else X64
-        cent = centers.astype(np.float32) if mode == "single" else centers
+    for it in range(max_iter):
+        data = X_f32 if precision == 'single' else X_f64
+        cent = centers.astype(np.float32) if precision == 'single' else centers
+        dist = np.linalg.norm(data[:, None, :] - cent, axis=2)
+        new_labels = np.argmin(dist, axis=1)
 
-        dists = np.linalg.norm(data[:, None, :] - cent, axis=2)
-        new_labels = np.argmin(dists, axis=1)
+        label_changes = np.sum(labels != new_labels)
+        stability = label_changes / X.shape[0]
 
-        label_change_ratio = np.sum(labels != new_labels) / len(X)
-        new_centers = np.array([
-            X64[new_labels == k].mean(axis=0) if np.any(new_labels == k) else centers[k]
-            for k in range(n_clusters)
-        ])
+        new_centers = np.array([X_f64[new_labels == k].mean(axis=0)
+                                if np.any(new_labels == k) else centers[k]
+                                for k in range(n_clusters)])
 
-        inertia = np.sum((X64 - new_centers[new_labels]) ** 2)
-        inertia_delta = (prev_inertia - inertia) / prev_inertia if prev_inertia != np.inf else np.inf
+        inertia = np.sum((X_f64 - new_centers[new_labels])**2)
+        inertia_improve = (prev_inertia - inertia) / prev_inertia if prev_inertia != np.inf else np.inf
         shift = np.linalg.norm(new_centers - centers)
 
-        print(f"[{mode.upper()}] Iter {i+1} | inertia={inertia:.3e} | Δ={inertia_delta:.4f} | shift={shift:.3e} | label_change={label_change_ratio:.4f}")
+        print(f"[{precision.upper()}] Iter {it+1}: inertia={inertia:.4e}, "
+              f"Δinertia={inertia_improve:.4f}, shift={shift:.4e}, stability={stability:.4f}")
 
-        # Criteria to switch to double
-        if not switch_made and (
+        # Stabilty logic
+        if (inertia_improve < inertia_improvement_threshold or
             shift < tol_shift or
-            inertia_delta < inertia_drop or
-            label_change_ratio < label_change_thresh
-        ):
-            print("Switching to DOUBLE precision")
-            mode = "double"
-            switch_made = True
+            stability < stability_threshold):
+            stable_count += 1
+        else:
             stable_count = 0
 
-        elif switch_made:
-            # Allow a few refinement steps in double
-            stable_count += 1
-            if stable_count >= refine_iters:
-                print("Converged in DOUBLE")
-                break
+        # Trigger refinement switch
+        if stable_count >= refine_iterations and not switched:
+            print("Switching to DOUBLE precision for refinement")
+            precision = 'double'
+            switched = True
+            stable_count = 0
+
+        if switched and stable_count >= refine_iterations:
+            print("Final convergence reached in DOUBLE")
+            break
 
         labels, centers, prev_inertia = new_labels, new_centers, inertia
 
     elapsed = time.perf_counter() - start
-    mem_MB = (X32.nbytes + centers.nbytes) / 2**20
-    return labels, centers, switch_made, i+1, elapsed, mem_MB, inertia
+    mem_MB = (X_f32.nbytes + centers.nbytes) / 2**20
+    return labels, centers, switched, it+1, elapsed, mem_MB, inertia

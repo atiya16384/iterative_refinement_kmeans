@@ -114,10 +114,10 @@ def run_experiment_C(ds_name, X, y_true, n_clusters, initial_centers, config):
 
     max_iter_C = config["max_iter_C"]
     tol_fixed_C = config["tol_fixed_C"]
-    cap_C_pct = config["cap_C"]  # e.g., 0.8 (i.e., 80% of max_iter_C)
+    cap_C = config["cap_C"]  # e.g., 0.8 (i.e., 80% of max_iter_C)
     n_repeats = config["n_repeats"]
 
-    cap_range = range(0, int(max_iter_C * cap_C_pct) + 1)
+    cap_range = range(0, int(max_iter_C * cap_C) + 1)
 
     for rep in range(n_repeats):
         # Baseline double
@@ -125,7 +125,7 @@ def run_experiment_C(ds_name, X, y_true, n_clusters, initial_centers, config):
             X_cur, initial_centers, n_clusters, max_iter_C, tol_fixed_C, y_true_cur
         )
         rows_C.append([
-            ds_name, n_samples, n_clusters, "C", cap_C_pct, tol_fixed_C,
+            ds_name, n_samples, n_clusters, "C", cap_C, tol_fixed_C,
             0, iters_double_tot, "Double", elapsed, mem_MB_double, inertia
         ])
 
@@ -142,20 +142,18 @@ def run_experiment_C(ds_name, X, y_true, n_clusters, initial_centers, config):
             )
 
             rows_C.append([
-                ds_name, n_samples, n_clusters, "C", cap_C_pct, tol_fixed_C,
+                ds_name, n_samples, n_clusters, "C", cap_C, tol_fixed_C,
                 iters_single, iters_double, "Hybrid", elapsed_hybrid, mem_MB_hybrid,
                  inertia_hybrid
             ])
 
             if rep == 0 and cap == cap_range[-1]:  # Plot only once at final cap
                 X_vis, centers_vis, xx, yy, labels_grid = KMeansVisualizer.pca_2d_view(X_cur, centers_hybrid)
-                filename = f"{ds_name}_n{n_samples}_c{n_clusters}_C_cap{cap_C_pct}"
-                title = f"{ds_name}: n={n_samples}, c={n_clusters}, cap={cap_C_pct}"
+                filename = f"{ds_name}_n{n_samples}_c{n_clusters}_C_cap{cap_C}"
+                title = f"{ds_name}: n={n_samples}, c={n_clusters}, cap={cap_C}"
                 KMeansVisualizer.plot_clusters(X_vis, labels_hybrid, centers_vis, xx, yy, labels_grid, title=title, filename=filename)
 
     return rows_C
-
-
 
 def run_experiment_D(ds_name, X, y_true, n_clusters, initial_centers, config):
     rows_D = []
