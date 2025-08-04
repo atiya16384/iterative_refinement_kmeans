@@ -71,60 +71,68 @@ def run_hybrid(X, initial_centers, n_clusters, max_iter_total, tol_single, tol_d
 
 def run_adaptive_hybrid(X, initial_centers, n_clusters,
                         max_iter=300,
-                        switch_inertia_tol=0.01,
-                        switch_shift_tol=1e-3,
-                        convergence_tol=1e-4,
+                        tol_shift=1e-2,
+                        inertia_drop=0.01,
+                        label_change_thresh=0.02,
+                        refine_iters=2,
                         seed=0):
     """
-    Simplified adaptive hybrid KMeans:
+    Simplified Adaptive Hybrid KMeans:
     - Starts in single precision
-    - Switches to double when inertia improvement or centroid shift is small
-    - Always refines final result in double precision
+    - Switches to double as soon as convergence signs appear
+    - Uses: shift < tol_shift, inertia drop %, label stability
     """
     np.random.seed(seed)
-    
     X32 = X.astype(np.float32)
     X64 = X.astype(np.float64)
     centers = initial_centers.astype(np.float64)
-    prev_inertia = np.inf
-    precision = 'single'
-    switched = False
 
-    start_time = time.perf_counter()
+    labels = np.zeros(X.shape[0], dtype=int)
+    prev_inertia = np.inf
+    mode = "single"
+    switch_made = False
+    stable_count = 0
+    start = time.perf_counter()
 
     for i in range(max_iter):
-        data = X32 if precision == 'single' else X64
-        ctrs = centers.astype(np.float32) if precision == 'single' else centers
+        data = X32 if mode == "single" else X64
+        cent = centers.astype(np.float32) if mode == "single" else centers
 
-        dists = np.linalg.norm(data[:, None, :] - ctrs, axis=2)
-        labels = np.argmin(dists, axis=1)
+        dists = np.linalg.norm(data[:, None, :] - cent, axis=2)
+        new_labels = np.argmin(dists, axis=1)
 
+        label_change_ratio = np.sum(labels != new_labels) / len(X)
         new_centers = np.array([
-            X64[labels == k].mean(axis=0) if np.any(labels == k) else centers[k]
+            X64[new_labels == k].mean(axis=0) if np.any(new_labels == k) else centers[k]
             for k in range(n_clusters)
         ])
 
-        inertia = np.sum((X64 - new_centers[labels]) ** 2)
-        inertia_diff = (prev_inertia - inertia) / prev_inertia if prev_inertia != np.inf else np.inf
+        inertia = np.sum((X64 - new_centers[new_labels]) ** 2)
+        inertia_delta = (prev_inertia - inertia) / prev_inertia if prev_inertia != np.inf else np.inf
         shift = np.linalg.norm(new_centers - centers)
 
-        print(f"[{precision.upper()}] Iter {i+1}: inertia={inertia:.4e}, Δinertia={inertia_diff:.4f}, shift={shift:.4e}")
+        print(f"[{mode.upper()}] Iter {i+1} | inertia={inertia:.3e} | Δ={inertia_delta:.4f} | shift={shift:.3e} | label_change={label_change_ratio:.4f}")
 
-        # Switch to double if near convergence and still in single
-        if not switched and precision == 'single' and \
-           (inertia_diff < switch_inertia_tol or shift < switch_shift_tol):
-            print("⮕ Switching to DOUBLE precision for refinement")
-            precision = 'double'
-            switched = True
+        # Criteria to switch to double
+        if not switch_made and (
+            shift < tol_shift or
+            inertia_delta < inertia_drop or
+            label_change_ratio < label_change_thresh
+        ):
+            print("Switching to DOUBLE precision")
+            mode = "double"
+            switch_made = True
+            stable_count = 0
 
-        # Final convergence
-        if precision == 'double' and shift < convergence_tol:
-            print("Converged in DOUBLE")
-            break
+        elif switch_made:
+            # Allow a few refinement steps in double
+            stable_count += 1
+            if stable_count >= refine_iters:
+                print("Converged in DOUBLE")
+                break
 
-        centers = new_centers
-        prev_inertia = inertia
+        labels, centers, prev_inertia = new_labels, new_centers, inertia
 
-    elapsed = time.perf_counter() - start_time
+    elapsed = time.perf_counter() - start
     mem_MB = (X32.nbytes + centers.nbytes) / 2**20
-    return labels, centers, switched, i+1, elapsed, mem_MB, inertia
+    return labels, centers, switch_made, i+1, elapsed, mem_MB, inertia
