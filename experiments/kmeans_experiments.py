@@ -152,6 +152,7 @@ def run_experiment_C(ds_name, X, y_true, n_clusters, initial_centers, config):
 
     return rows_C
 
+
 def run_experiment_D(ds_name, X, y_true, n_clusters, initial_centers, config):
     rows_D = []
 
