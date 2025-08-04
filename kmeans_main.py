@@ -26,7 +26,7 @@ PLOTS_DIR= pathlib.Path("ClusterPlots")
 PLOTS_DIR.mkdir(exist_ok = True)
 
 # CONFIGURATION PARAMETERS 
-dataset_sizes = [1000000]
+dataset_sizes = 1000000
 # for the cluster size we are varying this for all datasets
 n_clusters_list = [30]
 
