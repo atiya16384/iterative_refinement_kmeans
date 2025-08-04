@@ -24,11 +24,3 @@
 
 ![gaussian__logloss__by_tol_single__hybrid_over_single_and_double.png](../Results/SUMMARY_LOGPREC/gaussian__logloss__by_tol_single__hybrid_over_single_and_double.png)
 
-![gaussian__time_sec__by_max_iter_single__hybrid_over_single_and_double.png](../Results/SUMMARY_LOGPREC/gaussian__time_sec__by_max_iter_single__hybrid_over_single_and_double.png)
-
-![gaussian__roc_auc__by_max_iter_single__hybrid_over_single_and_double.png](../Results/SUMMARY_LOGPREC/gaussian__roc_auc__by_max_iter_single__hybrid_over_single_and_double.png)
-
-![gaussian__pr_auc__by_max_iter_single__hybrid_over_single_and_double.png](../Results/SUMMARY_LOGPREC/gaussian__pr_auc__by_max_iter_single__hybrid_over_single_and_double.png)
-
-![gaussian__logloss__by_max_iter_single__hybrid_over_single_and_double.png](../Results/SUMMARY_LOGPREC/gaussian__logloss__by_max_iter_single__hybrid_over_single_and_double.png)
-

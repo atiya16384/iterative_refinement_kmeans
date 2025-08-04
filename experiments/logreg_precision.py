@@ -181,8 +181,7 @@ def approach_hybrid_budgeted_fast(
 
     # Stage B: tiny, fixed f64 polish
     if max_iter_double is None:
-        max_iter_double = max(10, int(round(max_iter_single * double_budget_frac)))
-        max_iter_double = min(max_iter_double, 30)  # hard cap keeps it cheap
+        max_iter_double = max(int(round(max_iter_single * double_budget_frac)))
 
     x0 = mdl_f32.coef.astype(np.float64, copy=False)
     mdl_f64 = linmod(mod="mse", solver=solver, precision="double",
@@ -366,19 +365,17 @@ if __name__ == "__main__":
     datasets = ["gaussian"]  # adjust as needed
 
     base_grid = {
-
         # we want the number of iterations to add up for single and double
-
         "penalty": ["l1", "l2"],
         "alpha":   [None, 0.0,  0.25, 0.75, 1.0],
         "lambda":  [None, 1e-4, 1e-6, 1e-8],
-        "C":       [None, 0.01, 0.1, 1.0, 10, 100],
+        "C":       [None, 0.01, 0.1, 1.0, 10, 100, 1000, 10000],
         # "sparse_cg"
         "solver":  ["coord"],
-        "max_iter": [300],                   # f64 budget in hybrid
+        "max_iter": [800],                   # f64 budget in hybrid
         "tol":      [1e-4, 1e-6, 1e-8],      # f32 tol
-        "max_iter_single": [0, 50, 100, 150, 200, 250, 300],  # f32 work
-        "tol_double": [1e-6],                # f64 tol
+        "max_iter_single": [500],  # f32 work
+        "tol_double": [1e-6, 1e-8],                # f64 tol
         "double_budget_frac": [0.10],        # used only if you don't pass max_iter_double
         "approaches": ["single", "double", "hybrid"],
     }
@@ -386,7 +383,7 @@ if __name__ == "__main__":
     all_df, all_df_mean = [], []
     for dataset in datasets:
         if dataset == "gaussian":
-            X, y = make_shifted_gaussian(m=50_000, n=20, delta=0.5, seed=42)
+            X, y = make_shifted_gaussian(m=100_000, n=80, delta=0.5, seed=42)
         elif dataset == "uniform":
             X, y = make_uniform_binary(m=100_000, n=120, shift=0.25, seed=42)
         elif dataset == "blobs":
