@@ -69,78 +69,72 @@ def run_hybrid(X, initial_centers, n_clusters, max_iter_total, tol_single, tol_d
     
     return ( labels_final, centers_final, iters_single, iters_double,total_time, mem_MB_total, inertia)
     
-def run_adaptive_hybrid(X, initial_centers, n_clusters, max_iter, tol_final, y_true=None,
-                        switch_tol=1e-5, switch_shift=1e-4, seed=0):
-
-    # Store dataset in both single and double precision forms
-    X_float32 = X.astype(np.float32, copy=False)
-    X_float64 = X.astype(np.float64, copy=False)
-
-    # We will always track centers in float64 to retain accuracy during updates
+def run_adaptive_hybrid(X, initial_centers, n_clusters,
+                        max_iter=300,
+                        initial_precision='single',
+                        stability_threshold=0.02,
+                        inertia_improvement_threshold=0.02,
+                        refine_iterations=2,
+                        tol_shift=1e-3,
+                        seed=0):
+    """
+    Adaptive Hybrid K-Means clustering with multi-signal switching:
+    - Starts in single precision
+    - Monitors label stability, inertia improvement, centroid shift
+    - Switches to double for final refinement after stable state
+    """
+    np.random.seed(seed)
+    X_f32 = X.astype(np.float32, copy=False)
+    X_f64 = X.astype(np.float64, copy=False)
     centers = initial_centers.astype(np.float64)
+    labels = np.zeros(X.shape[0], dtype=int)
+    prev_inertia = np.inf
+    precision = initial_precision
+    stable_count = 0
+    switched = False
+    start = time.perf_counter()
 
-    # For convergence tracking
-    prev_inertia = None
-    mode = "single"  # Start in single precision
-    labels = None
-    iters_single = 0
-    iters_double = 0
-    elapsed_total = 0
+    for it in range(max_iter):
+        data = X_f32 if precision == 'single' else X_f64
+        cent = centers.astype(np.float32) if precision == 'single' else centers
+        dist = np.linalg.norm(data[:, None, :] - cent, axis=2)
+        new_labels = np.argmin(dist, axis=1)
 
-    for i in range(max_iter):
-        t0 = time.perf_counter()
+        label_changes = np.sum(labels != new_labels)
+        stability = label_changes / X.shape[0]
 
-        # Distance computation 
-        # Compute distance matrix using current precision mode
-        if mode == "single":
-            # Compute in float32 for speed
-            dists = np.linalg.norm(X_float32[:, None, :] - centers[None, :, :].astype(np.float32), axis=2)
+        new_centers = np.array([X_f64[new_labels == k].mean(axis=0)
+                                if np.any(new_labels == k) else centers[k]
+                                for k in range(n_clusters)])
+
+        inertia = np.sum((X_f64 - new_centers[new_labels])**2)
+        inertia_improve = (prev_inertia - inertia) / prev_inertia if prev_inertia != np.inf else np.inf
+        shift = np.linalg.norm(new_centers - centers)
+
+        print(f"[{precision.upper()}] Iter {it+1}: inertia={inertia:.4e}, "
+              f"Δinertia={inertia_improve:.4f}, shift={shift:.4e}, stability={stability:.4f}")
+
+        # Stabilty logic
+        if (inertia_improve < inertia_improvement_threshold or
+            shift < tol_shift or
+            stability < stability_threshold):
+            stable_count += 1
         else:
-            # Compute in float64 for final refinement
-            dists = np.linalg.norm(X_float64[:, None, :] - centers[None, :, :], axis=2)
+            stable_count = 0
 
-        # Assignment step 
-        new_labels = np.argmin(dists, axis=1)
+        # Trigger refinement switch
+        if stable_count >= refine_iterations and not switched:
+            print("Switching to DOUBLE precision for refinement")
+            precision = 'double'
+            switched = True
+            stable_count = 0
 
-        # Update step
-        new_centers = np.zeros_like(centers)  # Keep in float64
-        for k in range(n_clusters):
-            members = X_float64[new_labels == k]  # Always use float64 for accuracy
-            if len(members) > 0:
-                new_centers[k] = np.mean(members, axis=0)
+        if switched and stable_count >= refine_iterations:
+            print("Final convergence reached in DOUBLE")
+            break
 
-        # Convergence metrics 
-        # Calculate total inertia (sum of squared errors) in float64
-        inertia = np.sum((X_float64 - new_centers[new_labels])**2)
+        labels, centers, prev_inertia = new_labels, new_centers, inertia
 
-        # Compute how much centroids moved
-        center_shift = np.linalg.norm(new_centers - centers)
-
-        # Compute change in inertia from last iteration
-        inertia_diff = abs(prev_inertia - inertia) if prev_inertia is not None else np.inf
-
-        # Update trackers
-        centers = new_centers
-        labels = new_labels
-        prev_inertia = inertia
-        elapsed_total += time.perf_counter() - t0
-        if mode == "single":
-            iters_single += 1
-        else:
-            iters_double += 1
-
-        # Check for convergence
-        if center_shift < tol_final or inertia_diff < tol_final:
-            break  # We have converged
-
-        # Check for adaptive switch to double
-        if mode == "single" and (inertia_diff < switch_tol or center_shift < switch_shift):
-            mode = "double"  # Upgrade to full precision
-
-    # Final Evaluation
-    # Optionally evaluate clustering quality if true labels are known
-
-    # Estimate memory usage: data + centers
-    mem_MB = (X_float32.nbytes + centers.nbytes) / 2**20
-
-    return labels, centers, iters_single, iters_double, elapsed_total, mem_MB, inertia
+    elapsed = time.perf_counter() - start
+    mem_MB = (X_f32.nbytes + centers.nbytes) / 2**20
+    return labels, centers, switched, it+1, elapsed, mem_MB, inertia
