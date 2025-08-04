@@ -155,36 +155,53 @@ def run_experiment_C(ds_name, X, y_true, n_clusters, initial_centers, config):
 def run_experiment_D(ds_name, X, y_true, n_clusters, initial_centers, config):
     rows_D = []
 
-    # === Double-precision baseline run ===
+    max_iter = config["max_iter_D"]
+    tol_shift = config.get("tol_shift_D", 1e-3)
+    stability_threshold = config.get("stability_threshold_D", 0.02)
+    inertia_improvement_threshold = config.get("inertia_improvement_threshold_D", 0.02)
+    refine_iterations = config.get("refine_iterations_D", 2)
+    seed = config.get("seed", 0)
+
+    # === Baseline (Double Precision) ===
     base = run_adaptive_hybrid(
         X, initial_centers, n_clusters,
-        max_iter=config["max_iter_D"],
+        max_iter=max_iter,
         initial_precision='double',
         stability_threshold=0.0,
         inertia_improvement_threshold=0.0,
         refine_iterations=0,
-        tol_shift=config.get("tol_shift_D", 1e-3),
-        seed=config.get("seed", 0),
-        # y_true is accepted even if not used
+        tol_shift=tol_shift,
+        seed=seed,
         y_true=y_true
     )
-    labels_b, centers_b, _, it_b, time_b, mem_b, inertia_b = base
-    rows_D.append([ds_name, len(X), n_clusters, "Baseline-Double", False, it_b, time_b, mem_b, inertia_b])
+    labels_b, centers_b, switched_b, iters_b, time_b, mem_b, inertia_b, iters_single_b, iters_double_b = base
 
-    # === Adaptive hybrid run ===
+    rows_D.append([
+        ds_name, len(X), n_clusters,
+        "Double", "-", "-",  # Mode, tol_single, Cap
+        iters_single_b, iters_double_b,
+        "D", time_b, mem_b, inertia_b
+    ])
+
+    # === Adaptive-Hybrid ===
     adv = run_adaptive_hybrid(
         X, initial_centers, n_clusters,
-        max_iter=config["max_iter_D"],
+        max_iter=max_iter,
         initial_precision='single',
-        stability_threshold=config.get("stability_threshold_D", 0.02),
-        inertia_improvement_threshold=config.get("inertia_improvement_threshold_D", 0.02),
-        refine_iterations=config.get("refine_iterations_D", 2),
-        tol_shift=config.get("tol_shift_D", 1e-3),
-        seed=config.get("seed", 0),
+        stability_threshold=stability_threshold,
+        inertia_improvement_threshold=inertia_improvement_threshold,
+        refine_iterations=refine_iterations,
+        tol_shift=tol_shift,
+        seed=seed,
         y_true=y_true
     )
-    labels_h, centers_h, switched, it_h, time_h, mem_h, inertia_h = adv
-    rows_D.append([ds_name, len(X), n_clusters, "Adaptive-Hybrid", switched, it_h, time_h, mem_h, inertia_h])
+    labels_h, centers_h, switched_h, iters_h, time_h, mem_h, inertia_h, iters_single_h, iters_double_h = adv
+
+    rows_D.append([
+        ds_name, len(X), n_clusters,
+        "Adaptive", stability_threshold, "-",  # Mode, tol_single, Cap
+        iters_single_h, iters_double_h,
+        "D", time_h, mem_h, inertia_h
+    ])
 
     return rows_D
-
