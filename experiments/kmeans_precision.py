@@ -37,8 +37,8 @@ def run_full_single(
       elapsed_time, peak_MB, inertia
     """
     # Allocate views
-    X32    = np.asarray(X, dtype=np.float32, copy=False)
-    init32 = np.asarray(initial_centers, dtype=np.float32, copy=False)
+    X32    = np.asarray(X, dtype=np.float32)
+    init32 = np.asarray(initial_centers, dtype=np.float32)
 
     # Include allocation peak
     peak_mb = _rss_mb()
@@ -80,8 +80,8 @@ def run_full_double(
     from sklearn.cluster import KMeans
 
     # allocate views (portable: don't use copy= kw)
-    X64    = np.array(X, dtype=np.float64, copy=False)
-    init64 = np.array(initial_centers, dtype=np.float64, copy=False)
+    X64    = np.array(X, dtype=np.float64)
+    init64 = np.array(initial_centers, dtype=np.float64)
 
     # peak RSS (optional; remove if you only want array-size)
     try:
@@ -146,12 +146,12 @@ def run_hybrid(
       total_time, peak_MB, inertia
     """
     # ---- allocate views & inits ----
-    X32    = np.asarray(X, dtype=np.float32, copy=False)
-    init32 = np.asarray(initial_centers, dtype=np.float32, copy=False)
-    init64 = np.asarray(initial_centers, dtype=np.float64, copy=False)
+    X32    = np.asarray(X, dtype=np.float32)
+    init32 = np.asarray(initial_centers, dtype=np.float32)
+    init64 = np.asarray(initial_centers, dtype=np.float64)
 
     # If not late-casting, allocate X64 up-front (higher peak, simpler switch)
-    X64 = None if late_cast else np.asarray(X, dtype=np.float64, copy=False)
+    X64 = None if late_cast else np.asarray(X, dtype=np.float64)
 
     # Include allocation peak
     peak_mb = _rss_mb()
@@ -188,7 +188,7 @@ def run_hybrid(
         del X32
         gc.collect()
         peak_mb = max(peak_mb, _rss_mb())             # capture post-free
-        X64 = np.asarray(X, dtype=np.float64, copy=False)
+        X64 = np.asarray(X, dtype=np.float64)
         peak_mb = max(peak_mb, _rss_mb())             # capture allocation peak
 
     # ---- Phase B: float64 ----
