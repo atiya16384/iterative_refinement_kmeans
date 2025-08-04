@@ -196,7 +196,6 @@ class KMeansVisualizer:
         plt.savefig(self.output_dir / f"tolerance_vs_inertia_hybrid_vs_{baseline.lower()}.png")
         plt.close()
 
-
     def _cap_fraction_column(self, df: pd.DataFrame) -> pd.Series:
         """
         Return a Series with the cap fraction in [0,1].
@@ -267,7 +266,6 @@ class KMeansVisualizer:
         plt.tight_layout()
         plt.savefig(self.output_dir / f"exp_C_cap_percentage_vs_inertia_vs_{baseline.lower()}.png")
         plt.close()
-
 
     def plot_cap_percentage_vs_time(self, df, baseline: str = "Double"):
         df_h = df[df["Suite"] == "Hybrid"].copy()
