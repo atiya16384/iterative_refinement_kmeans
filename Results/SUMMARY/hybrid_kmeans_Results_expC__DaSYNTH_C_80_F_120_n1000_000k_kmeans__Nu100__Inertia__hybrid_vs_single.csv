@@ -1,2 +1,0 @@
-DatasetName,NumClusters,metric,baseline,compare_suite,Single_Inertia,Hybrid_Inertia,Rel_Inertia,Improvement_%,n_pairs
-SYNTH_C_80_F_120_n1000_000k_kmeans,100,Inertia,Single,Hybrid,346518560.0,444374936.8227211,1.2823986594620533,-28.239865946205338,1

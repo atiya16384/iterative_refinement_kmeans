@@ -1,3 +1,0 @@
-| DatasetName                      |   NumClusters | metric   | baseline   | compare_suite   |   Single_Time |   Hybrid_Time |   Rel_Time |   Improvement_% |   n_pairs |
-|:---------------------------------|--------------:|:---------|:-----------|:----------------|--------------:|--------------:|-----------:|----------------:|----------:|
-| SYNTH_C_5_F_50_n1000_000k_kmeans |           100 | Time     | Single     | Hybrid          |       84.4859 |       233.383 |    2.76239 |        -176.239 |         7 |

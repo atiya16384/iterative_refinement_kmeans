@@ -1,3 +1,0 @@
-| DatasetName                        |   NumClusters | metric    | baseline   | compare_suite   |   Double_Memory_MB |   Hybrid_Memory_MB |   Rel_Memory_MB |   Improvement_% |   n_pairs |
-|:-----------------------------------|--------------:|:----------|:-----------|:----------------|-------------------:|-------------------:|----------------:|----------------:|----------:|
-| SYNTH_C_80_F_120_n1000_000k_kmeans |           100 | Memory_MB | Double     | Hybrid          |                960 |               1440 |             1.5 |             -50 |         7 |

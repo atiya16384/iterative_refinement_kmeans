@@ -1,2 +1,0 @@
-DatasetName,NumClusters,metric,baseline,compare_suite,Single_Time,Hybrid_Time,Rel_Time,Improvement_%,n_pairs
-SYNTH_C_80_F_120_n1000_000k_kmeans,100,Time,Single,Hybrid,129.48863196372986,180.66175295102875,1.3951939271520966,-39.51939271520965,1
