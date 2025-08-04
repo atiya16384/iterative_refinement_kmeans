@@ -174,7 +174,7 @@ def run_experiment_D(ds_name, X, y_true, n_clusters, initial_centers, config):
         y_true=y_true
     )
     labels_b, centers_b, _, it_b, time_b, mem_b, inertia_b = base
-    rows.append([ds_name, len(X), n_clusters, "Baseline-Double", False, it_b, time_b, mem_b, inertia_b])
+    rows_D.append([ds_name, len(X), n_clusters, "Baseline-Double", False, it_b, time_b, mem_b, inertia_b])
 
     # === Adaptive hybrid run ===
     adv = run_adaptive_hybrid(
@@ -189,6 +189,6 @@ def run_experiment_D(ds_name, X, y_true, n_clusters, initial_centers, config):
         y_true=y_true
     )
     labels_h, centers_h, switched, it_h, time_h, mem_h, inertia_h = adv
-    rows.append([ds_name, len(X), n_clusters, "Adaptive-Hybrid", switched, it_h, time_h, mem_h, inertia_h])
+    rows_D.append([ds_name, len(X), n_clusters, "Adaptive-Hybrid", switched, it_h, time_h, mem_h, inertia_h])
 
     return rows_D
