@@ -508,18 +508,18 @@ def run_experiments(X, y,
 if __name__ == "__main__":
     # pick multiple datasets instead of just one
     # blobs and susy gaussian
-    datasets = ["susy"]  # add/remove any you want
+    datasets = ["blobs"]  # add/remove any you want
 
     # Linear/MSE with both solvers
     base_grid = {
         "penalty": ["l2"],                 # coord supports both; sparse_cg -> L2 only (guarded above)
         "alpha":   [0.0],         # only used by coord (elastic-net family)
-        "lambda":  [1e-2, 1e-3, 1e-4, 1e-6, 1e-8],           # NOTE: sparse_cg requires > 0
+        "lambda":  [ 1e-4, 1e-6, 1e-8],           # NOTE: sparse_cg requires > 0
         "C":       [None],
         "solver":  ["lbfgs"],       #  both in the same sweep
-        "max_iter": [10000],
-        "tol":      [1e-2, 1e-3, 1e-4, 1e-6, 1e-8],
-        "max_iter_single": [50, 100, 250, 500, 1000, 3000, 5000],
+        "max_iter": [150, 400, 1000, 10000],
+        "tol":      [  1e-4, 1e-6, 1e-8],
+        "max_iter_single": [0, 50, 100, 150, 300, 500, 1000, 2000 ],
         "approaches": ["single", "double", "hybrid"]
     }
 
@@ -532,7 +532,7 @@ if __name__ == "__main__":
         elif dataset == "uniform":
             X, y = make_uniform_binary(m=1000_000, n=120, shift=0.25, seed=42)
         elif dataset == "blobs":
-            X, y = make_blobs_binary(n_samples=1000_000, n_features=50,
+            X, y = make_blobs_binary(n_samples=1000_000, n_features=30,
                                      cluster_std=1.2, random_state=42)
         elif dataset == "susy":
             X, y = load_susy(n_rows=1000_000)
@@ -546,7 +546,7 @@ if __name__ == "__main__":
             X, y, grid=grid,
             dataset=dataset,
             save_path=f"../Results/{dataset}_results.csv",
-            repeats=1
+            repeats=3
         )
         all_df.append(df)
         all_df_mean.append(df_mean)
