@@ -53,9 +53,9 @@ config = {
     "stability_threshold_D": 0.05,
     
   # --- E (Mini-batch Hybrid) : sweep these ---
-    "E_mb_iter_grid":   [5, 10, 25],   # was 100
+    "E_mb_iter_grid":   [10, 25, 50, 100],   # was 100
     "E_batch_grid":     [ 8192, 32768],    # optional sweep
-    "E_refine_grid":    [10, 25, 50],       # was 100
+    "E_refine_grid":    [10, 25, 50, 100],       # was 100
     "tol_double_baseline_E": 0.0,             # keep; baseline stops by budget
 
     # keep single “default” values used if grids not provided
@@ -63,8 +63,8 @@ config = {
 
     # --- F (Per‑cluster Mixed) : sweep these ---
     "max_iter_F": 300,
-    "F_cap_grid":       [5, 10, 25],  # Phase‑1 cap
-    "F_tol_single_grid":[1e-2, 5e-2],         # stability tol (log-x)
+    "F_cap_grid":       [10, 25, 30, 50, 100, 140],  # Phase‑1 cap
+    "F_tol_single_grid":[1e-2, 5e-2, 1e-3, 1e-4],         # stability tol (log-x)
     "tol_double_F":     1e-3,
     "freeze_stable_F":  True,
     "freeze_patience_F":2,
@@ -82,7 +82,8 @@ precisions = {
     "Double Precision": np.float64
 }
 
-def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_C): #rows_A, rows_B # 
+# run for E
+def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_C ,rows_F): #rows_A, rows_B # 
     X_ns, y_ns = X_full, y_full
 
     n_features = X_ns.shape[1]
@@ -111,18 +112,18 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_C): #rows_A, 
             # rows_D += run_experiment_D(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
             # print("Running E")
             # rows_E += run_experiment_E(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
-            # print("Running F")
-            # rows_F += run_experiment_F(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
+            print("Running F")
+            rows_F += run_experiment_F(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
 
-    return  rows_C
+    return  rows_C, rows_F
 
 all_rows = []
 
 # rows_A = []
 # rows_B = []
+# rows_C = []
 rows_C = []
-# rows_D = []
-# rows_E = []
+rows_F = []
 # rows_F = []
 
 for tag, n, d, k, seed in synth_specs:
@@ -130,7 +131,7 @@ for tag, n, d, k, seed in synth_specs:
     print(f"[SYNTH] {tag:14s}  shape={X.shape}  any_NaN={np.isnan(X).any()}",
           flush=True)
     # check if the mappings are correct to the run_one_dataset
-    run_one_dataset(tag, X, y, rows_C)
+    run_one_dataset(tag, X, y, rows_C, rows_F)
 
 
 # real datasets
@@ -145,14 +146,14 @@ for tag, n, d, k, seed in synth_specs:
 df_C= pd.DataFrame(rows_C, columns=columns_C)
 # df_D = pd.DataFrame(rows_D, columns=columns_D)
 # df_E = pd.DataFrame(rows_E, columns=columns_E)
-#df_F = pd.DataFrame(rows_F, columns=columns_F)
+df_F = pd.DataFrame(rows_F, columns=columns_F)
 
 # df_A.to_csv("Results/hybrid_kmeans_Results_expA.csv", index = False)
 # df_B.to_csv("Results/hybrid_kmeans_Results_expB.csv", index = False)
 df_C.to_csv("Results/hybrid_kmeans_Results_expC.csv", index = False)
 # df_D.to_csv("Results/hybrid_kmeans_Results_expD.csv", index = False)
 # df_E.to_csv("Results/hybrid_kmeans_Results_expE.csv", index = False)
-#df_F.to_csv("Results/hybrid_kmeans_Results_expF.csv", index = False)
+df_F.to_csv("Results/hybrid_kmeans_Results_expF.csv", index = False)
 
 # print("\n==== SUMMARY: EXPERIMENT A ====")
 # df_A = pd.DataFrame(rows_A, columns=[
@@ -182,11 +183,11 @@ df_C.to_csv("Results/hybrid_kmeans_Results_expC.csv", index = False)
 # )
 # print(summary_B.to_string(index=False))
 
-print("\n==== SUMMARY: EXPERIMENT C ====")
-df_C = pd.DataFrame(rows_C, columns=[
-    "DatasetName","DatasetSize","NumClusters","Mode","Cap","tolerance_single",
-    "iter_single","iter_double","Suite","Time","Memory_MB","Inertia"
-])
+# print("\n==== SUMMARY: EXPERIMENT C ====")
+# df_C = pd.DataFrame(rows_C, columns=[
+#     "DatasetName","DatasetSize","NumClusters","Mode","Cap","tolerance_single",
+#     "iter_single","iter_double","Suite","Time","Memory_MB","Inertia"
+# ])
 summary_C = (
     df_C.groupby(["DatasetSize","NumClusters","Mode","Cap","Suite", "iter_single", "iter_double"])
         [["Time","Memory_MB","Inertia"]]
@@ -211,12 +212,12 @@ print(summary_C.to_string(index=False))
 #     ])[["Time","Memory_MB","Inertia"]].mean().reset_index()
 # )
 
-# print("\n==== SUMMARY: EXPERIMENT F ====")
-# print(df_F.groupby([
-#         "DatasetSize","NumClusters","Mode",
-#         "tol_single","tol_double","single_iter_cap",
-#         "freeze_stable","freeze_patience","Suite"
-#     ])[["Time","Memory_MB","Inertia"]].mean().reset_index()
-# )
+print("\n==== SUMMARY: EXPERIMENT F ====")
+print(df_F.groupby([
+        "DatasetSize","NumClusters","Mode",
+        "tol_single","tol_double","single_iter_cap",
+        "freeze_stable","freeze_patience","Suite"
+    ])[["Time","Memory_MB","Inertia"]].mean().reset_index()
+)
 
 print(os.getcwd())
