@@ -41,11 +41,11 @@ config = {
     "tol_fixed_C": 1e-16,
     "cap_C": int(300 * 0.8),
 
-    "max_iter_D": 1000,
-    "initial_precision_D": "single",
-    "stability_threshold_D": 0.01,  # Used for tracking, not looping
-    "inertia_improvement_threshold_D": 0.01,    # Inertia diff threshold to trigger double switch
-    "refine_iterations_D": 3   # Centroid shift threshold to trigger double switch
+    "max_iter_D": 300,
+    "tol_shift_D": 1e-2,
+    "inertia_improvement_threshold_D": 0.01,
+    "stability_threshold_D": 0.02,
+    "refine_iterations_D": 2
 }
 
 rng_global = np.random.default_rng(0)
