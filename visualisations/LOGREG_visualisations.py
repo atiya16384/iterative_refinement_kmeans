@@ -18,11 +18,11 @@ IN_FILES = [
 OUTDIR = Path("../Results/SUMMARY_LOGPREC")
 
 # metrics emitted by logreg_precision.py (we'll normalize these)
-METRICS = ["time_sec", "iters_single", "iters_double", "roc_auc", "pr_auc", "logloss"]
+METRICS = ["time_sec", "roc_auc", "pr_auc", "logloss"]
 
 # parameters we may sweep; we’ll auto-skip ones not present
 PARAM_CANDIDATES = [
-    "penalty", "alpha", "lambda", "solver",
+    "lambda", 
     "max_iter", "tol", "max_iter_single"
 ]
 
@@ -154,11 +154,11 @@ def _make_all_ratio_plots_for_dataset(ds_df, ds_name):
         for mcol in metric_mean_cols:
             p1 = _plot_hybrid_ratio_one_baseline(ds_df, ds_name, param, mcol, APP_SINGLE)
             if p1 is not None:
-                title = f"{ds_name}: {re.sub('_mean$','', mcol)} vs {param} — hybrid ÷ single"
+                title = f"{ds_name}: {re.sub('_mean$','', mcol)} vs {param} "
                 paths.append((title, p1))
             p2 = _plot_hybrid_ratio_one_baseline(ds_df, ds_name, param, mcol, APP_DOUBLE)
             if p2 is not None:
-                title = f"{ds_name}: {re.sub('_mean$','', mcol)} vs {param} — hybrid ÷ double"
+                title = f"{ds_name}: {re.sub('_mean$','', mcol)} vs {param} "
                 paths.append((title, p2))
     return paths
 
