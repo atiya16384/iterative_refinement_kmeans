@@ -1,0 +1,18 @@
+\begin{tabular}{lrrrrr}
+\toprule
+DatasetName & NumClusters & Double_Time & Hybrid_Time & Rel_Time & Improvement_% \\
+\midrule
+SYNTH_C_30_F_50_n1000_000k_kmeans & 100 & 288.398 & 242.514 & 0.8409 & 15.91 \\
+SYNTH_C_5_F_50_n1000_000k_kmeans & 100 & 283.603 & 233.383 & 0.822923 & 17.7077 \\
+SYNTH_C_80_F_120_n1000_000k_kmeans & 100 & 472.801 & 405.27 & 0.857169 & 14.2831 \\
+\bottomrule
+\end{tabular}
+
+% Summary
+\begin{tabular}{lllrrrrrrrrrr}
+\toprule
+baseline & compare_suite & metric & n_pairs & mean_baseline & mean_compare & mean_rel & mean_improvement_% & t_test_stat & t_test_p & wilcoxon_stat & wilcoxon_p & cohens_d \\
+\midrule
+Double & Hybrid & Time & 3 & 348.267 & 293.723 & 0.840331 & 15.9669 & 8.24881 & 0.0143804 & 0 & 0.25 & 4.76245 \\
+\bottomrule
+\end{tabular}
