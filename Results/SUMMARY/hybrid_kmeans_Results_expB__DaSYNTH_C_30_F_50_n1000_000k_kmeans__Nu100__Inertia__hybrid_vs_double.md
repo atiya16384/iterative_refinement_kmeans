@@ -1,0 +1,3 @@
+| DatasetName                       |   NumClusters | metric   | baseline   | compare_suite   |   Double_Inertia |   Hybrid_Inertia |   Rel_Inertia |   Improvement_% |   n_pairs |
+|:----------------------------------|--------------:|:---------|:-----------|:----------------|-----------------:|-----------------:|--------------:|----------------:|----------:|
+| SYNTH_C_30_F_50_n1000_000k_kmeans |           100 | Inertia  | Double     | Hybrid          |      4.88266e+07 |      5.25207e+07 |       1.07566 |        -7.56585 |         7 |

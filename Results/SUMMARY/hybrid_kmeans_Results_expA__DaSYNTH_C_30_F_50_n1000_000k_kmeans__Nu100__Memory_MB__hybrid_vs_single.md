@@ -1,0 +1,3 @@
+| DatasetName                       |   NumClusters | metric    | baseline   | compare_suite   |   Single_Memory_MB |   Hybrid_Memory_MB |   Rel_Memory_MB |   Improvement_% |   n_pairs |
+|:----------------------------------|--------------:|:----------|:-----------|:----------------|-------------------:|-------------------:|----------------:|----------------:|----------:|
+| SYNTH_C_30_F_50_n1000_000k_kmeans |           100 | Memory_MB | Single     | Hybrid          |                200 |                600 |               3 |            -200 |         7 |

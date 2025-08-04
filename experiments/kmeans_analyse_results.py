@@ -32,7 +32,7 @@ def _export_simple(per_ds_df: pd.DataFrame, outstem: Path) -> None:
 def analyze_experiment_per_dataset(
     csv_file: str,
     metrics=("Time", "Inertia", "Memory_MB"),
-    compare_suite="Hybrid",
+    compare_suite=("Hybrid", "Adaptive", "MiniBatch+Full", "MixedPerCluster"),
     baselines=("Double", "Single"),
     outdir="../Results/SUMMARY",
     label=None,
@@ -157,7 +157,7 @@ if __name__ == "__main__":
         res = analyze_experiment_per_dataset(
             f,
             metrics=("Time", "Inertia", "Memory_MB"),
-            compare_suite="Hybrid",
+            compare_suite=("Hybrid", "Adaptive", "MiniBatch+Full", "MixedPerCluster"),
             baselines=("Double", "Single"),
             outdir="../Results/SUMMARY",
             label=Path(f).stem,

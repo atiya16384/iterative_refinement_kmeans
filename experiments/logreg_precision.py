@@ -478,21 +478,21 @@ if __name__ == "__main__":
     grid = {
         "dataset": [dataset],
         "penalty": ["l1", "l2"],
-        "alpha":   [0.0, 0.25, 0.5, 0.75, 1.0],
-        "lambda":  [1e-2, 1e-3, 1e-4, 1e-6],
+        "alpha":   [0.0, 0.25, 0.5, 1.0],
+        "lambda":  [1e-2, 1e-4, 1e-6],
         "C":       [None],
         "solver":  ["coord"],
         "max_iter": [1000, 3000],
         "tol":      [1e-2, 1e-4, 1e-6],
-        "max_iter_single": [100, 200, 350, 500, 1000],
-        "approaches": ["single", "double", "hybrid", "multistage-ir", "adaptive-precision" ]
+        "max_iter_single": [100, 350, 500, 1000],
+        "approaches": ["single", "double", "hybrid" ]
     }
 
     df, df_mean = run_experiments(
         X, y, grid=grid,
         dataset=dataset,
         save_path=f"./Results/{dataset}_results.csv",
-        repeats=3
+        repeats=1
     )
     # with pd.option_context("display.max_columns", None, "display.width", 140):
     #     print(df.groupby("approach").head(5))
