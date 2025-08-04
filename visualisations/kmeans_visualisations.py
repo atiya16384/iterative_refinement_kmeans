@@ -82,7 +82,7 @@ class KMeansVisualizer:
             .rename(columns={value_col: "BASE"})
         )
 
-   def _cohort_base(self, df, metric, baseline="Double"):
+    def _cohort_base(self, df, metric, baseline="Double"):
         return (
             df[df["Suite"] == baseline]
             .groupby(["DatasetName", "NumClusters"], as_index=False)[metric]

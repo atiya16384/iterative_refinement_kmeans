@@ -16,7 +16,7 @@ def generate_synthetic_data(n_samples, n_features, n_clusters, random_state):
     return X.astype(np.float64), y_true
 
   
-def load_3d_road(n_rows=1_000_000):
+def load_3d_road(n_rows=2_000_000):
     path = DATA_DIR / "3D_spatial_network.csv"
     
     X = pd.read_csv(path, sep=r"\s+|,", engine="python",  
@@ -24,7 +24,7 @@ def load_3d_road(n_rows=1_000_000):
                     nrows=n_rows, dtype=np.float64).to_numpy()
     return X, None
     
-def load_susy(n_rows=1_000_000):
+def load_susy(n_rows=2_000_000):
     path = DATA_DIR / "SUSY.csv"
     df = pd.read_csv(path, header=None, nrows=n_rows,
                      dtype=np.float64, names=[f"c{i}" for i in range(9)])

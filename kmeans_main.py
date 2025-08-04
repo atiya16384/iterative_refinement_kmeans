@@ -129,18 +129,18 @@ rows_C = []
 # rows_E = []
 # rows_F = []
 
-for tag, n, d, k, seed in synth_specs:
-    X, y = generate_synthetic_data(n, d, k, seed)
-    print(f"[SYNTH] {tag:14s}  shape={X.shape}  any_NaN={np.isnan(X).any()}",
-          flush=True)
-    # check if the mappings are correct to the run_one_dataset
-    run_one_dataset(tag, X, y, rows_A, rows_B, rows_C)
+# for tag, n, d, k, seed in synth_specs:
+#     X, y = generate_synthetic_data(n, d, k, seed)
+#     print(f"[SYNTH] {tag:14s}  shape={X.shape}  any_NaN={np.isnan(X).any()}",
+#           flush=True)
+#     # check if the mappings are correct to the run_one_dataset
+#     run_one_dataset(tag, X, y, rows_A, rows_B, rows_C)
 
 
 # real datasets
-# for tag, loader in real_datasets.items():
-#     X_real, y_real = loader()
-#     run_one_dataset(tag, X_real, y_real, rows_A, rows_B, rows_C, rows_D)
+for tag, loader in real_datasets.items():
+    X_real, y_real = loader()
+    run_one_dataset(tag, X_real, y_real, rows_A, rows_B, rows_C)
 
 # --- run for A, B, C (extend with D–F once CSVs exist) ---
 
