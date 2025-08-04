@@ -158,7 +158,7 @@ def run_experiment_D(ds_name, X, n_clusters, initial_centers, config):
     rows_D = []
 
     # Double-precision baseline
-    labels_base, centers_base, _, iters_base, elapsed_base, mem_MB_base, inertia_base = run_general_adaptive_hybrid(
+    labels_base, centers_base, _, iters_base, elapsed_base, mem_MB_base, inertia_base = run_adaptive_hybrid(
         X, initial_centers, n_clusters,
         max_iter=config["max_iter_D"],
         initial_precision='double',    # Full double precision for baseline
@@ -173,7 +173,7 @@ def run_experiment_D(ds_name, X, n_clusters, initial_centers, config):
     ])
 
     # Adaptive hybrid experiment
-    labels_adapt, centers_adapt, precision_switched, iters_adapt, elapsed_adapt, mem_MB_adapt, inertia_adapt = run_general_adaptive_hybrid(
+    labels_adapt, centers_adapt, precision_switched, iters_adapt, elapsed_adapt, mem_MB_adapt, inertia_adapt = run_adaptive_hybrid(
         X, initial_centers, n_clusters,
         max_iter=config["max_iter_D"],
         initial_precision='single',
