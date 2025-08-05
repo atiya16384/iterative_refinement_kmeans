@@ -146,6 +146,74 @@ class KMeansVisualizer:
         plt.savefig(self.output_dir / "tolerance_vs_inertia_hybrid.png")
         plt.close()
         print(f"Saved: {self.output_dir / 'tolerance_vs_inertia_hybrid.png'}")
+
+
+    def plot_cap_percentage_vs_inertia(self, df):
+        df_h = df[df["Suite"] == "Hybrid"].copy()
+        plt.figure(figsize=(7,5))
+        for (ds,k), grp in df_h.groupby(["DatasetName", "NumClusters"]):
+            base = df[(df["Suite"]=="Double") & (df["DatasetName"]==ds) & (df["NumClusters"]==k)]["Inertia"].mean()
+            grp = grp.copy()
+            grp["NormInertia"] = grp["Inertia"] / base
+            plt.plot(grp["Cap"], grp["NormInertia"], marker='o', label=f"{ds}-C{k}")
+        plt.title("Cap (fraction) vs Final Inertia (normalized)")
+        plt.xlabel("Cap (fraction of max_iter)")
+        plt.ylabel("Normalized Inertia")
+        plt.grid(True); plt.legend()
+        plt.tight_layout()
+        plt.savefig(self.output_dir / "C_cap_percentage_vs_inertia.png")
+        plt.close()
+        print("Saved C_cap_percentage_vs_inertia.png")
+    
+    def plot_cap_percentage_vs_time(self, df):
+        df_h = df[df["Suite"] == "Hybrid"].copy()
+        plt.figure(figsize=(7,5))
+        for (ds,k), grp in df_h.groupby(["DatasetName", "NumClusters"]):
+            base = df[(df["Suite"]=="Double") & (df["DatasetName"]==ds) & (df["NumClusters"]==k)]["Time"].mean()
+            grp = grp.copy()
+            grp["NormTime"] = grp["Time"] / base
+            plt.plot(grp["Cap"], grp["NormTime"], marker='o', label=f"{ds}-C{k}")
+        plt.title("Cap (fraction) vs Time (normalized)")
+        plt.xlabel("Cap (fraction of max_iter)")
+        plt.ylabel("Normalized Time")
+        plt.grid(True); plt.legend()
+        plt.tight_layout()
+        plt.savefig(self.output_dir / "C_cap_percentage_vs_norm_time.png")
+        plt.close()
+        print("Saved C_cap_percentage_vs_norm_time.png")
+    
+    def plot_iterpct_vs_inertia(self, df):
+        df_h = df[df["Suite"]=="Hybrid"].copy()
+        df_h["PctSingle"] = df_h["iter_single"] / df_h["total_iters"] * 100
+        plt.figure(figsize=(7,5))
+        for (ds,k), grp in df_h.groupby(["DatasetName", "NumClusters"]):
+            base = df[(df["Suite"]=="Double") & (df["DatasetName"]==ds) & (df["NumClusters"]==k)]["Inertia"].mean()
+            grp = grp.copy()
+            grp["NormInertia"] = grp["Inertia"] / base
+            plt.plot(grp["PctSingle"], grp["NormInertia"], marker='o', label=f"{ds}-C{k}")
+        plt.title("% Single‑Precision Iterations vs Final Inertia")
+        plt.xlabel("% Iterations in Single Precision")
+        plt.ylabel("Normalized Final Inertia")
+        plt.grid(True); plt.legend()
+        plt.tight_layout()
+        plt.savefig(self.output_dir / "D_iterpct_vs_norm_inertia.png")
+        plt.close()
+        print("Saved D_iterpct_vs_norm_inertia.png")
+    
+    def plot_iterpct_vs_time(self, df):
+        df_h = df[df["Suite"]=="Hybrid"].copy()
+        df_h["PctSingle"] = df_h["iter_single"] / df_h["total_iters"] * 100
+        plt.figure(figsize=(7,5))
+        for (ds,k), grp in df_h.groupby(["DatasetName", "NumClusters"]):
+            plt.plot(grp["PctSingle"], grp["Time"], marker='o', label=f"{ds}-C{k}")
+        plt.title("% Single‑Precision Iterations vs Total Time")
+        plt.xlabel("% Iterations in Single Precision")
+        plt.ylabel("Total Time (s)")
+        plt.grid(True); plt.legend()
+        plt.tight_layout()
+        plt.savefig(self.output_dir / "D_iterpct_vs_time.png")
+        plt.close()
+        print("Saved D_iterpct_vs_time.png")
     
     @staticmethod
     def pca_2d_view(X_full, centers_full, resolution=300, random_state=0):
@@ -193,3 +261,4 @@ class KMeansVisualizer:
         plt.savefig(cluster_dir / f"{filename}.png")
         plt.close()
     
+
