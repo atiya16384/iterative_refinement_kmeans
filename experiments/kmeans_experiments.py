@@ -106,49 +106,53 @@ def run_experiment_B(ds_name, X, y_true, n_clusters, initial_centers, config):
     return rows_B
 
 
+import numpy as np
+from math import ceil
+
 def run_experiment_C(ds_name, X, y_true, n_clusters, initial_centers, config):
     rows_C = []
     n_samples = len(X)
 
     max_iter_C = config["max_iter_C"]
     tol_fixed_C = config["tol_fixed_C"]
-    cap_C_pct = config["cap_C_pct"]  # e.g., 0.8 means 80% of max_iter_C
-    n_repeats = config["n_repeats"]
-
-    iter_cap = int(max_iter_C * cap_C_pct)
+    cap_percentages = config.get("cap_percentages", [0.0, 0.1, 0.2, 0.4, 0.6, 0.8])
+    n_repeats = config.get("n_repeats", 1)
 
     for rep in range(n_repeats):
-        # Baseline full double precision
-        centers_double, labels_double, iters_double_tot, iters_single_tot, elapsed, mem_MB_double, inertia = run_full_double(
+        # Full double precision baseline
+        centers_double, labels_double, iters_double_tot, iters_single_tot, elapsed_d, mem_MB_d, inertia_d = run_full_double(
             X, initial_centers, n_clusters, max_iter_C, tol_fixed_C, y_true
         )
-        rows_C.append([
-            ds_name, n_samples, n_clusters, "C", cap_C_pct, tol_fixed_C,
-            0, iters_double_tot, "Double", elapsed, mem_MB_double, inertia
-        ])
-
-        # Single hybrid run with capped single precision
-        labels_hybrid, centers_hybrid, iters_single, iters_double, elapsed_hybrid, mem_MB_hybrid, inertia_hybrid = run_hybrid(
-            X, initial_centers, n_clusters,
-            max_iter_total=max_iter_C,
-            single_iter_cap=iter_cap,
-            tol_single=tol_fixed_C,
-            tol_double=tol_fixed_C,
-            y_true=y_true,
-            seed=rep
-        )
 
         rows_C.append([
-            ds_name, n_samples, n_clusters, "C", cap_C_pct, tol_fixed_C,
-            iters_single, iters_double, "Hybrid", elapsed_hybrid, mem_MB_hybrid, inertia_hybrid
+            ds_name, n_samples, n_clusters, "C", "full", tol_fixed_C,
+            0, iters_double_tot, "Double", elapsed_d, mem_MB_d, inertia_d
         ])
 
-        # Optional plot (just once)
-        if rep == 0:
-            X_vis, centers_vis, xx, yy, labels_grid = KMeansVisualizer.pca_2d_view(X, centers_hybrid)
-            filename = f"{ds_name}_n{n_samples}_c{n_clusters}_C_cap{int(cap_C_pct*100)}"
-            title = f"{ds_name}: n={n_samples}, c={n_clusters}, cap={int(cap_C_pct*100)}%"
-            KMeansVisualizer.plot_clusters(X_vis, labels_hybrid, centers_vis, xx, yy, labels_grid, title=title, filename=filename)
+        for pct in cap_percentages:
+            single_cap = ceil(max_iter_C * pct)
+
+            labels_h, centers_h, iters_s, iters_d, elapsed_h, mem_MB_h, inertia_h = run_hybrid(
+                X, initial_centers, n_clusters,
+                max_iter_total=max_iter_C,
+                single_iter_cap=single_cap,
+                tol_single=tol_fixed_C,
+                tol_double=tol_fixed_C,
+                y_true=y_true,
+                seed=rep
+            )
+
+            rows_C.append([
+                ds_name, n_samples, n_clusters, "C", pct, tol_fixed_C,
+                iters_s, iters_d, "Hybrid", elapsed_h, mem_MB_h, inertia_h
+            ])
+
+            # Optional: 2D PCA cluster plot for first rep
+            if rep == 0:
+                X_vis, centers_vis, xx, yy, labels_grid = KMeansVisualizer.pca_2d_view(X, centers_h)
+                filename = f"{ds_name}_C_cap{int(pct*100)}"
+                title = f"{ds_name}: cap = {int(pct*100)}% iter"
+                KMeansVisualizer.plot_clusters(X_vis, labels_h, centers_vis, xx, yy, labels_grid, title=title, filename=filename)
 
     return rows_C
 
@@ -206,3 +210,4 @@ def run_experiment_D(ds_name, X, y_true, n_clusters, initial_centers, config):
     ])
 
     return rows_D
+
