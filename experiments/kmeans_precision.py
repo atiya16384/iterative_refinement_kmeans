@@ -75,36 +75,37 @@ def run_adaptive_hybrid(X, initial_centers, n_clusters,
                         inertia_improvement_threshold=0.02,
                         refine_iterations=2,
                         tol_shift=1e-3,
-                        seed=0, y_true = None):
-  
-    # Adaptive Hybrid K-Means clustering with multi-signal switching:
-    # - Starts in single precision
-    # - Monitors label stability, inertia improvement, centroid shift
-    # - Switches to double for final refinement after stable state
+                        seed=0,
+                        y_true=None):
+    import numpy as np
+    import time
 
     np.random.seed(seed)
     X_f32 = X.astype(np.float32, copy=False)
     X_f64 = X.astype(np.float64, copy=False)
     centers = initial_centers.astype(np.float64)
     labels = np.zeros(X.shape[0], dtype=int)
+
     prev_inertia = np.inf
     precision = initial_precision
     stable_count = 0
     switched = False
+    switch_iter = None
+
     start = time.perf_counter()
 
     for it in range(max_iter):
         data = X_f32 if precision == 'single' else X_f64
         cent = centers.astype(np.float32) if precision == 'single' else centers
-        dist = np.linalg.norm(data[:, None, :] - cent, axis=2)
-        new_labels = np.argmin(dist, axis=1)
 
-        label_changes = np.sum(labels != new_labels)
-        stability = label_changes / X.shape[0]
+        dists = np.linalg.norm(data[:, None, :] - cent, axis=2)
+        new_labels = np.argmin(dists, axis=1)
 
-        new_centers = np.array([X_f64[new_labels == k].mean(axis=0)
-                                if np.any(new_labels == k) else centers[k]
-                                for k in range(n_clusters)])
+        stability = np.sum(labels != new_labels) / len(labels)
+        new_centers = np.array([
+            X_f64[new_labels == k].mean(axis=0) if np.any(new_labels == k) else centers[k]
+            for k in range(n_clusters)
+        ])
 
         inertia = np.sum((X_f64 - new_centers[new_labels])**2)
         inertia_improve = (prev_inertia - inertia) / prev_inertia if prev_inertia != np.inf else np.inf
@@ -113,7 +114,7 @@ def run_adaptive_hybrid(X, initial_centers, n_clusters,
         print(f"[{precision.upper()}] Iter {it+1}: inertia={inertia:.4e}, "
               f"Δinertia={inertia_improve:.4f}, shift={shift:.4e}, stability={stability:.4f}")
 
-        # Stabilty logic
+        # Track convergence
         if (inertia_improve < inertia_improvement_threshold or
             shift < tol_shift or
             stability < stability_threshold):
@@ -121,28 +122,27 @@ def run_adaptive_hybrid(X, initial_centers, n_clusters,
         else:
             stable_count = 0
 
-        # Trigger refinement switch
-        if stable_count >= refine_iterations and not switched:
-            print("Switching to DOUBLE precision for refinement")
+        # Switch to double
+        if not switched and stable_count >= refine_iterations:
             precision = 'double'
             switched = True
-            stable_count = 0
             switch_iter = it + 1
+            stable_count = 0
+            print("Switched to DOUBLE precision")
 
-        total_iters = it + 1
-        iters_single = total_iters if not switched else switch_iter
-        iters_double = 0 if not switched else total_iters - switch_iter
-        elapsed = time.perf_counter() - start
-        elapsed_time = elapsed
-        precision_switched = switched
-
+        # Final convergence
         if switched and stable_count >= refine_iterations:
-            print("Final convergence reached in DOUBLE")
+            print("Converged in DOUBLE precision")
             break
 
-        labels, centers, prev_inertia = new_labels, new_centers, inertia
+        labels = new_labels
+        centers = new_centers
+        prev_inertia = inertia
 
-
+    total_iters = it + 1
+    iters_single = switch_iter if switched else total_iters
+    iters_double = total_iters - iters_single if switched else 0
+    elapsed_time = time.perf_counter() - start
     mem_MB = (X_f32.nbytes + centers.nbytes) / 2**20
-    return labels, centers, iters_single, iters_double,  precision_switched, total_iters, elapsed_time, mem_MB, inertia, 
 
+    return labels, centers, iters_single, iters_double, switched, total_iters, elapsed_time, mem_MB, inertia
