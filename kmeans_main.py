@@ -143,19 +143,16 @@ print(df_D.groupby([
     'tolerance_single','iter_single', 'iter_double', 'Suite'
 ])[['Time', 'Memory_MB', 'Inertia']].mean())
 
-
-# how to plot for the different types of graphs that we have
 # Plots for Experiment A and C (Cap-based)
 # Cap-based plots (Experiments A & C)
 
 kmeans_vis = KMeansVisualizer()
 kmeans_vis.plot_cap_vs_time(df_A)
 kmeans_vis.plot_hybrid_cap_vs_inertia(df_A)
-# kmeans_vis.plot_cap_vs_time(df_C)
-# kmeans_vis.plot_hybrid_cap_vs_inertia(df_C)
 kmeans_vis.plot_tolerance_vs_inertia(df_B)
 kmeans_vis.plot_tolerance_vs_time(df_B)
-# kmeans_vis.plot_tolerance_vs_inertia(df_D)
-# kmeans_vis.plot_tolerance_vs_time(df_D)
+
+
+
 print(os.getcwd())
 
