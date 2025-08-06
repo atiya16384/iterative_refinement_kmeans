@@ -181,7 +181,8 @@ class KMeansVisualizer:
         print(f"Saved {self.output_dir / 'exp_C_cap_percentage_vs_norm_time.png'}")
     
     def plot_iterpct_vs_inertia(self, df):
-        df_h = df[df["Suite"]=="Hybrid"].copy()
+        df_h = df[df["Suite"]=="Adaptive"].copy()
+        print(df["Suite"].unique())
         df_h["PctSingle"] = df_h["iter_single"] 
         plt.figure(figsize=(7,5))
         for (ds,k), grp in df_h.groupby(["DatasetName", "NumClusters"]):
@@ -200,7 +201,7 @@ class KMeansVisualizer:
         print(f"Saved {self.output_dir /'exp_D_iterpct_vs_inertia.png'}")
     
     def plot_iterpct_vs_time(self, df):
-        df_h = df[df["Suite"]=="Hybrid"].copy()
+        df_h = df[df["Suite"]=="Adaptive"].copy()
         df_h["PctSingle"] = df_h["iter_single"]
         plt.figure(figsize=(7,5))
         for (ds,k), grp in df_h.groupby(["DatasetName", "NumClusters"]):

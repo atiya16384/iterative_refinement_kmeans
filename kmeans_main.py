@@ -29,7 +29,7 @@ PLOTS_DIR.mkdir(exist_ok = True)
 n_clusters_list = [30]
 
 config = {
-    "n_repeats": 1,
+    "n_repeats": 5,
     "cap_grid": [0, 50, 100, 150, 200, 250, 300],
     "tol_fixed_A": 1e-16,
     "max_iter_A": 300,

@@ -2,6 +2,8 @@ from visualisations.kmeans_visualisations import KMeansVisualizer
 from experiments.kmeans_precision import run_full_double, run_hybrid, run_adaptive_hybrid
 import numpy as np
 import time
+import numpy as np
+from math import ceil
 
 def run_experiment_A(ds_name, X, y_true, n_clusters, initial_centers, config):
     rows_A = []
@@ -106,8 +108,7 @@ def run_experiment_B(ds_name, X, y_true, n_clusters, initial_centers, config):
     return rows_B
 
 
-import numpy as np
-from math import ceil
+
 
 def run_experiment_C(ds_name, X, y_true, n_clusters, initial_centers, config):
     rows_C = []
@@ -179,13 +180,13 @@ def run_experiment_D(ds_name, X, y_true, n_clusters, initial_centers, config):
         seed=seed,
         y_true=y_true
     )
-    labels_b, centers_b, switched_b, iters_b, time_b, mem_b, inertia_b, iters_single_b, iters_double_b = base
+    labels_b, centers_b, switched_b, iters_b,iters_single_b, iters_double_b, time_b, mem_b, inertia_b,  = base
 
     rows_D.append([
         ds_name, len(X), n_clusters,
-        "Double", "-", "-",  # Mode, tol_single, Cap
+        "D", "-", "-",  # Mode, tol_single, Cap
         iters_single_b, iters_double_b,
-        "D", time_b, mem_b, inertia_b
+        "Double", time_b, mem_b, inertia_b
     ])
 
     # === Adaptive-Hybrid ===
@@ -200,13 +201,13 @@ def run_experiment_D(ds_name, X, y_true, n_clusters, initial_centers, config):
         seed=seed,
         y_true=y_true
     )
-    labels_h, centers_h, switched_h, iters_h, time_h, mem_h, inertia_h, iters_single_h, iters_double_h = adv
+    labels_h, centers_h, switched_h, iters_h, iters_single_h, iters_double_h, time_h, mem_h, inertia_h,  = adv
 
     rows_D.append([
         ds_name, len(X), n_clusters,
-        "Adaptive", stability_threshold, "-",  # Mode, tol_single, Cap
+        "D", stability_threshold, "-",  # Mode, tol_single, Cap
         iters_single_h, iters_double_h,
-        "D", time_h, mem_h, inertia_h
+        "Adaptive", time_h, mem_h, inertia_h
     ])
 
     return rows_D
