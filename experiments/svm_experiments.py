@@ -5,8 +5,7 @@ class SVMExperimentRunner:
         self.config = config
         self.results_A = []
         self.results_B = []
-        self.results_C = []
-        self.results_D = []
+
 
     def run_all(self, tag, X, y):
         cfg = self.config
@@ -21,4 +20,4 @@ class SVMExperimentRunner:
                 self.results_B.append(svm_hybrid_precision(tag, X, y, max_iter_total=1000, tol_single=tol, tol_double=cfg["tol_double_B"], single_iter_cap=1000))
 
     def get_results(self):
-        return self.results_A, self.results_B, 
+        return self.results_A, self.results_B

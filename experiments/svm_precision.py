@@ -38,7 +38,8 @@ def svm_hybrid_precision(tag, X, y, max_iter_total, tol_single, tol_double, sing
     time_single = time.time() - start_single
     iter_single = svm_single.n_iter_
 
-    remaining_iters = max(1, max_iter_total - iter_single)
+    remaining_iters = max_iter_total - iter_single
+    remaining_iters = max(1, remaining_iters)
     start_double = time.time()
     svm_double = SVC(C=C, kernel=kernel, gamma='scale', tol=tol_double, max_iter=remaining_iters, random_state=seed)
     svm_double.fit(X_train, y_train)

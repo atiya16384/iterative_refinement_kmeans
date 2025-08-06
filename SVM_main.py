@@ -9,8 +9,6 @@ from experiments.svm_experiments import SVMExperimentRunner
 from datasets.utils import (
     generate_synthetic_data, load_3d_road, load_susy, 
     synth_specs, real_datasets, columns_A, columns_B,
-    columns_C, columns_D
-
 )
 
 from experiments.svm_precision import (
@@ -29,7 +27,7 @@ def print_summary(path, group_by):
     print(summary)
 
 def run_experiments():
-    results_A, results_B, results_C, results_D = [], [], [], []
+    results_A, results_B  = [], []
     config = {
         "n_repeats": 1,
         "tol_fixed_A": 1e-16,
@@ -42,18 +40,18 @@ def run_experiments():
     }
     
     runner = SVMExperimentRunner(config)
-    
+    results_A, results_B = runner.get_results()
     # Synthetic datasets
     for tag, n, d, c, seed in synth_specs:
         X, y = generate_synthetic_data(n, d, c, seed)
         runner.run_all(tag, X, y)
     
     # Real-world datasets
-    for tag, loader in real_datasets:
-        X, y = loader()
-        runner.run_all(tag, X, y)
+    # for tag, loader in real_datasets:
+    #     X, y = loader()
+    #     runner.run_all(tag, X, y)
     
-    results_A, results_B, results_C, results_D = runner.get_results()
+    
 
     df_A = pd.DataFrame(results_A, columns=columns_A)
     df_B = pd.DataFrame(results_B, columns=columns_B)
@@ -74,11 +72,11 @@ def run_experiments():
     print_summary(RESULTS_DIR / "svm_expB_tol.csv", ['DatasetName', 'Suite'])
 
 
-    return df_A, df_B, df_C , df_D
+    return df_A, df_B
 
 
 if __name__ == "__main__":
-    df_A, df_B, df_C, df_D = run_experiments()
+    df_A, df_B = run_experiments()
     visualizer = SVMVisualizer()
     visualizer.plot_cap_vs_accuracy(df_A)
     visualizer.plot_cap_vs_time(df_A)
