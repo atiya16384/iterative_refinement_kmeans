@@ -26,7 +26,7 @@ PLOTS_DIR= pathlib.Path("ClusterPlots")
 PLOTS_DIR.mkdir(exist_ok = True)
 
 # for the cluster size we are varying this for all datasets
-n_clusters_list = [30]
+n_clusters_list = [5, 30 ,80]
 
 config = {
     "n_repeats": 3,
@@ -57,7 +57,7 @@ precisions = {
     "Double Precision": np.float64
 }
 
-def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A, rows_B, rows_C, rows_D):
+def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A): # rows_B, rows_C, rows_D):
     X_ns, y_ns = X_full, y_full
 
     n_features = X_ns.shape[1]
@@ -78,28 +78,28 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A, rows_B, ro
 
             print("Running A")
             rows_A += run_experiment_A(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
-            print("Running B")
-            rows_B += run_experiment_B(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
-            print("Running C")
-            rows_C += run_experiment_C(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
-            print("Running D")
-            rows_D += run_experiment_D(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
+            # print("Running B")
+            # rows_B += run_experiment_B(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
+            # print("Running C")
+            # rows_C += run_experiment_C(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
+            # print("Running D")
+            # rows_D += run_experiment_D(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
 
-    return rows_A, rows_B, rows_C, rows_D
+    return rows_A #, rows_B, rows_C, rows_D
 
 all_rows = []
 
 rows_A = []
-rows_B = []
-rows_C = []
-rows_D = []
+# rows_B = []
+# rows_C = []
+# rows_D = []
 
 for tag, n, d, k, seed in synth_specs:
     X, y = generate_synthetic_data(n, d, k, seed)
     print(f"[SYNTH] {tag:14s}  shape={X.shape}  any_NaN={np.isnan(X).any()}",
           flush=True)
     # check if the mappings are correct to the run_one_dataset
-    run_one_dataset(tag, X, y, rows_A, rows_B, rows_C ,rows_D)
+    run_one_dataset(tag, X, y, rows_A )#, rows_B, rows_C ,rows_D)
 
 # real datasets
 # for tag, loader in real_datasets.items():
@@ -107,9 +107,9 @@ for tag, n, d, k, seed in synth_specs:
 #     run_one_dataset(tag, X_real, y_real, rows_A, rows_B, rows_C, rows_D)
 
 df_A = pd.DataFrame(rows_A, columns=columns_A)
-df_B = pd.DataFrame(rows_B, columns=columns_B)
-df_C= pd.DataFrame(rows_C, columns=columns_C)
-df_D = pd.DataFrame(rows_D, columns=columns_D)
+# df_B = pd.DataFrame(rows_B, columns=columns_B)
+# df_C= pd.DataFrame(rows_C, columns=columns_C)
+# df_D = pd.DataFrame(rows_D, columns=columns_D)
 
 print("Saved:")
 print("- hybrid_kmeans_results_expA.csv")
@@ -123,25 +123,25 @@ print(df_A.groupby([
 ])[['Time', 'Memory_MB', 'Inertia']].mean())
 
 # === SUMMARY: Experiment B ===
-print("\n==== SUMMARY: EXPERIMENT B ====")
-print(df_B.groupby([
-    'DatasetSize', 'NumClusters', 'Mode',
-    'tolerance_single', 'iter_single', 'iter_double', 'Suite'
-])[['Time', 'Memory_MB', 'Inertia']].mean())
+# print("\n==== SUMMARY: EXPERIMENT B ====")
+# print(df_B.groupby([
+#     'DatasetSize', 'NumClusters', 'Mode',
+#     'tolerance_single', 'iter_single', 'iter_double', 'Suite'
+# ])[['Time', 'Memory_MB', 'Inertia']].mean())
 
-# === SUMMARY: Experiment C ===
-print("\n==== SUMMARY: EXPERIMENT C ====")
-print(df_C.groupby([
-    'DatasetSize', 'NumClusters', 'Mode', 'Cap',
-    'tolerance_single', 'iter_single', 'iter_double', 'Suite'
-])[['Time', 'Memory_MB','Inertia']].mean())
+# # === SUMMARY: Experiment C ===
+# print("\n==== SUMMARY: EXPERIMENT C ====")
+# print(df_C.groupby([
+#     'DatasetSize', 'NumClusters', 'Mode', 'Cap',
+#     'tolerance_single', 'iter_single', 'iter_double', 'Suite'
+# ])[['Time', 'Memory_MB','Inertia']].mean())
 
-# === SUMMARY: Experiment D ===
-print("\n==== SUMMARY: EXPERIMENT D ====")
-print(df_D.groupby([
-    'DatasetSize', 'NumClusters', 'Mode',
-    'tolerance_single','iter_single', 'iter_double', 'Suite'
-])[['Time', 'Memory_MB', 'Inertia']].mean())
+# # === SUMMARY: Experiment D ===
+# print("\n==== SUMMARY: EXPERIMENT D ====")
+# print(df_D.groupby([
+#     'DatasetSize', 'NumClusters', 'Mode',
+#     'tolerance_single','iter_single', 'iter_double', 'Suite'
+# ])[['Time', 'Memory_MB', 'Inertia']].mean())
 
 # Plots for Experiment A and C (Cap-based)
 # Cap-based plots (Experiments A & C)
@@ -149,12 +149,12 @@ print(df_D.groupby([
 kmeans_vis = KMeansVisualizer()
 kmeans_vis.plot_cap_vs_time(df_A)
 kmeans_vis.plot_hybrid_cap_vs_inertia(df_A)
-kmeans_vis.plot_tolerance_vs_inertia(df_B)
-kmeans_vis.plot_tolerance_vs_time(df_B)
-kmeans_vis.plot_cap_percentage_vs_inertia(df_C)
-kmeans_vis.plot_cap_percentage_vs_time(df_C)
-kmeans_vis.plot_iterpct_vs_inertia(df_D)
-kmeans_vis.plot_iterpct_vs_time(df_D)
+# kmeans_vis.plot_tolerance_vs_inertia(df_B)
+# kmeans_vis.plot_tolerance_vs_time(df_B)
+# kmeans_vis.plot_cap_percentage_vs_inertia(df_C)
+# kmeans_vis.plot_cap_percentage_vs_time(df_C)
+# kmeans_vis.plot_iterpct_vs_inertia(df_D)
+# kmeans_vis.plot_iterpct_vs_time(df_D)
 
 print(os.getcwd())
 

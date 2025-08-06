@@ -133,8 +133,8 @@ class KMeansVisualizer:
             plt.plot(group_sorted["tolerance_single"], group_sorted["Inertia"], marker='o', label=f"{ds}-C{k}")
     
         plt.title("Tolerance vs Inertia (Hybrid)")
-        # plt.ylim(0.9999, 1.0001)
-        plt.xlabel("Single Precision Tolerance")
+        plt.ylim(0.9999, 1.0001)
+        plt.xlabel("Single Precision Tolerance (log)")
         plt.xscale('log')
         plt.ylabel("Final Inertia")
     
