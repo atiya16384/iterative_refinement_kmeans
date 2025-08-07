@@ -111,6 +111,13 @@ for tag, n, d, k, seed in synth_specs:
 df_C= pd.DataFrame(rows_C, columns=columns_C)
 df_D = pd.DataFrame(rows_D, columns=columns_D)
 
+
+
+# df_A.to_csv(RESULTS_DIR / "hybrid_kmeans_Results_expA.csv", index = True)
+# df_B.to_csv(RESULTS_DIR / "hybrid_kmeans_Results_expB.csv", index = True)
+df_C.to_csv(RESULTS_DIR / "hybrid_kmeans_Results_expC.csv", index = True)
+df_D.to_csv(RESULTS_DIR / "hybrid_kmeans_Results_expD.csv", index = True)
+
 print("Saved:")
 print("- hybrid_kmeans_results_expA.csv")
 print("- hybrid_kmeans_results_expB.csv")
