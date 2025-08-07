@@ -157,18 +157,14 @@ def run_experiment_C(ds_name, X, y_true, n_clusters, initial_centers, config):
 
     return rows_C
 
-
 def run_experiment_D(ds_name, X, y_true, n_clusters, initial_centers, config):
     rows_D = []
 
     max_iter = config["max_iter_D"]
     tol_shift = config.get("tol_shift_D", 1e-3)
-    stability_threshold = config.get("stability_threshold_D", 0.02)
-    inertia_improvement_threshold = config.get("inertia_improvement_threshold_D", 0.02)
-    refine_iterations = config.get("refine_iterations_D", 2)
     seed = config.get("seed", 0)
 
-    # === Baseline (Double Precision) ===
+    # Baseline (Double Precision)
     base = run_adaptive_hybrid(
         X, initial_centers, n_clusters,
         max_iter=max_iter,
@@ -181,47 +177,36 @@ def run_experiment_D(ds_name, X, y_true, n_clusters, initial_centers, config):
         y_true=y_true
     )
 
-    rows_D.append({
-        "DatasetName": ds_name,
-        "DatasetSize": len(X),
-        "NumClusters": n_clusters,
-        "Mode": "D",
-        "tolerance_single": "-",
-        "Cap": "-",
-        "iter_single": base["iters_single"],
-        "iter_double": base["iters_double"],
-        "Suite": "Double",
-        "Time": base["elapsed_time"],
-        "Memory_MB": base["mem_MB"],
-        "Inertia": base["inertia"]
-    })
+    rows_D.append([
+        ds_name, len(X), n_clusters,
+        "D", "-", "-",  # Mode, tol_single, Cap
+        base["iters_single"], base["iters_double"],
+        "Double", base["elapsed_time"], base["mem_MB"], base["inertia"]
+    ])
 
-    # === Adaptive Hybrid ===
-    adv = run_adaptive_hybrid(
-        X, initial_centers, n_clusters,
-        max_iter=max_iter,
-        initial_precision='single',
-        stability_threshold=stability_threshold,
-        inertia_improvement_threshold=inertia_improvement_threshold,
-        refine_iterations=refine_iterations,
-        tol_shift=tol_shift,
-        seed=seed,
-        y_true=y_true
-    )
+    # Sweep multiple configurations for adaptive
+    for stab_thresh in [0.01, 0.02, 0.05]:
+        for inertia_thresh in [0.005, 0.01, 0.02]:
+            for refine_iters in [1, 2]:
 
-    rows_D.append({
-        "DatasetName": ds_name,
-        "DatasetSize": len(X),
-        "NumClusters": n_clusters,
-        "Mode": "D",
-        "tolerance_single": stability_threshold,
-        "Cap": "-",
-        "iter_single": adv["iters_single"],
-        "iter_double": adv["iters_double"],
-        "Suite": "Adaptive",
-        "Time": adv["elapsed_time"],
-        "Memory_MB": adv["mem_MB"],
-        "Inertia": adv["inertia"]
-    })
+                adv = run_adaptive_hybrid(
+                    X, initial_centers, n_clusters,
+                    max_iter=max_iter,
+                    initial_precision='single',
+                    stability_threshold=stab_thresh,
+                    inertia_improvement_threshold=inertia_thresh,
+                    refine_iterations=refine_iters,
+                    tol_shift=tol_shift,
+                    seed=seed,
+                    y_true=y_true
+                )
+
+                rows_D.append([
+                    ds_name, len(X), n_clusters,
+                    "D", stab_thresh, "-",  # Mode, tol_single, Cap
+                    adv["iters_single"], adv["iters_double"],
+                    "Adaptive", adv["elapsed_time"], adv["mem_MB"], adv["inertia"]
+                ])
 
     return rows_D
+
