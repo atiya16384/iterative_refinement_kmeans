@@ -77,8 +77,7 @@ def run_adaptive_hybrid(X, initial_centers, n_clusters,
                         tol_shift=1e-3,
                         seed=0,
                         y_true=None):
-    import numpy as np
-    import time
+
 
     np.random.seed(seed)
     X_f32 = X.astype(np.float32, copy=False)

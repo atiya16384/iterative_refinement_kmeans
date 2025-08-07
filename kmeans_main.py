@@ -118,6 +118,14 @@ df_D = pd.DataFrame(rows_D, columns=columns_D)
 df_C.to_csv(RESULTS_DIR / "hybrid_kmeans_Results_expC.csv", index = True)
 df_D.to_csv(RESULTS_DIR / "hybrid_kmeans_Results_expD.csv", index = True)
 
+
+# df_A = pd.read_csv("Results/hybrid_kmeans_Results_expA.csv")
+# df_B = pd.read_csv("Results/hybrid_kmeans_Results_expB.csv")
+df_C = pd.read_csv("Results/hybrid_kmeans_Results_expC.csv")
+df_D = pd.read_csv("Results/hybrid_kmeans_Results_expD.csv")
+
+
+
 print("Saved:")
 print("- hybrid_kmeans_results_expA.csv")
 print("- hybrid_kmeans_results_expB.csv")
