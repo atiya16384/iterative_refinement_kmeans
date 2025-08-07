@@ -181,12 +181,20 @@ def run_experiment_D(ds_name, X, y_true, n_clusters, initial_centers, config):
         y_true=y_true
     )
 
-    rows_D.append([
-        ds_name, len(X), n_clusters,
-        "D", "-", "-",  # Mode, tol_single, Cap
-        base["iters_single"], base["iters_double"],
-        "Double", base["elapsed_time"], base["mem_MB"], base["inertia"]
-    ])
+    rows_D.append({
+        "DatasetName": ds_name,
+        "DatasetSize": len(X),
+        "NumClusters": n_clusters,
+        "Mode": "D",
+        "tolerance_single": "-",
+        "Cap": "-",
+        "iter_single": base["iters_single"],
+        "iter_double": base["iters_double"],
+        "Suite": "Double",
+        "Time": base["elapsed_time"],
+        "Memory_MB": base["mem_MB"],
+        "Inertia": base["inertia"]
+    })
 
     # === Adaptive Hybrid ===
     adv = run_adaptive_hybrid(
@@ -201,11 +209,19 @@ def run_experiment_D(ds_name, X, y_true, n_clusters, initial_centers, config):
         y_true=y_true
     )
 
-    rows_D.append([
-        ds_name, len(X), n_clusters,
-        "D", stability_threshold, "-",  # Mode, tol_single, Cap
-        adv["iters_single"], adv["iters_double"],
-        "Adaptive", adv["elapsed_time"], adv["mem_MB"], adv["inertia"]
-    ])
+    rows_D.append({
+        "DatasetName": ds_name,
+        "DatasetSize": len(X),
+        "NumClusters": n_clusters,
+        "Mode": "D",
+        "tolerance_single": stability_threshold,
+        "Cap": "-",
+        "iter_single": adv["iters_single"],
+        "iter_double": adv["iters_double"],
+        "Suite": "Adaptive",
+        "Time": adv["elapsed_time"],
+        "Memory_MB": adv["mem_MB"],
+        "Inertia": adv["inertia"]
+    })
 
     return rows_D
