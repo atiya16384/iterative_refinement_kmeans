@@ -60,6 +60,7 @@ class KMeansVisualizer:
         plt.xlabel("Cap (Single Precision Iteration Cap)")
     
         plt.ylabel("Inertia (Relative to double)")
+        plt.axhline(1.0, linestyle='--', color='gray', linewidth=1, label="Double baseline")
         plt.grid(True)
         plt.legend()
         plt.tight_layout()
@@ -85,6 +86,7 @@ class KMeansVisualizer:
         plt.title("Cap vs Time (Hybrid)")
         plt.xlabel("Cap (Single Precision Iteration Cap)")
         plt.ylabel("Total Time (Relative to double)")
+        plt.axhline(1.0, linestyle='--', color='gray', linewidth=1, label="Double baseline")
         plt.grid(True)
         plt.legend()
         plt.tight_layout()
@@ -112,6 +114,7 @@ class KMeansVisualizer:
         plt.xlabel("Single Precision Tolerance")
         plt.xscale('log')
         plt.ylabel("Total Time (Relative to double)")
+        plt.axhline(1.0, linestyle='--', color='gray', linewidth=1, label="Double baseline")
         plt.grid(True)
         plt.legend()
         plt.tight_layout()
@@ -137,7 +140,7 @@ class KMeansVisualizer:
         plt.xlabel("Single Precision Tolerance (log)")
         plt.xscale('log')
         plt.ylabel("Inertia (Relative to Double)")
-    
+        plt.axhline(1.0, linestyle='--', color='gray', linewidth=1, label="Double baseline")
         plt.grid(True)
         plt.legend()
         plt.tight_layout()
@@ -157,6 +160,7 @@ class KMeansVisualizer:
         plt.title("Cap (fraction) vs Final Inertia")
         plt.xlabel("Cap (fraction of max_iter)")
         plt.ylabel("Inertia (Relative to double)")
+        plt.axhline(1.0, linestyle='--', color='gray', linewidth=1, label="Double baseline")
         plt.grid(True); plt.legend()
         plt.tight_layout()
         plt.savefig(self.output_dir / "exp_C_cap_percentage_vs_inertia.png")
@@ -174,6 +178,7 @@ class KMeansVisualizer:
         plt.title("Cap (fraction) vs Time (normalized)")
         plt.xlabel("Cap (fraction of max_iter)")
         plt.ylabel("Time (Relative to double)")
+        plt.axhline(1.0, linestyle='--', color='gray', linewidth=1, label="Double baseline")
         plt.grid(True); plt.legend()
         plt.tight_layout()
         plt.savefig(self.output_dir / "exp_C_cap_percentage_vs_norm_time.png")
@@ -193,6 +198,7 @@ class KMeansVisualizer:
         plt.title("Single‑Precision Iterations vs Final Inertia")
         plt.xlabel("Iterations in Single Precision")
         plt.ylabel("Inertia (Relative to double)")
+        plt.axhline(1.0, linestyle='--', color='gray', linewidth=1, label="Double baseline")
         plt.grid(True); 
         plt.legend()
         plt.tight_layout()
@@ -209,6 +215,7 @@ class KMeansVisualizer:
         plt.title("Single‑Precision Iterations vs Total Time")
         plt.xlabel("Iterations in Single Precision")
         plt.ylabel("Total Time (Relative to double)")
+        plt.axhline(1.0, linestyle='--', color='gray', linewidth=1, label="Double baseline")
         plt.grid(True); 
         plt.legend()
         plt.tight_layout()
@@ -262,4 +269,5 @@ class KMeansVisualizer:
         plt.savefig(cluster_dir / f"{filename}.png")
         plt.close()
     
+
 
