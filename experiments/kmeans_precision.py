@@ -145,4 +145,15 @@ def run_adaptive_hybrid(X, initial_centers, n_clusters,
     elapsed_time = time.perf_counter() - start
     mem_MB = (X_f32.nbytes + centers.nbytes) / 2**20
 
-    return labels, centers, iters_single, iters_double, switched, total_iters, elapsed_time, mem_MB, inertia
+    return {
+    'labels': labels,
+    'centers': centers,
+    'iters_single': iters_single,
+    'iters_double': iters_double,
+    'switched': switched,
+    'total_iters': total_iters,
+    'elapsed_time': elapsed_time,
+    'mem_MB': mem_MB,
+    'inertia': inertia
+    }
+
