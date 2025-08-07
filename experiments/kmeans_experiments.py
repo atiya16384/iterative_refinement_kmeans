@@ -180,16 +180,15 @@ def run_experiment_D(ds_name, X, y_true, n_clusters, initial_centers, config):
         seed=seed,
         y_true=y_true
     )
-    labels_b, centers_b, switched_b, iters_b,iters_single_b, iters_double_b, time_b, mem_b, inertia_b,  = base
 
     rows_D.append([
         ds_name, len(X), n_clusters,
         "D", "-", "-",  # Mode, tol_single, Cap
-        iters_single_b, iters_double_b,
-        "Double", time_b, mem_b, inertia_b
+        base["iters_single"], base["iters_double"],
+        "Double", base["elapsed_time"], base["mem_MB"], base["inertia"]
     ])
 
-    # === Adaptive-Hybrid ===
+    # === Adaptive Hybrid ===
     adv = run_adaptive_hybrid(
         X, initial_centers, n_clusters,
         max_iter=max_iter,
@@ -201,14 +200,12 @@ def run_experiment_D(ds_name, X, y_true, n_clusters, initial_centers, config):
         seed=seed,
         y_true=y_true
     )
-    labels_h, centers_h, switched_h, iters_h, iters_single_h, iters_double_h, time_h, mem_h, inertia_h,  = adv
 
     rows_D.append([
         ds_name, len(X), n_clusters,
         "D", stability_threshold, "-",  # Mode, tol_single, Cap
-        iters_single_h, iters_double_h,
-        "Adaptive", time_h, mem_h, inertia_h
+        adv["iters_single"], adv["iters_double"],
+        "Adaptive", adv["elapsed_time"], adv["mem_MB"], adv["inertia"]
     ])
 
     return rows_D
-
