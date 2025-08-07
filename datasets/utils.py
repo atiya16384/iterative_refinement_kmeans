@@ -55,7 +55,8 @@ columns_B = [
 columns_C = columns_A  # since it's same structure as A
 
 columns_D = [
-    'DatasetName', 'DatasetSize', 'NumClusters',
-    'Mode', 'tolerance_single', 'Cap', 'iter_single', 'iter_double', 'Suite',
-    'Time', 'Memory_MB', 'Inertia'
+    "DatasetSize", "NumClusters", "Mode", "tolerance_single", "iter_single", "iter_double",
+    "Suite", "Time", "Memory_MB", "Inertia"
 ]
+
+
