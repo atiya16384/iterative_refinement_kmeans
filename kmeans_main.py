@@ -57,7 +57,7 @@ precisions = {
     "Double Precision": np.float64
 }
 
-def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full,rows_C, rows_D): #rows_A, rows_B # 
+def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_D): #rows_A, rows_B # 
     X_ns, y_ns = X_full, y_full
 
     n_features = X_ns.shape[1]
@@ -80,12 +80,12 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full,rows_C, rows_D): #r
             # rows_A += run_experiment_A(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
             # print("Running B")
             # rows_B += run_experiment_B(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
-            print("Running C")
-            rows_C += run_experiment_C(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
+            # print("Running C")
+            # rows_C += run_experiment_C(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
             print("Running D")
             rows_D += run_experiment_D(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
 
-    return  rows_C, rows_D
+    return  rows_D
 
 all_rows = []
 
@@ -99,7 +99,7 @@ for tag, n, d, k, seed in synth_specs:
     print(f"[SYNTH] {tag:14s}  shape={X.shape}  any_NaN={np.isnan(X).any()}",
           flush=True)
     # check if the mappings are correct to the run_one_dataset
-    run_one_dataset(tag, X, y, rows_C ,rows_D)
+    run_one_dataset(tag, X, y,rows_D)
 
 # real datasets
 # for tag, loader in real_datasets.items():
@@ -108,20 +108,20 @@ for tag, n, d, k, seed in synth_specs:
 
 # df_A = pd.DataFrame(rows_A, columns=columns_A)
 # df_B = pd.DataFrame(rows_B, columns=columns_B)
-df_C= pd.DataFrame(rows_C, columns=columns_C)
+# df_C= pd.DataFrame(rows_C, columns=columns_C)
 df_D = pd.DataFrame(rows_D, columns=columns_D)
 
 
 
 # df_A.to_csv(RESULTS_DIR / "hybrid_kmeans_Results_expA.csv", index = True)
 # df_B.to_csv(RESULTS_DIR / "hybrid_kmeans_Results_expB.csv", index = True)
-df_C.to_csv(RESULTS_DIR / "hybrid_kmeans_Results_expC.csv", index = True)
+# df_C.to_csv(RESULTS_DIR / "hybrid_kmeans_Results_expC.csv", index = True)
 df_D.to_csv(RESULTS_DIR / "hybrid_kmeans_Results_expD.csv", index = True)
 
 
 # df_A = pd.read_csv("Results/hybrid_kmeans_Results_expA.csv")
 # df_B = pd.read_csv("Results/hybrid_kmeans_Results_expB.csv")
-df_C = pd.read_csv("Results/hybrid_kmeans_Results_expC.csv")
+# df_C = pd.read_csv("Results/hybrid_kmeans_Results_expC.csv")
 df_D = pd.read_csv("Results/hybrid_kmeans_Results_expD.csv")
 
 
@@ -142,14 +142,14 @@ print("- hybrid_kmeans_results_expB.csv")
 # print(df_B.groupby([
 #     'DatasetSize', 'NumClusters', 'Mode',
 #     'tolerance_single', 'iter_single', 'iter_double', 'Suite'
-# ])[['Time', 'Memory_MB', 'Inertia']].mean())
+# ])[['Time', 'Memory_MB', 'Inertia']].mean())s
 
 # === SUMMARY: Experiment C ===
-print("\n==== SUMMARY: EXPERIMENT C ====")
-print(df_C.groupby([
-    'DatasetSize', 'NumClusters', 'Mode', 'Cap',
-    'tolerance_single', 'iter_single', 'iter_double', 'Suite'
-])[['Time', 'Memory_MB','Inertia']].mean())
+# print("\n==== SUMMARY: EXPERIMENT C ====")
+# print(df_C.groupby([
+#     'DatasetSize', 'NumClusters', 'Mode', 'Cap',
+#     'tolerance_single', 'iter_single', 'iter_double', 'Suite'
+# ])[['Time', 'Memory_MB','Inertia']].mean())
 
 # === SUMMARY: Experiment D ===
 print("\n==== SUMMARY: EXPERIMENT D ====")
@@ -166,8 +166,8 @@ kmeans_vis = KMeansVisualizer()
 # kmeans_vis.plot_hybrid_cap_vs_inertia(df_A)
 # kmeans_vis.plot_tolerance_vs_inertia(df_B)
 # kmeans_vis.plot_tolerance_vs_time(df_B)
-kmeans_vis.plot_cap_percentage_vs_inertia(df_C)
-kmeans_vis.plot_cap_percentage_vs_time(df_C)
+# kmeans_vis.plot_cap_percentage_vs_inertia(df_C)
+# kmeans_vis.plot_cap_percentage_vs_time(df_C)
 kmeans_vis.plot_iterpct_vs_inertia(df_D)
 kmeans_vis.plot_iterpct_vs_time(df_D)
 
