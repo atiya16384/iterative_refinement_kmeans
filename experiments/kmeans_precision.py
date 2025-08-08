@@ -101,8 +101,9 @@ def run_adaptive_hybrid(X, initial_centers, n_clusters,
         new_labels = np.argmin(dists, axis=1)
 
         stability = np.sum(labels != new_labels) / len(labels)
+        data_mean = X_f32 if precision == 'single' else X_f64
         new_centers = np.array([
-            X_f64[new_labels == k].mean(axis=0) if np.any(new_labels == k) else centers[k]
+            data_mean[new_labels == k].mean(axis=0) if np.any(new_labels == k) else centers[k]
             for k in range(n_clusters)
         ])
 
