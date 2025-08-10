@@ -68,92 +68,191 @@ def run_hybrid(X, initial_centers, n_clusters, max_iter_total, tol_single, tol_d
     
     return ( labels_final, centers_final, iters_single, iters_double,total_time, mem_MB_total, inertia)
     
-def run_adaptive_hybrid(X, initial_centers, n_clusters,
-                        max_iter=300,
-                        initial_precision='single',
-                        stability_threshold=0.02,
-                        inertia_improvement_threshold=0.02,
-                        refine_iterations=2,
-                        tol_shift=1e-3,
-                        seed=0,
-                        y_true=None):
+# kmeans_precision.py
+import time
+import numpy as np
+from sklearn.cluster import KMeans, MiniBatchKMeans
+
+def _mem_megabytes(*arrays) -> float:
+    return sum(getattr(a, "nbytes", 0) for a in arrays) / (2**20)
 
 
-    np.random.seed(seed)
-    X_f32 = X.astype(np.float32, copy=False)
-    X_f64 = X.astype(np.float64, copy=False)
-    centers = initial_centers.astype(np.float64)
-    labels = np.zeros(X.shape[0], dtype=int)
+def run_expD_adaptive_sklearn(
+    X,
+    initial_centers,
+    n_clusters,
+    *,
+    max_iter=300,
+    chunk_single=20,
+    chunk_double=20,
+    stability_threshold=0.02,
+    improve_threshold=1e-3,
+    shift_tol=1e-3,
+    seed=0,
+    algorithm="lloyd",
+):
+    """
+    Adaptive *sklearn-only* KMeans:
+      - Do short bursts in float32 (single) using KMeans with warm-start centers.
+      - When progress stalls OR chunk stops early => switch to float64 (double) bursts.
+      - Finish in double.
 
+    Returns a dict with labels/centers/iters/time/memory/inertia.
+    """
+    X32 = X.astype(np.float32, copy=False)
+    X64 = X.astype(np.float64, copy=False)
+    centers = initial_centers.astype(np.float64, copy=True)
+
+    prev_labels = None
     prev_inertia = np.inf
-    precision = initial_precision
-    stable_count = 0
+    it_single = 0
+    it_double = 0
+    total = 0
     switched = False
-    switch_iter = None
 
-    start = time.perf_counter()
+    t0 = time.perf_counter()
 
-    for it in range(max_iter):
-        data = X_f32 if precision == 'single' else X_f64
-        cent = centers.astype(np.float32) if precision == 'single' else centers
+    while total < max_iter:
+        remaining = max_iter - total
 
-        dists = np.linalg.norm(data[:, None, :] - cent, axis=2)
-        new_labels = np.argmin(dists, axis=1)
+        # -------- SINGLE PRECISION BURST --------
+        if not switched:
+            step = min(chunk_single, remaining)
+            if step <= 0:
+                switched = True
+                continue
 
-        stability = np.sum(labels != new_labels) / len(labels)
-        data_mean = X_f32 if precision == 'single' else X_f64
-        new_centers = np.array([
-            data_mean[new_labels == k].mean(axis=0) if np.any(new_labels == k) else centers[k]
-            for k in range(n_clusters)
-        ])
+            km = KMeans(
+                n_clusters=n_clusters,
+                init=centers.astype(np.float32),
+                n_init=1,
+                max_iter=step,
+                tol=0.0,                    # don't let tol stop us early (use chunk)
+                algorithm=algorithm,
+                random_state=seed,
+            )
+            labels = km.fit_predict(X32)
+            new_centers = km.cluster_centers_.astype(np.float64)
+            inertia = float(km.inertia_)
+            n_done = int(km.n_iter_)
 
-        inertia = np.sum((X_f64 - new_centers[new_labels])**2)
-        inertia_improve = (prev_inertia - inertia) / prev_inertia if prev_inertia != np.inf else np.inf
-        shift = np.linalg.norm(new_centers - centers)
+            # signals
+            shift = np.linalg.norm(new_centers - centers)
+            improve = (prev_inertia - inertia) / prev_inertia if np.isfinite(prev_inertia) else np.inf
+            stability = (np.mean(labels != prev_labels) if prev_labels is not None else 1.0)
 
-        print(f"[{precision.upper()}] Iter {it+1}: inertia={inertia:.4e}, "
-              f"Δinertia={inertia_improve:.4f}, shift={shift:.4e}, stability={stability:.4f}")
+            # update
+            centers = new_centers
+            prev_labels = labels
+            prev_inertia = inertia
+            it_single += n_done
+            total += n_done
 
-        # Track convergence
-        if (inertia_improve < inertia_improvement_threshold or
-            shift < tol_shift or
-            stability < stability_threshold):
-            stable_count += 1
+            # switch (if chunk ended early, or weak progress, or small shift, or labels stable)
+            if (n_done < step) or (improve < improve_threshold) or (shift < shift_tol) or (stability < stability_threshold):
+                switched = True
+                continue
+
+            if n_done == 0:
+                break
+
+        # -------- DOUBLE PRECISION BURST --------
         else:
-            stable_count = 0
+            step = min(chunk_double, remaining)
+            if step <= 0:
+                break
 
-        # Switch to double
-        if not switched and stable_count >= refine_iterations:
-            precision = 'double'
-            switched = True
-            switch_iter = it + 1
-            stable_count = 0
-            print("Switched to DOUBLE precision")
+            km = KMeans(
+                n_clusters=n_clusters,
+                init=centers,
+                n_init=1,
+                max_iter=step,
+                tol=0.0,
+                algorithm=algorithm,
+                random_state=seed,
+            )
+            labels = km.fit_predict(X64)
+            new_centers = km.cluster_centers_.astype(np.float64)
+            inertia = float(km.inertia_)
+            n_done = int(km.n_iter_)
 
-        # Final convergence
-        if switched and stable_count >= refine_iterations:
-            print("Converged in DOUBLE precision")
-            break
+            shift = np.linalg.norm(new_centers - centers)
+            improve = (prev_inertia - inertia) / prev_inertia if np.isfinite(prev_inertia) else np.inf
 
-        labels = new_labels
-        centers = new_centers
-        prev_inertia = inertia
+            centers = new_centers
+            prev_inertia = inertia
+            it_double += n_done
+            total += n_done
 
-    total_iters = it + 1
-    iters_single = switch_iter if switched else total_iters
-    iters_double = total_iters - iters_single if switched else 0
-    elapsed_time = time.perf_counter() - start
-    mem_MB = (X_f32.nbytes + centers.nbytes) / 2**20
+            # stop if chunk ended early or no real movement
+            if (n_done < step) or (improve < 1e-7) or (shift < 1e-7) or (n_done == 0):
+                break
 
     return {
-    'labels': labels,
-    'centers': centers,
-    'iters_single': iters_single,
-    'iters_double': iters_double,
-    'switched': switched,
-    'total_iters': total_iters,
-    'elapsed_time': elapsed_time,
-    'mem_MB': mem_MB,
-    'inertia': inertia
+        "labels": labels,
+        "centers": centers,
+        "iters_single": it_single,
+        "iters_double": it_double,
+        "switched": switched,
+        "total_iters": total,
+        "elapsed_time": time.perf_counter() - t0,
+        "mem_MB": _mem_megabytes(X32, centers),
+        "inertia": float(prev_inertia),
     }
 
+
+def run_expE_minibatch_then_full(
+    X,
+    initial_centers,
+    n_clusters,
+    *,
+    mb_iter=100,
+    mb_batch=2048,
+    max_refine_iter=100,
+    seed=0,
+    algorithm="lloyd",
+):
+    """
+    MiniBatchKMeans (float32) -> warm-start full KMeans (float64).
+    Entirely sklearn.
+    """
+    X32 = X.astype(np.float32, copy=False)
+    X64 = X.astype(np.float64, copy=False)
+    init32 = initial_centers.astype(np.float32, copy=False)
+
+    t0 = time.perf_counter()
+    mb = MiniBatchKMeans(
+        n_clusters=n_clusters,
+        init=init32,
+        n_init=1,
+        max_iter=mb_iter,
+        batch_size=mb_batch,
+        random_state=seed,
+    )
+    mb.fit(X32)
+    warm_centers = mb.cluster_centers_.astype(np.float64)
+
+    km = KMeans(
+        n_clusters=n_clusters,
+        init=warm_centers,
+        n_init=1,
+        max_iter=max_refine_iter,
+        tol=0.0,
+        algorithm=algorithm,
+        random_state=seed,
+    )
+    labels = km.fit_predict(X64)
+
+    elapsed = time.perf_counter() - t0
+
+    return {
+        "labels": labels,
+        "centers": km.cluster_centers_.astype(np.float64),
+        "iters_single": int(mb.n_iter_),
+        "iters_double": int(km.n_iter_),
+        "switched": True,
+        "total_iters": int(mb.n_iter_ + km.n_iter_),
+        "elapsed_time": elapsed,
+        "mem_MB": _mem_megabytes(X32, km.cluster_centers_),
+        "inertia": float(km.inertia_),
+    }
