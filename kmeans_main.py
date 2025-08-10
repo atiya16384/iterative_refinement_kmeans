@@ -42,11 +42,28 @@ config = {
     "tol_fixed_C": 1e-16,
     "cap_C_pct": int(300 * 0.8),
 
+    # D (Adaptive Hybrid – global switch)
     "max_iter_D": 300,
-    "tol_shift_D": 1e-2,
-    "inertia_improvement_threshold_D": 0.01,
+    "tol_double_baseline_D": 1e-16,
+    "chunk_single_D": 20,
+    "improve_threshold_D": 1e-3,
+    "shift_tol_D": 1e-3,
     "stability_threshold_D": 0.02,
-    "refine_iterations_D": 2
+    
+    # E (Mini-batch Hybrid)
+    "mb_iter_E": 100,
+    "mb_batch_E": 2048,
+    "max_refine_iter_E": 100,
+    "tol_double_baseline_E": 0.0,   # baseline stops by iteration budget
+    
+    # F (Mixed Precision Per-Cluster)
+    "max_iter_F": 300,
+    "tol_double_F": 1e-4,
+    "tol_single_F": 1e-3,
+    "single_iter_cap_F": 100,
+    "freeze_stable_F": True,
+    "freeze_patience_F": 1,
+
 }
 
 rng_global = np.random.default_rng(0)
