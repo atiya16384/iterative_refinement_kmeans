@@ -11,10 +11,7 @@ from datasets.utils import (
     synth_specs, real_datasets, columns_A, columns_B,
 )
 
-from experiments.svm_precision import (
-    svm_double_precision, svm_hybrid_precision
 
-)
 from visualisations.SVM_visualisations import SVMVisualizer
 
 RESULTS_DIR = pathlib.Path("Results")
@@ -30,13 +27,13 @@ def run_experiments():
     results_A, results_B  = [], []
     config = {
         "n_repeats": 1,
+
         "tol_fixed_A": 1e-16,
-        "tol_double_B": 1e-5,
         "caps": [0, 50, 100, 150, 200, 250, 300],
+
+        "tol_double_B": 1e-5,
         "tolerances": [1e-1, 1e-2, 1e-3, 1e-4],
-        "max_iter_C": 300,
-        "perc_C": 0.8,
-        "tol_D": 1e-3,
+
     }
     
     runner = SVMExperimentRunner(config)
