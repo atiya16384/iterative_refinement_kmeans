@@ -11,6 +11,12 @@ def measure_memory():
     process = psutil.Process()
     return process.memory_info().rss / (1024 ** 2)
 
+def _iters_scalar(n_iter_attr) -> int:
+    if n_iter_attr is None:
+        return 0
+    arr = np.atleast_1d(n_iter_attr)
+    return int(arr.max()) if arr.size else 0
+
 def svm_double_precision(tag, X, y, max_iter, tol, cap=0, C=1.0, kernel='rbf', test_size=0.2, seed=0):
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=seed)
     mem_before = measure_memory()
@@ -36,10 +42,12 @@ def svm_hybrid_precision(tag, X, y, max_iter_total, tol_single, tol_double, sing
     svm_single = SVC(C=C, kernel=kernel, gamma='scale', tol=tol_single, max_iter=int(single_iter_cap), random_state=seed)
     svm_single.fit(X_train_single, y_train)
     time_single = time.time() - start_single
-    iter_single = svm_single.n_iter_
+    # Collapse array of iter counts to one scalar
+    iter_single = _iters_scalar(getattr(svm_single, "n_iter_", 0))
 
-    remaining_iters = max_iter_total - iter_single
-    remaining_iters = max(1, remaining_iters)
+    # Remaining budget must be a positive int
+    remaining_iters = int(max(1, int(max_iter_total) - int(iter_single)))
+
     start_double = time.time()
     svm_double = SVC(C=C, kernel=kernel, gamma='scale', tol=tol_double, max_iter=remaining_iters, random_state=seed)
     svm_double.fit(X_train, y_train)
