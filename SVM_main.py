@@ -8,7 +8,7 @@ import pathlib
 from experiments.svm_experiments import SVMExperimentRunner
 from datasets.utils import (
     generate_synthetic_data, load_3d_road, load_susy, 
-    synth_specs, real_datasets, columns_A, columns_B,
+    synth_specs, real_datasets, svm_columns_A,  svm_columns_B
 )
 
 
@@ -20,7 +20,7 @@ RESULTS_DIR.mkdir(exist_ok=True)
 def print_summary(path, group_by):
     df = pd.read_csv(path)
     print(f"\n==== SUMMARY: {path.name.upper()} ====")
-    summary = df.groupby(group_by)[['accuracy', 'Time', 'Memory_MB']].mean()
+    summary = df.groupby(group_by)[['Accuracy', 'Time', 'Memory_MB']].mean()
     print(summary)
 
 def run_experiments():
@@ -50,8 +50,8 @@ def run_experiments():
     
     
 
-    df_A = pd.DataFrame(results_A, columns=columns_A)
-    df_B = pd.DataFrame(results_B, columns=columns_B)
+    df_A = pd.DataFrame(results_A, columns=svm_columns_A)
+    df_B = pd.DataFrame(results_B, columns=svm_columns_B)
 
     df_A["Mode"] = "A"
     df_B["Mode"] = "B"
