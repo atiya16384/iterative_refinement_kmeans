@@ -91,7 +91,7 @@ all_rows = []
 
 # rows_A = []
 # rows_B = []
-rows_C = []
+# rows_C = []
 rows_D = []
 
 for tag, n, d, k, seed in synth_specs:
