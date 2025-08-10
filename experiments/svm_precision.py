@@ -26,9 +26,10 @@ def svm_double_precision(tag, X, y, max_iter, tol, cap=0, C=1.0, kernel='rbf', t
     elapsed = time.time() - start_time
     mem_after = measure_memory()
     y_pred = svm.predict(X_test)
+    iter_double = _iters_scalar(getattr(svm, "n_iter_", 0))
 
     return (
-        tag, len(X), 0, tol, cap, 0, svm.n_iter_, 'Double',
+        tag, len(X), 0, tol, cap, 0, iter_double, 'Double',
         elapsed, mem_after - mem_before, accuracy_score(y_test, y_pred)
     )
 
@@ -52,7 +53,8 @@ def svm_hybrid_precision(tag, X, y, max_iter_total, tol_single, tol_double, sing
     svm_double = SVC(C=C, kernel=kernel, gamma='scale', tol=tol_double, max_iter=remaining_iters, random_state=seed)
     svm_double.fit(X_train, y_train)
     time_double = time.time() - start_double
-    iter_double = svm_double.n_iter_
+    # already collapsed iter_single; do the same for double:
+    iter_double = _iters_scalar(getattr(svm_double, "n_iter_", 0))
 
     total_time = time_single + time_double
     mem_after = measure_memory()
