@@ -92,6 +92,21 @@ columns_F = [
 ]
 
 
+# SVM result schemas (11 columns each; no "Mode" column here)
+svm_columns_A = [
+    'DatasetName', 'DatasetSize', 'NumClasses',
+    'tolerance', 'Cap',
+    'iter_single', 'iter_double', 'Suite',
+    'Time', 'Memory_MB', 'accuracy'
+]
+
+svm_columns_B = [
+    'DatasetName', 'DatasetSize', 'NumClasses',
+    'tolerance', 'Cap',
+    'iter_single', 'iter_double', 'Suite',
+    'Time', 'Memory_MB', 'accuracy'
+]
+
 
 
 
