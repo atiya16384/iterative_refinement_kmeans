@@ -68,42 +68,53 @@ def run_hybrid(X, initial_centers, n_clusters, max_iter_total, tol_single, tol_d
     
     return ( labels_final, centers_final, iters_single, iters_double,total_time, mem_MB_total, inertia)
     
-# kmeans_precision.py
+# kmeans_precision.py — Experiments D, E, F (simple, sklearn-first, AOCL-compatible)
+
 import time
 import numpy as np
 from sklearn.cluster import KMeans, MiniBatchKMeans
 
+# -----------------------------------------------------------------------------
+# small helper: estimate memory use in MiB for any numpy arrays we keep around
+# -----------------------------------------------------------------------------
 def _mem_megabytes(*arrays) -> float:
     return sum(getattr(a, "nbytes", 0) for a in arrays) / (2**20)
 
+
+# =============================================================================
+# Experiment D — Adaptive Hybrid (global switch)
+# Idea:
+#   1) Run a short "burst" in single precision (float32) using sklearn.KMeans.
+#   2) Check simple global signals (center shift, relative inertia improvement,
+#      label stability). If progress is weak OR the burst finishes early, switch.
+#   3) Finish remaining iterations in double precision (float64) using sklearn.KMeans.
+#
+# Why this is AOCL-friendly:
+#   - We only use sklearn.KMeans; AOCL patches it when skpatch() has been applied.
+# =============================================================================
 def run_expD_adaptive_sklearn(
     X,
     initial_centers,
     n_clusters,
     *,
-    max_iter=300,
-    chunk_single=20,
-    chunk_double=20,
-    stability_threshold=0.02,
-    improve_threshold=1e-3,
-    shift_tol=1e-3,
+    max_iter=300,           # total iteration budget (single + double)
+    chunk_single=20,        # length of the initial single-precision burst
+    improve_threshold=1e-3, # min relative inertia improvement to consider "good progress"
+    shift_tol=1e-3,         # min L2 center shift to consider "movement"
+    stability_threshold=0.02,# max label-change rate to consider "stable" (lower = more stable)
     seed=0,
     algorithm="lloyd",
 ):
-    """
-    Adaptive *sklearn-only* KMeans:
-      - Do short bursts in float32 (single) using KMeans with warm-start centers.
-      - When progress stalls OR chunk stops early => switch to float64 (double) bursts.
-      - Finish in double.
+    # ------------------------------
+    # prepare data and state
+    # ------------------------------
+    X32 = X.astype(np.float32, copy=False)  # single-precision view
+    X64 = X.astype(np.float64, copy=False)  # double-precision view
+    centers64 = initial_centers.astype(np.float64, copy=True)
 
-    Returns a dict with labels/centers/iters/time/memory/inertia.
-    """
-    X32 = X.astype(np.float32, copy=False)
-    X64 = X.astype(np.float64, copy=False)
-    centers = initial_centers.astype(np.float64, copy=True)
-
-    prev_labels = None
+    # book-keeping
     prev_inertia = np.inf
+    prev_labels = None
     it_single = 0
     it_double = 0
     total = 0
@@ -111,115 +122,111 @@ def run_expD_adaptive_sklearn(
 
     t0 = time.perf_counter()
 
-    while total < max_iter:
-        remaining = max_iter - total
+    # ------------------------------
+    # Phase 1: single-precision burst
+    # ------------------------------
+    # cap the burst to remaining budget
+    step1 = max(1, min(chunk_single, max_iter))
+    km_s = KMeans(
+        n_clusters=n_clusters,
+        init=centers64.astype(np.float32, copy=False),
+        n_init=1,
+        max_iter=step1,
+        tol=0.0,                # we control stopping via chunk size, not tol
+        algorithm=algorithm,
+        random_state=seed,
+    )
+    labels_s = km_s.fit_predict(X32)
+    it1 = int(km_s.n_iter_)
+    it_single += it1
+    total += it1
 
-        # -------- SINGLE PRECISION BURST --------
-        if not switched:
-            step = min(chunk_single, remaining)
-            if step <= 0:
-                switched = True
-                continue
+    # measure signals
+    new_centers64 = km_s.cluster_centers_.astype(np.float64, copy=False)
+    inertia_s = float(km_s.inertia_)
+    shift = float(np.linalg.norm(new_centers64 - centers64))
+    # relative improvement vs previous run; here prev is inf → treat as ∞
+    improve = np.inf if not np.isfinite(prev_inertia) else (prev_inertia - inertia_s) / prev_inertia
+    # label stability = fraction of points whose label changed vs prior labels
+    stability = 1.0 if prev_labels is None else float(np.mean(labels_s != prev_labels))
 
-            km = KMeans(
-                n_clusters=n_clusters,
-                init=centers.astype(np.float32),
-                n_init=1,
-                max_iter=step,
-                tol=0.0,                    # don't let tol stop us early (use chunk)
-                algorithm=algorithm,
-                random_state=seed,
-            )
-            labels = km.fit_predict(X32)
-            new_centers = km.cluster_centers_.astype(np.float64)
-            inertia = float(km.inertia_)
-            n_done = int(km.n_iter_)
+    # update state
+    centers64 = new_centers64
+    prev_inertia = inertia_s
+    prev_labels = labels_s
 
-            # signals
-            shift = np.linalg.norm(new_centers - centers)
-            improve = (prev_inertia - inertia) / prev_inertia if np.isfinite(prev_inertia) else np.inf
-            stability = (np.mean(labels != prev_labels) if prev_labels is not None else 1.0)
+    # decide if we should switch now (POC: always switch after this single burst,
+    # but we also keep the logic here to be explicit about *why*)
+    if (it1 < step1) or (improve < improve_threshold) or (shift < shift_tol) or (stability < stability_threshold):
+        switched = True
+    else:
+        switched = True  # even if progress is good, we *want* to finish in double
 
-            # update
-            centers = new_centers
-            prev_labels = labels
-            prev_inertia = inertia
-            it_single += n_done
-            total += n_done
+    # ------------------------------
+    # Phase 2: finish in double precision
+    # ------------------------------
+    remaining = max(1, max_iter - total)
+    km_d = KMeans(
+        n_clusters=n_clusters,
+        init=centers64,
+        n_init=1,
+        max_iter=remaining,
+        tol=0.0,
+        algorithm=algorithm,
+        random_state=seed,
+    )
+    labels_d = km_d.fit_predict(X64)
+    it2 = int(km_d.n_iter_)
+    it_double += it2
+    total += it2
 
-            # switch (if chunk ended early, or weak progress, or small shift, or labels stable)
-            if (n_done < step) or (improve < improve_threshold) or (shift < shift_tol) or (stability < stability_threshold):
-                switched = True
-                continue
-
-            if n_done == 0:
-                break
-
-        # -------- DOUBLE PRECISION BURST --------
-        else:
-            step = min(chunk_double, remaining)
-            if step <= 0:
-                break
-
-            km = KMeans(
-                n_clusters=n_clusters,
-                init=centers,
-                n_init=1,
-                max_iter=step,
-                tol=0.0,
-                algorithm=algorithm,
-                random_state=seed,
-            )
-            labels = km.fit_predict(X64)
-            new_centers = km.cluster_centers_.astype(np.float64)
-            inertia = float(km.inertia_)
-            n_done = int(km.n_iter_)
-
-            shift = np.linalg.norm(new_centers - centers)
-            improve = (prev_inertia - inertia) / prev_inertia if np.isfinite(prev_inertia) else np.inf
-
-            centers = new_centers
-            prev_inertia = inertia
-            it_double += n_done
-            total += n_done
-
-            # stop if chunk ended early or no real movement
-            if (n_done < step) or (improve < 1e-7) or (shift < 1e-7) or (n_done == 0):
-                break
-
+    # ------------------------------
+    # build result
+    # ------------------------------
     return {
-        "labels": labels,
-        "centers": centers,
+        "labels": labels_d,
+        "centers": km_d.cluster_centers_.astype(np.float64, copy=False),
         "iters_single": it_single,
         "iters_double": it_double,
         "switched": switched,
         "total_iters": total,
         "elapsed_time": time.perf_counter() - t0,
-        "mem_MB": _mem_megabytes(X32, centers),
-        "inertia": float(prev_inertia),
+        "mem_MB": _mem_megabytes(X32, km_d.cluster_centers_),
+        "inertia": float(km_d.inertia_),
+        # optional diagnostics
+        "shift_after_single": shift,
+        "stability_after_single": stability,
     }
 
 
+# =============================================================================
+# Experiment E — Mini-batch Hybrid K-Means
+# Idea:
+#   1) Stage 1: MiniBatchKMeans on float32 to move quickly with small memory.
+#   2) Stage 2: Full KMeans on float64 to refine to high precision.
+#
+# Why this is AOCL-friendly:
+#   - Uses sklearn.MiniBatchKMeans + sklearn.KMeans; AOCL patches both paths.
+# =============================================================================
 def run_expE_minibatch_then_full(
     X,
     initial_centers,
     n_clusters,
     *,
-    mb_iter=100,
-    mb_batch=2048,
-    max_refine_iter=100,
+    mb_iter=100,            # number of MiniBatchKMeans iterations
+    mb_batch=2048,          # mini-batch size (≈ 10–20% of data if feasible)
+    max_refine_iter=100,    # final full-batch refinement iters
     seed=0,
     algorithm="lloyd",
 ):
-    """
-    MiniBatchKMeans (float32) -> warm-start full KMeans (float64).
-    Entirely sklearn.
-    """
+    # prepare views
     X32 = X.astype(np.float32, copy=False)
     X64 = X.astype(np.float64, copy=False)
     init32 = initial_centers.astype(np.float32, copy=False)
 
     t0 = time.perf_counter()
+
+    # ---- Stage 1: Mini-batch on float32 ----
     mb = MiniBatchKMeans(
         n_clusters=n_clusters,
         init=init32,
@@ -227,28 +234,29 @@ def run_expE_minibatch_then_full(
         max_iter=mb_iter,
         batch_size=mb_batch,
         random_state=seed,
-    )
-    mb.fit(X32)
-    warm_centers = mb.cluster_centers_.astype(np.float64)
+    ).fit(X32)
 
+    # warm-start centers in float64 for precise refinement
+    warm64 = mb.cluster_centers_.astype(np.float64, copy=False)
+
+    # ---- Stage 2: Full KMeans on float64 ----
     km = KMeans(
         n_clusters=n_clusters,
-        init=warm_centers,
+        init=warm64,
         n_init=1,
         max_iter=max_refine_iter,
         tol=0.0,
         algorithm=algorithm,
         random_state=seed,
-    )
-    labels = km.fit_predict(X64)
+    ).fit(X64)
 
     elapsed = time.perf_counter() - t0
 
     return {
-        "labels": labels,
-        "centers": km.cluster_centers_.astype(np.float64),
-        "iters_single": int(mb.n_iter_),
-        "iters_double": int(km.n_iter_),
+        "labels": km.labels_,
+        "centers": km.cluster_centers_.astype(np.float64, copy=False),
+        "iters_single": int(mb.n_iter_),          # we treat MiniBatchKMeans iters as "single"
+        "iters_double": int(km.n_iter_),          # full KMeans iters as "double"
         "switched": True,
         "total_iters": int(mb.n_iter_ + km.n_iter_),
         "elapsed_time": elapsed,
@@ -257,112 +265,100 @@ def run_expE_minibatch_then_full(
     }
 
 
-def mixed_precision_per_cluster(
+# =============================================================================
+# Experiment F — Mixed Precision Per-Cluster
+# Idea:
+#   1) Phase 1: A light, numpy-based Lloyd loop in float32 that lets you optionally
+#      "freeze" individual clusters that appear stable (small centroid movement).
+#   2) Phase 2: Hand off to sklearn.KMeans in float64 for final refinement.
+#
+# Why this is mostly AOCL-friendly:
+#   - Per-cluster freezing is not exposed in sklearn APIs, so Phase 1 is a tiny
+#     numpy loop. Phase 2 uses sklearn.KMeans, so AOCL still accelerates the
+#     heavy refinement stage.
+# =============================================================================
+def run_expF_percluster_mixed(
     X,
     initial_centers,
     *,
-    max_iter_total=300,
-    tol_single=1e-4,
-    tol_double=1e-4,
-    single_iter_cap=None,
+    max_iter_total=300,     # total budget = (phase1 iters) + (phase2 iters)
+    single_iter_cap=100,    # cap Phase 1 iterations
+    tol_single=1e-3,        # per-cluster movement tolerance to consider "stable"
+    tol_double=1e-4,        # sklearn refinement tolerance
+    freeze_stable=True,     # if True, stop updating clusters that are stable
+    freeze_patience=1,      # require N consecutive "below tol" moves to freeze
     seed=0,
-    freeze_stable=False,
-    freeze_patience=1,
-    evaluate_metrics_fn=None,   # defaults to identity if None
+    algorithm="lloyd",
 ):
-    """
-    Phase 1 (float32): per-cluster Lloyd with per-cluster shift; optional freeze of stable centers.
-    Phase 2 (float64): sklearn.KMeans refinement initialized from Phase 1 centers.
-    Returns a dict compatible with your row builder for Experiment G.
-    """
-    t0 = time.time()
+    t0 = time.perf_counter()
 
-    # ---------- Phase 1: single-precision, per-cluster loop ----------
+    # ----- Phase 1: per-cluster float32 Lloyd with optional freezing -----
     X32 = X.astype(np.float32, copy=False)
     centers32 = np.asarray(initial_centers, dtype=np.float32, order="C")
     k = centers32.shape[0]
 
-    max_iter_single = max(
-        1,
-        min(single_iter_cap if single_iter_cap is not None else max_iter_total, max_iter_total)
-    )
+    # number of iterations we will do in Phase 1
+    iters1_max = max(1, min(single_iter_cap, max_iter_total))
 
-    shift_history = []
-    frozen_history = []
+    # keep some simple state for freezing
+    frozen = np.zeros(k, dtype=bool)
     below_tol_streak = np.zeros(k, dtype=np.int32)
-    frozen_mask = np.zeros(k, dtype=bool)
 
     iters_single = 0
-    for it in range(max_iter_single):
-        prev_centers = centers32.copy()
+    for it in range(iters1_max):
+        prev = centers32.copy()
 
-        # Assign
+        # assignment step (squared Euclidean distances, all in float32)
+        # shape: (n_samples, k)
         d2 = ((X32[:, None, :] - centers32[None, :, :]) ** 2).sum(axis=2, dtype=np.float32)
         labels = np.argmin(d2, axis=1)
 
-        # Update (respect per-cluster freezing)
-        new_centers = prev_centers.copy()
+        # update step, with optional per-cluster freezing
         for j in range(k):
-            if freeze_stable and frozen_mask[j]:
+            if freeze_stable and frozen[j]:
                 continue
             mask = (labels == j)
             if mask.any():
-                new_centers[j] = X32[mask].mean(axis=0, dtype=np.float32)
+                centers32[j] = X32[mask].mean(axis=0, dtype=np.float32)
 
-        centers32 = new_centers
+        # track how much each cluster moved this iteration
+        move = np.linalg.norm(centers32 - prev, axis=1).astype(np.float32)
 
-        # Track per-cluster shifts
-        per_cluster_shift = np.linalg.norm(centers32 - prev_centers, axis=1).astype(np.float32)
-        shift_history.append(per_cluster_shift)
-
-        # Freezing logic
         if freeze_stable:
-            below_tol_streak = np.where(per_cluster_shift < tol_single, below_tol_streak + 1, 0)
-            newly_frozen = (below_tol_streak >= freeze_patience) & (~frozen_mask)
-            frozen_mask |= newly_frozen
+            # increment streak for clusters that moved less than tol_single
+            below_tol_streak = np.where(move < tol_single, below_tol_streak + 1, 0)
+            # freeze newly stable clusters (patience reached)
+            newly = (below_tol_streak >= freeze_patience) & (~frozen)
+            frozen |= newly
 
-        frozen_history.append(frozen_mask.copy())
         iters_single = it + 1
 
-        # Global stop for Phase 1
-        if per_cluster_shift.max() < tol_single:
+        # global early stop for Phase 1: if *all* moves are tiny, break
+        if move.max() < tol_single:
             break
 
-    time_single = time.time() - t0
-    last_shift_per_cluster = shift_history[-1] if shift_history else np.zeros(k, dtype=np.float32)
-
-    # ---------- Phase 2: double-precision sklearn refinement ----------
-    remaining_iter = max(1, max_iter_total - iters_single)
-    t1 = time.time()
+    # ----- Phase 2: sklearn.KMeans refinement in float64 -----
+    remaining = max(1, max_iter_total - iters_single)
+    X64 = X.astype(np.float64, copy=False)
     km = KMeans(
         n_clusters=k,
-        init=centers32.astype(np.float64, copy=False),
+        init=centers32.astype(np.float64, copy=False),  # warm start from Phase 1
         n_init=1,
-        max_iter=remaining_iter,
+        max_iter=remaining,
         tol=tol_double,
         random_state=seed,
-        algorithm="lloyd",
-    )
-    km.fit(X)  # sklearn prefers float64 internally
-    time_double = time.time() - t1
+        algorithm=algorithm,
+    ).fit(X64)
 
-    labels_final = km.labels_
-    centers_final = km.cluster_centers_
-    inertia = float(km.inertia_)
-    if evaluate_metrics_fn is not None:
-        inertia = evaluate_metrics_fn(inertia)
-
-    # Rough memory (float64 + float32 copies of X)
-    mem_MB_total = _mem_mb(X.astype(np.float64, copy=False), X32)
+    elapsed = time.perf_counter() - t0
 
     return {
-        "labels": labels_final,
-        "centers": centers_final,
+        "labels": km.labels_,
+        "centers": km.cluster_centers_.astype(np.float64, copy=False),
         "iters_single": iters_single,
         "iters_double": int(km.n_iter_),
-        "elapsed_time": time_single + time_double,
-        "mem_MB": mem_MB_total,
-        "inertia": inertia,
-        "last_shift_per_cluster": last_shift_per_cluster,
-        "frozen_mask": frozen_mask,
+        "elapsed_time": elapsed,
+        "mem_MB": _mem_megabytes(X32, km.cluster_centers_),  # rough: float32 + final centers
+        "inertia": float(km.inertia_),
+        "frozen_mask": frozen,  # which clusters ended Phase 1 frozen
     }
