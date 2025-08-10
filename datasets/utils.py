@@ -53,12 +53,44 @@ columns_B = [
 ]
 
 columns_C = columns_A  # since it's same structure as A
+
 columns_D = [
     "DatasetName", "DatasetSize", "NumClusters",
-    "Mode", "tolerance_single", "Cap",
-    "iter_single", "iter_double", "Suite",
+    "Mode",                 # "D"
+    "chunk_single",         # int (the single-precision burst length used by the variant)
+    "improve_threshold",    # float (relative inertia improvement threshold used by the variant)
+    "iter_single", "iter_double",
+    "Suite",                # "Double" or "Adaptive"
     "Time", "Memory_MB", "Inertia"
 ]
+
+
+
+columns_E = [
+    "DatasetName", "DatasetSize", "NumClusters",
+    "Mode",                 # "E"
+    "MB_Iter",              # int (minibatch iterations)
+    "MB_Batch",             # int (batch size)
+    "RefineIter",           # int (full KMeans refinement iterations)
+    "iter_single", "iter_double",
+    "Suite",                # "Double" or "MiniBatch+Full"
+    "Time", "Memory_MB", "Inertia"
+]
+
+
+columns_F = [
+    "DatasetName", "DatasetSize", "NumClusters",
+    "Mode",                 # "F"
+    "tol_single",           # float (per-cluster movement tolerance)
+    "tol_double",           # float (KMeans refinement tolerance)
+    "single_iter_cap",      # int (cap for phase-1 iterations)
+    "freeze_stable",        # bool
+    "freeze_patience",      # int
+    "iter_single", "iter_double",
+    "Suite",                # "Double" or "MixedPerCluster"
+    "Time", "Memory_MB", "Inertia"
+]
+
 
 
 
