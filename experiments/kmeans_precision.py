@@ -76,7 +76,6 @@ from sklearn.cluster import KMeans, MiniBatchKMeans
 def _mem_megabytes(*arrays) -> float:
     return sum(getattr(a, "nbytes", 0) for a in arrays) / (2**20)
 
-
 def run_expD_adaptive_sklearn(
     X,
     initial_centers,
@@ -255,4 +254,115 @@ def run_expE_minibatch_then_full(
         "elapsed_time": elapsed,
         "mem_MB": _mem_megabytes(X32, km.cluster_centers_),
         "inertia": float(km.inertia_),
+    }
+
+
+def mixed_precision_per_cluster(
+    X,
+    initial_centers,
+    *,
+    max_iter_total=300,
+    tol_single=1e-4,
+    tol_double=1e-4,
+    single_iter_cap=None,
+    seed=0,
+    freeze_stable=False,
+    freeze_patience=1,
+    evaluate_metrics_fn=None,   # defaults to identity if None
+):
+    """
+    Phase 1 (float32): per-cluster Lloyd with per-cluster shift; optional freeze of stable centers.
+    Phase 2 (float64): sklearn.KMeans refinement initialized from Phase 1 centers.
+    Returns a dict compatible with your row builder for Experiment G.
+    """
+    t0 = time.time()
+
+    # ---------- Phase 1: single-precision, per-cluster loop ----------
+    X32 = X.astype(np.float32, copy=False)
+    centers32 = np.asarray(initial_centers, dtype=np.float32, order="C")
+    k = centers32.shape[0]
+
+    max_iter_single = max(
+        1,
+        min(single_iter_cap if single_iter_cap is not None else max_iter_total, max_iter_total)
+    )
+
+    shift_history = []
+    frozen_history = []
+    below_tol_streak = np.zeros(k, dtype=np.int32)
+    frozen_mask = np.zeros(k, dtype=bool)
+
+    iters_single = 0
+    for it in range(max_iter_single):
+        prev_centers = centers32.copy()
+
+        # Assign
+        d2 = ((X32[:, None, :] - centers32[None, :, :]) ** 2).sum(axis=2, dtype=np.float32)
+        labels = np.argmin(d2, axis=1)
+
+        # Update (respect per-cluster freezing)
+        new_centers = prev_centers.copy()
+        for j in range(k):
+            if freeze_stable and frozen_mask[j]:
+                continue
+            mask = (labels == j)
+            if mask.any():
+                new_centers[j] = X32[mask].mean(axis=0, dtype=np.float32)
+
+        centers32 = new_centers
+
+        # Track per-cluster shifts
+        per_cluster_shift = np.linalg.norm(centers32 - prev_centers, axis=1).astype(np.float32)
+        shift_history.append(per_cluster_shift)
+
+        # Freezing logic
+        if freeze_stable:
+            below_tol_streak = np.where(per_cluster_shift < tol_single, below_tol_streak + 1, 0)
+            newly_frozen = (below_tol_streak >= freeze_patience) & (~frozen_mask)
+            frozen_mask |= newly_frozen
+
+        frozen_history.append(frozen_mask.copy())
+        iters_single = it + 1
+
+        # Global stop for Phase 1
+        if per_cluster_shift.max() < tol_single:
+            break
+
+    time_single = time.time() - t0
+    last_shift_per_cluster = shift_history[-1] if shift_history else np.zeros(k, dtype=np.float32)
+
+    # ---------- Phase 2: double-precision sklearn refinement ----------
+    remaining_iter = max(1, max_iter_total - iters_single)
+    t1 = time.time()
+    km = KMeans(
+        n_clusters=k,
+        init=centers32.astype(np.float64, copy=False),
+        n_init=1,
+        max_iter=remaining_iter,
+        tol=tol_double,
+        random_state=seed,
+        algorithm="lloyd",
+    )
+    km.fit(X)  # sklearn prefers float64 internally
+    time_double = time.time() - t1
+
+    labels_final = km.labels_
+    centers_final = km.cluster_centers_
+    inertia = float(km.inertia_)
+    if evaluate_metrics_fn is not None:
+        inertia = evaluate_metrics_fn(inertia)
+
+    # Rough memory (float64 + float32 copies of X)
+    mem_MB_total = _mem_mb(X.astype(np.float64, copy=False), X32)
+
+    return {
+        "labels": labels_final,
+        "centers": centers_final,
+        "iters_single": iters_single,
+        "iters_double": int(km.n_iter_),
+        "elapsed_time": time_single + time_double,
+        "mem_MB": mem_MB_total,
+        "inertia": inertia,
+        "last_shift_per_cluster": last_shift_per_cluster,
+        "frozen_mask": frozen_mask,
     }
