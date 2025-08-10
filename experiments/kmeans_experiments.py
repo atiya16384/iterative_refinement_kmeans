@@ -158,56 +158,149 @@ def run_experiment_C(ds_name, X, y_true, n_clusters, initial_centers, config):
     return rows_C
 
 def run_experiment_D(ds_name, X, y_true, n_clusters, initial_centers, config):
+    """
+    Experiment D — Adaptive Hybrid (global switch)
+    Baseline: full double with same max_iter.
+    Variant:  short float32 burst -> finish in float64 (sklearn-only).
+    """
     rows_D = []
+    n = len(X)
+    reps = int(config["n_repeats"])
 
-    max_iter = config["max_iter_D"]
-    tol_shift = config.get("tol_shift_D", 1e-3)
-    seed = config.get("seed", 0)
+    # Fixed POC parameters (read like A/B/C)
+    max_iter = int(config["max_iter_D"])
+    tol_double_baseline = float(config["tol_double_baseline_D"])
 
-    # Baseline (Double Precision)
-    base = run_adaptive_hybrid(
-        X, initial_centers, n_clusters,
-        max_iter=max_iter,
-        initial_precision='double',
-        stability_threshold=0.0,
-        inertia_improvement_threshold=0.0,
-        refine_iterations=0,
-        tol_shift=tol_shift,
-        seed=seed,
-        y_true=y_true
-    )
+    # Variant knobs (single values; not sweeping)
+    chunk_single = int(config["chunk_single_D"])
+    improve_threshold = float(config["improve_threshold_D"])
+    shift_tol = float(config["shift_tol_D"])
+    stability_threshold = float(config["stability_threshold_D"])
 
-    rows_D.append([
-        ds_name, len(X), n_clusters,
-        "D", "-", "-",  # Mode, tol_single, Cap
-        base["iters_single"], base["iters_double"],
-        "Double", base["elapsed_time"], base["mem_MB"], base["inertia"]
-    ])
+    for rep in range(reps):
+        # Baseline: pure double (same budget)
+        c_d, l_d, it_d, it_s, t, mem, J = run_full_double(
+            X, initial_centers, n_clusters, max_iter, tol_double_baseline, y_true
+        )
+        rows_D.append([
+            ds_name, n, n_clusters, "D",
+            chunk_single, improve_threshold,     # store the variant params for reference
+            it_s, it_d,
+            "Double", t, mem, J
+        ])
 
-    # Sweep multiple configurations for adaptive
-    for stab_thresh in [0.01, 0.02, 0.05]:
-        for inertia_thresh in [0.005, 0.01, 0.02]:
-            for refine_iters in [1, 2]:
-
-                adv = run_adaptive_hybrid(
-                    X, initial_centers, n_clusters,
-                    max_iter=max_iter,
-                    initial_precision='single',
-                    stability_threshold=stab_thresh,
-                    inertia_improvement_threshold=inertia_thresh,
-                    refine_iterations=refine_iters,
-                    tol_shift=tol_shift,
-                    seed=seed,
-                    y_true=y_true
-                )
-
-                rows_D.append([
-                    ds_name, len(X), n_clusters,
-                    "D", stab_thresh, "-",  # Mode, tol_single, Cap
-                    adv["iters_single"], adv["iters_double"],
-                    "Adaptive", adv["elapsed_time"], adv["mem_MB"], adv["inertia"]
-                ])
+        # Variant: adaptive single burst -> double finish
+        res = run_expD_adaptive_sklearn(
+            X, initial_centers, n_clusters,
+            max_iter=max_iter,
+            chunk_single=chunk_single,
+            improve_threshold=improve_threshold,
+            shift_tol=shift_tol,
+            stability_threshold=stability_threshold,
+            seed=rep
+        )
+        rows_D.append([
+            ds_name, n, n_clusters, "D",
+            chunk_single, improve_threshold,
+            res["iters_single"], res["iters_double"],
+            "Adaptive", res["elapsed_time"], res["mem_MB"], res["inertia"]
+        ])
 
     return rows_D
 
 
+def run_experiment_E(ds_name, X, y_true, n_clusters, initial_centers, config):
+    """
+    Experiment E — Mini-batch Hybrid K-Means
+    Baseline: full double with budget = mb_iter + refine_iter.
+    Variant:  MiniBatchKMeans(float32) -> KMeans(float64).
+    """
+    rows_E = []
+    n = len(X)
+    reps = int(config["n_repeats"])
+
+    # Fixed POC parameters
+    mb_iter = int(config["mb_iter_E"])
+    mb_batch = int(config["mb_batch_E"])
+    refine_iter = int(config["max_refine_iter_E"])
+    tol_double_baseline = float(config["tol_double_baseline_E"])  # 0.0 => stop by budget
+
+    budget = mb_iter + refine_iter
+
+    for rep in range(reps):
+        # Baseline: pure double with same total iteration budget
+        c_d, l_d, it_d, it_s, t, mem, J = run_full_double(
+            X, initial_centers, n_clusters, budget, tol_double_baseline, y_true
+        )
+        rows_E.append([
+            ds_name, n, n_clusters, "E",
+            mb_iter, mb_batch, refine_iter,
+            it_s, it_d,
+            "Double", t, mem, J
+        ])
+
+        # Variant: Mini-batch -> Full
+        res = run_expE_minibatch_then_full(
+            X, initial_centers, n_clusters,
+            mb_iter=mb_iter, mb_batch=mb_batch, max_refine_iter=refine_iter,
+            seed=rep
+        )
+        rows_E.append([
+            ds_name, n, n_clusters, "E",
+            mb_iter, mb_batch, refine_iter,
+            res["iters_single"], res["iters_double"],
+            "MiniBatch+Full", res["elapsed_time"], res["mem_MB"], res["inertia"]
+        ])
+
+    return rows_E
+
+
+def run_experiment_F(ds_name, X, y_true, n_clusters, initial_centers, config):
+    """
+    Experiment F — Mixed Precision Per-Cluster
+    Baseline: full double with same total max_iter_F.
+    Variant:  per-cluster float32 Lloyd (optional freezing) -> sklearn KMeans(double).
+    """
+    rows_F = []
+    n = len(X)
+    reps = int(config["n_repeats"])
+
+    # Fixed POC parameters
+    max_iter_total = int(config["max_iter_F"])
+    tol_double = float(config["tol_double_F"])
+    tol_single = float(config["tol_single_F"])
+    single_iter_cap = int(config["single_iter_cap_F"])
+    freeze_stable = bool(config["freeze_stable_F"])
+    freeze_patience = int(config["freeze_patience_F"])
+
+    for rep in range(reps):
+        # Baseline: pure double
+        c_d, l_d, it_d, it_s, t, mem, J = run_full_double(
+            X, initial_centers, n_clusters, max_iter_total, tol_double, y_true
+        )
+        rows_F.append([
+            ds_name, n, n_clusters, "F",
+            tol_single, tol_double, single_iter_cap, freeze_stable, freeze_patience,
+            it_s, it_d,
+            "Double", t, mem, J
+        ])
+
+        # Variant: per-cluster mixed precision
+        res = run_expF_percluster_mixed(
+            X, initial_centers,
+            max_iter_total=max_iter_total,
+            single_iter_cap=single_iter_cap,
+            tol_single=tol_single,
+            tol_double=tol_double,
+            freeze_stable=freeze_stable,
+            freeze_patience=freeze_patience,
+            seed=rep
+        )
+        rows_F.append([
+            ds_name, n, n_clusters, "F",
+            tol_single, tol_double, single_iter_cap, freeze_stable, freeze_patience,
+            res["iters_single"], res["iters_double"],
+            "MixedPerCluster", res["elapsed_time"], res["mem_MB"], res["inertia"]
+        ])
+
+    return rows_F
