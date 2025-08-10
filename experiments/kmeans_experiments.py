@@ -1,5 +1,5 @@
 from visualisations.kmeans_visualisations import KMeansVisualizer
-from experiments.kmeans_precision import run_full_double, run_hybrid, run_adaptive_hybrid
+from experiments.kmeans_precision import run_full_double, run_hybrid, run_adaptive_hybrid,  run_expD_adaptive_sklearn, run_expE_minibatch_then_full,run_expF_percluster_mixed,      
 import numpy as np
 import time
 import numpy as np
@@ -209,4 +209,5 @@ def run_experiment_D(ds_name, X, y_true, n_clusters, initial_centers, config):
                 ])
 
     return rows_D
+
 
