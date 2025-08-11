@@ -1,5 +1,7 @@
+import gc
 from aoclda.sklearn import skpatch
 skpatch()
+from sklearn.discriminant_analysis import StandardScaler
 from sklearn.svm import SVC
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
