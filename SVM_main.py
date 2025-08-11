@@ -24,7 +24,7 @@ def print_summary(path, group_by):
     print(summary)
 
 def run_experiments():
-    results_A, results_B  = [], []
+    results_A, results_B  = [], [] 
     config = {
         "n_repeats": 1,
 
