@@ -19,6 +19,10 @@ def _iters_scalar(n_iter_attr) -> int:
 
 def svm_double_precision(tag, X, y, max_iter, tol, cap=0, C=1.0, kernel='rbf', test_size=0.2, seed=0):
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=seed)
+    scaler = StandardScaler()
+    X_train = scaler.fit_transform(X_train)
+    X_test  = scaler.transform(X_test)
+
     mem_before = measure_memory()
     start_time = time.time()
     svm = SVC(C=C, kernel=kernel, gamma='scale', tol=tol, max_iter=int(max_iter), random_state=seed)
@@ -29,36 +33,47 @@ def svm_double_precision(tag, X, y, max_iter, tol, cap=0, C=1.0, kernel='rbf', t
     iter_double = _iters_scalar(getattr(svm, "n_iter_", 0))
 
     return (
-        tag, len(X), 0, tol, cap, 0, iter_double, 'Double',
+        tag, len(X), 0, tol, cap, 0,  _iters_scalar(getattr(svm, "n_iter_", 0)), 'Double',
         elapsed, mem_after - mem_before, accuracy_score(y_test, y_pred)
     )
 
 
-def svm_hybrid_precision(tag, X, y, max_iter_total, tol_single, tol_double, single_iter_cap, C=1.0, kernel='rbf', test_size=0.2, seed=0):
+def svm_hybrid_precision(tag, X, y, max_iter_total, tol_single, tol_double, single_iter_cap,
+                         C=1.0, kernel='rbf', test_size=0.2, seed=0, cache_size=400):
+    # single split, standardize once for both stages
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=seed)
+    scaler = StandardScaler()
+    X_train_std = scaler.fit_transform(X_train)
+    X_test_std  = scaler.transform(X_test)
+
     mem_before = measure_memory()
 
-    X_train_single = X_train.astype(np.float32)
-    start_single = time.time()
-    svm_single = SVC(C=C, kernel=kernel, gamma='scale', tol=tol_single, max_iter=int(single_iter_cap), random_state=seed)
-    svm_single.fit(X_train_single, y_train)
-    time_single = time.time() - start_single
-    # Collapse array of iter counts to one scalar
-    iter_single = _iters_scalar(getattr(svm_single, "n_iter_", 0))
+    # -------- stage 1 (probe, float32) --------
+    Xtr32 = X_train_std.astype(np.float32, copy=False)
+    Xte32 = X_test_std.astype(np.float32, copy=False)
+    t1 = time.time()
+    svm_single = SVC(C=C, kernel=kernel, gamma='scale', tol=float(tol_single),
+                     max_iter=int(single_iter_cap), cache_size=float(cache_size), random_state=seed)
+    svm_single.fit(Xtr32, y_train)
+    time_single  = time.time() - t1
+    iter_single  = _iters_scalar(getattr(svm_single, "n_iter_", 0))
 
-    # Remaining budget must be a positive int
-    remaining_iters = int(max(1, int(max_iter_total) - int(iter_single)))
+    # Explicitly free probe arrays/models before final memory snapshot
+    del Xtr32, Xte32, svm_single
+    gc.collect()
 
-    start_double = time.time()
-    svm_double = SVC(C=C, kernel=kernel, gamma='scale', tol=tol_double, max_iter=remaining_iters, random_state=seed)
-    svm_double.fit(X_train, y_train)
-    time_double = time.time() - start_double
-    # already collapsed iter_single; do the same for double:
-    iter_double = _iters_scalar(getattr(svm_double, "n_iter_", 0))
+    # -------- stage 2 (final, float64) --------
+    remaining_iters = max(1, int(max_iter_total) - int(iter_single))
+    t2 = time.time()
+    svm_double = SVC(C=C, kernel=kernel, gamma='scale', tol=float(tol_double),
+                     max_iter=int(remaining_iters), cache_size=float(cache_size), random_state=seed)
+    svm_double.fit(X_train_std, y_train)
+    time_double  = time.time() - t2
+    iter_double  = _iters_scalar(getattr(svm_double, "n_iter_", 0))
 
     total_time = time_single + time_double
+    y_pred = svm_double.predict(X_test_std)
     mem_after = measure_memory()
-    y_pred = svm_double.predict(X_test)
 
     return (
         tag, len(X), 0, tol_single, single_iter_cap, iter_single, iter_double, 'Hybrid',
