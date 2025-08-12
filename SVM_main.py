@@ -16,26 +16,19 @@ def print_summary(path, group_by):
 def run_experiments():
     # Tuned so hybrid is typically faster than double
     config = {
-        "n_repeats": 5,
-    
-        # RFF + SGD knobs (shared)
-        "alpha": 1e-4,           # L2 regularization
-        "gamma": "scale",        # RBF gamma (float or 'scale'/'auto')
-        "n_components": 2048,    # RFF dimension (1024–4096 reasonable)
-        "batch_size": 2048,
-    
-        # A: vary Stage-1 epochs ("cap"); Stage-2 runs remaining epochs
-        "epochs_A_total": 20,
-        "tol_fixed_A": 1e-4,
-        "caps": [1, 2, 5, 10, 15],   # how many epochs in float32 before switching
-    
-        # B: vary Stage-1 tolerance; fix Stage-1 epochs
-        "epochs_B_total": 20,
-        "tolerances": [1e-2, 5e-3, 1e-3],
-        "tol_double_B": 1e-4,
-        "cap_B": 5,                  # Stage-1 epochs for B
-}
+        "n_repeats": 3,
 
+        # A: vary Stage-1 epochs ("cap"); total epochs fixed
+        "max_iter_A": 20,
+        "tol_fixed_A": 1e-4,
+        "caps": [1, 2, 5, 10, 15],   # how many float32 epochs before switching
+
+        # B: vary Stage-1 tolerance; Stage-1 epochs fixed
+        "max_iter_B": 20,
+        "tolerances": [1e-3, 5e-4, 1e-4],
+        "tol_double_B": 1e-4,
+        "cap_B": 5,                  # Stage-1 epochs used in B
+    }
     runner = SVMExperimentRunner(config)
     results_A, results_B = [], []
 
