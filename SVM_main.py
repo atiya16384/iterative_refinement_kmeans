@@ -1,6 +1,7 @@
 # SVM_main.py
 import pathlib, pandas as pd
-from aoclda.sklearn import skpatch; skpatch()
+from aoclda.sklearn import skpatch
+from visualisations.SVM_visualisations import SVMVisualizer; skpatch()
 from experiments.svm_experiments import SVMExperimentRunner
 from datasets.utils import generate_synthetic_data, synth_specs, svm_columns_A, svm_columns_B
 
@@ -18,13 +19,13 @@ def run_experiments():
         "n_repeats": 1,
         # A: fixed tol, vary subset cap (percent)
         "max_iter_A": 300,
-        "tol_fixed_A": 1e-3,               # very small (1e-16) makes SVC slower without benefit
-        "caps": [1, 2, 5, 10, 20],         # 1–20% Stage-1 subset
+        "tol_fixed_A": 1e-6,               # very small (1e-16) makes SVC slower without benefit
+        "caps": [1, 2, 5, 10, 20, 30, 50],         # 1–20% Stage-1 subset
         # B: vary Stage-1 tol; Stage-2 tol fixed
         "max_iter_B": 300,
         "tolerances": [1e-2, 5e-3, 1e-3, 5e-4],
         "tol_double_B": 1e-4,
-        "cap_B": 10,                       # keep probe size fixed in B (10%)
+        "cap_B": 100,                       # keep probe size fixed in B (10%)
     }
 
     runner = SVMExperimentRunner(config)
@@ -52,7 +53,7 @@ def run_experiments():
     return df_A, df_B
 
 if __name__ == "__main__":
-    run_experiments()
+    df_A, df_B = run_experiments()
     visualizer = SVMVisualizer()
     visualizer.plot_cap_vs_accuracy(df_A)
     visualizer.plot_cap_vs_time(df_A)
