@@ -16,19 +16,27 @@ def print_summary(path, group_by):
 def run_experiments():
     # Tuned so hybrid is typically faster than double
     config = {
-        "n_repeats": 3,
+        "n_repeats": 1,
+    
+        # ===== Experiment A (cap) =====
+        "epochs_A_total": 20,        # baseline epochs in double
+        "tol_fixed_A": 1e-4,         # logged only in A
+        "caps": [0, 1, 2, 5, 10],    # Stage-1 epochs in float32
+        "polish_epochs_A": 5,        # tiny float64 polish
+    
+        # ===== Experiment B (tolerance) =====
+        "epochs_B_total": 20,        # reference baseline epochs
+        "tolerances": [1e-2, 5e-3, 1e-3],  # ES thresholds for Stage-1
+        "tol_double_B": 1e-4,        # logged; Stage-2 is fixed polish
+        "cap_B": 5,                  # max Stage-1 epochs under ES
+        "polish_epochs_B": 3,        # tiny float64 polish
+        "patience_B": 2,             # ES patience
+    
+        # ===== Common optimizer knobs =====
+        "alpha": 1e-4,
+        "batch_size": 1024,
+}
 
-        # A: vary Stage-1 epochs ("cap"); total epochs fixed
-        "max_iter_A": 20,
-        "tol_fixed_A": 1e-4,
-        "caps": [1, 2, 5, 10, 15],   # how many float32 epochs before switching
-
-        # B: vary Stage-1 tolerance; Stage-1 epochs fixed
-        "max_iter_B": 20,
-        "tolerances": [1e-3, 5e-4, 1e-4],
-        "tol_double_B": 1e-4,
-        "cap_B": 5,                  # Stage-1 epochs used in B
-    }
     runner = SVMExperimentRunner(config)
     results_A, results_B = [], []
 
