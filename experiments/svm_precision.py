@@ -1,4 +1,3 @@
-from aoclda.sklearn import skpatch; skpatch()
 import numpy as np, time, psutil
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import SGDClassifier
