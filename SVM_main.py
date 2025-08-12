@@ -20,23 +20,28 @@ def run_experiments():
     config = {
         "n_repeats": 1,
     
-        # SVC knobs
+        # ===== Experiment A: vary subset CAP (% of train used by Stage-1) =====
+        "epochs_A_total": 300,        # used by BOTH Double and Hybrid
+        "tol_fixed_A": 1e-4,
+        "caps": [0, 1, 2, 5, 10, 20], # 0% .. 20% subset for Stage-1
+        "keep_frac_A": 0.85,          # keep hardest X% for Stage-2 (accuracy knob)
+    
+        # ===== Experiment B: vary Stage-1 tolerance =====
+        "epochs_B_total": 300,        # used by BOTH Double and Hybrid
+        "tolerances": [1e-3, 5e-3, 1e-2],
+        "tol_double_B": 1e-4,
+        "cap_B": 10,                  # Stage-1 subset size = 10% of train (fixed)
+        "keep_frac_B": 0.85,          # same idea as above
+    
+        # SVC hyperparams used everywhere
         "C": 1.0,
         "kernel": "rbf",
-        "gamma": "scale",     # or a float, e.g., 0.1
-        "keep_frac": 0.40,    # how many "hard" points to keep for Stage-2
-    
-        # ===== Experiment A (subset percentage) =====
-        "max_iter_A": 300,
-        "tol_fixed_A": 1e-4,
-        "caps": [0, 1, 2, 5, 10, 20],  # interpret as percent of training used in Stage-1
-    
-        # ===== Experiment B (Stage-1 tolerance) =====
-        "max_iter_B": 300,
-        "tolerances": [1e-2, 5e-3, 1e-3],
-        "tol_double_B": 1e-4,
-        "cap_B": 10,          # fixed Stage-1 subset percentage for B
-    }
+        "gamma": "scale",
+        "test_size": 0.2,
+        "seed": 0,
+        "cache_mb": 1024,
+}
+
 
     runner = SVMExperimentRunner(config)
     results_A, results_B = [], []
