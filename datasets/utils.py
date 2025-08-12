@@ -97,14 +97,15 @@ svm_columns_A = [
     "DatasetName", "DatasetSize", "NumClasses",
     "Tolerance", "Cap",
     "iter_single", "iter_double",
-    "Suite", "Time", "Memory_MB", "Accuracy"
+    "Suite", "Time", "Memory_MB", "Accuracy", "FracKept"
 ]
 
 svm_columns_B = [
     "DatasetName", "DatasetSize", "NumClasses",
     "Tolerance", "Cap",
     "iter_single", "iter_double",
-    "Suite", "Time", "Memory_MB", "Accuracy"
+    "Suite", "Time", "Memory_MB", "Accuracy", "FracKept"
 ]
+
 
 
