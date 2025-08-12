@@ -1,18 +1,8 @@
-import numpy as np
-import matplotlib.pyplot as plt
-import time
-import pandas as pd
-from aoclda.sklearn import skpatch
-skpatch()
-import pathlib
+# SVM_main.py
+import pathlib, pandas as pd
+from aoclda.sklearn import skpatch; skpatch()
 from experiments.svm_experiments import SVMExperimentRunner
-from datasets.utils import (
-    generate_synthetic_data, load_3d_road, load_susy, 
-    synth_specs, real_datasets, svm_columns_A,  svm_columns_B
-)
-
-
-from visualisations.SVM_visualisations import SVMVisualizer
+from datasets.utils import generate_synthetic_data, synth_specs, svm_columns_A, svm_columns_B
 
 RESULTS_DIR = pathlib.Path("Results")
 RESULTS_DIR.mkdir(exist_ok=True)
@@ -20,49 +10,34 @@ RESULTS_DIR.mkdir(exist_ok=True)
 def print_summary(path, group_by):
     df = pd.read_csv(path)
     print(f"\n==== SUMMARY: {path.name.upper()} ====")
-    summary = df.groupby(group_by)[['Accuracy', 'Time', 'Memory_MB']].mean()
-    print(summary)
+    print(df.groupby(group_by)[['Accuracy','Time','Memory_MB']].mean())
 
 def run_experiments():
-    results_A, results_B  = [], [] 
+    # Tuned so hybrid is typically faster than double
     config = {
-    "n_repeats": 1,
-
-    # ===== A: Cap study =====
-    "max_iter_A": 1000,
-    "max_iter_A_stage1": 200,
-    "tol_fixed_A": 1e-16,          # Stage-1 (tight)
-    "tol_double_A": 1e-5,          # Stage-2 final
-    "cap_fracs_A": [0.01, 0.02, 0.03, 0.04, 0.05],
-    "margin_thresh": 1.0,
-
-    # ===== B: Tolerance study =====
-    "max_iter_B": 1000,
-    "max_iter_B_stage1": 200,
-    "cap_frac_B": 0.02,
-    "tolerances_B": [1e-1, 1e-2, 1e-3, 1e-4],
-    "tol_double_B": 1e-5,
-}
+        "n_repeats": 1,
+        # A: fixed tol, vary subset cap (percent)
+        "max_iter_A": 300,
+        "tol_fixed_A": 1e-3,               # very small (1e-16) makes SVC slower without benefit
+        "caps": [1, 2, 5, 10, 20],         # 1–20% Stage-1 subset
+        # B: vary Stage-1 tol; Stage-2 tol fixed
+        "max_iter_B": 300,
+        "tolerances": [1e-2, 5e-3, 1e-3, 5e-4],
+        "tol_double_B": 1e-4,
+        "cap_B": 10,                       # keep probe size fixed in B (10%)
+    }
 
     runner = SVMExperimentRunner(config)
-    results_A, results_B = runner.get_results()
-    # Synthetic datasets
+    results_A, results_B = [], []
+
+    # Datasets
     for tag, n, d, c, seed in synth_specs:
         X, y = generate_synthetic_data(n, d, c, seed)
         runner.run_all(tag, X, y)
-    
-    # Real-world datasets
-    # for tag, loader in real_datasets:
-    #     X, y = loader()
-    #     runner.run_all(tag, X, y)
-    
-    
 
+    results_A, results_B = runner.get_results()
     df_A = pd.DataFrame(results_A, columns=svm_columns_A)
     df_B = pd.DataFrame(results_B, columns=svm_columns_B)
-
-    df_A["Mode"] = "A"
-    df_B["Mode"] = "B"
 
     df_A.to_csv(RESULTS_DIR / "svm_expA_caps.csv", index=False)
     df_B.to_csv(RESULTS_DIR / "svm_expB_tol.csv", index=False)
@@ -71,14 +46,10 @@ def run_experiments():
     print("- svm_expA_caps.csv")
     print("- svm_expB_tol.csv")
 
-
-    # Summaries
-    print_summary(RESULTS_DIR / "svm_expA_caps.csv", ['DatasetName', 'Suite'])
-    print_summary(RESULTS_DIR / "svm_expB_tol.csv", ['DatasetName', 'Suite'])
-
+    print_summary(RESULTS_DIR / "svm_expA_caps.csv", ['DatasetName','Suite'])
+    print_summary(RESULTS_DIR / "svm_expB_tol.csv", ['DatasetName','Suite'])
 
     return df_A, df_B
-
 
 if __name__ == "__main__":
     run_experiments()
