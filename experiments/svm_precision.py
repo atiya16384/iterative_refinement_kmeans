@@ -91,9 +91,6 @@ def svm_double_precision(
         0, int(it_d), "Double", elapsed, max(0.0, m1 - m0), float(acc)
     )
 
-# -----------------------
-# Hybrid: float32 -> float64 (true IR)
-# -----------------------
 def svm_hybrid_precision(
     tag, X, y, *,
     max_iter_total,      # total epochs budget
@@ -107,9 +104,15 @@ def svm_hybrid_precision(
 ):
     """
     Iterative refinement for linear SVM:
-      Stage-1 (float32): run 'single_iter_cap' epochs quickly
-      Stage-2 (float64): continue training the SAME model for the remaining epochs
+      Stage-1: float32 SGD (fast)  -> get weights
+      Stage-2: float64 SGD (polish)-> continue from those weights
     """
+    from sklearn.preprocessing import StandardScaler
+    from sklearn.linear_model import SGDClassifier
+    from sklearn.metrics import accuracy_score
+    from sklearn.model_selection import train_test_split
+    import numpy as np, time
+
     Xtr, Xte, ytr, yte = train_test_split(
         X, y, test_size=test_size, random_state=seed, stratify=y
     )
@@ -121,39 +124,51 @@ def svm_hybrid_precision(
     cap = int(max(0, min(int(single_iter_cap), int(max_iter_total))))
     rem = int(max(0, int(max_iter_total) - cap))
 
-    clf = SGDClassifier(
-        loss='hinge',
-        alpha=float(alpha),
-        learning_rate='optimal',
-        tol=float(tol_single),
-        warm_start=True,
-        random_state=seed,
-    )
-
     m0 = _rss_mb(); t0 = time.perf_counter()
 
-    # Stage-1 (float32) — fast, coarse
+    # ---------- Stage 1: float32 model ----------
+    clf32 = SGDClassifier(
+        loss='hinge', alpha=float(alpha),
+        learning_rate='optimal', tol=float(tol_single),
+        warm_start=True, random_state=seed
+    )
     it_s = _epochs_fit(
-        clf, Xtr, ytr,
-        epochs=cap,
-        batch_size=int(batch_size),
-        classes=classes,
-        dtype=np.float32,
+        clf32, Xtr, ytr,
+        epochs=cap, batch_size=int(batch_size),
+        classes=classes, dtype=np.float32
     )
 
-    # Stage-2 (float64) — polish
-    clf.tol = float(tol_double)
+    # Grab weights and cast to float64
+    coef64 = clf32.coef_.astype(np.float64, copy=True)
+    intercept64 = clf32.intercept_.astype(np.float64, copy=True)
+
+    # ---------- Stage 2: new float64 model, warm-started ----------
+    clf64 = SGDClassifier(
+        loss='hinge', alpha=float(alpha),
+        learning_rate='optimal', tol=float(tol_double),
+        warm_start=True, random_state=seed
+    )
+    # Do a tiny init call to allocate arrays of the right dtype/shape
+    init_bs = min(32, Xtr.shape[0])
+    clf64.partial_fit(Xtr[:init_bs].astype(np.float64),
+                      ytr[:init_bs], classes=classes)
+    # Copy weights from stage-1
+    clf64.coef_[:] = coef64
+    clf64.intercept_[:] = intercept64
+    # Keep training step counter if present (optional)
+    if hasattr(clf64, "t_") and hasattr(clf32, "t_"):
+        clf64.t_ = clf32.t_
+
+    # Continue training in float64
     it_d = _epochs_fit(
-        clf, Xtr, ytr,
-        epochs=rem,
-        batch_size=int(batch_size),
-        classes=classes,
-        dtype=np.float64,
+        clf64, Xtr, ytr,
+        epochs=rem, batch_size=int(batch_size),
+        classes=classes, dtype=np.float64
     )
 
     elapsed = time.perf_counter() - t0; m1 = _rss_mb()
+    acc = accuracy_score(yte, clf64.predict(Xte))
 
-    acc = accuracy_score(yte, clf.predict(Xte))
     return (
         tag, len(X), int(classes.size), float(tol_single), int(cap),
         int(it_s), int(it_d), "Hybrid", elapsed, max(0.0, m1 - m0), float(acc)
