@@ -26,16 +26,24 @@ def print_summary(path, group_by):
 def run_experiments():
     results_A, results_B  = [], [] 
     config = {
-        "n_repeats": 3,
+    "n_repeats": 1,
 
-        "tol_fixed_A": 1e-8,
-        "caps": [0, 1, 5 , 10, 25, 50, 100],
+    # ===== A: Cap study =====
+    "max_iter_A": 1000,
+    "max_iter_A_stage1": 200,
+    "tol_fixed_A": 1e-16,          # Stage-1 (tight)
+    "tol_double_A": 1e-5,          # Stage-2 final
+    "cap_fracs_A": [0.005, 0.01, 0.02, 0.05, 0.10],
+    "margin_thresh": 1.0,
 
-        "tol_double_B": 1e-5,
-        "tolerances": [1e-1, 1e-2, 1e-3, 1e-4],
+    # ===== B: Tolerance study =====
+    "max_iter_B": 1000,
+    "max_iter_B_stage1": 200,
+    "cap_frac_B": 0.02,
+    "tolerances_B": [1e-1, 1e-2, 1e-3, 1e-4],
+    "tol_double_B": 1e-5,
+}
 
-    }
-    
     runner = SVMExperimentRunner(config)
     results_A, results_B = runner.get_results()
     # Synthetic datasets
