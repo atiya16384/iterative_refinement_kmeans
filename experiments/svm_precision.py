@@ -69,64 +69,66 @@ def svm_double_precision(
     return (tag, len(X), int(np.unique(y).size), float(tol), int(cap),
             0, it, "Double", elapsed, max(0.0, m1 - m0), float(acc))
 
+# experiments/svm_precision.py
 def svm_hybrid_precision(
     tag, X, y, *,
     max_iter_total,
     tol_single, tol_double,
-    single_iter_cap,            # interpreted as PERCENT of training used in Stage-1 (e.g., 5 -> 5%)
+    single_iter_cap,                  # percent of train used in Stage-1 (1 => 1%)
     C=1.0, kernel='rbf', gamma='scale',
-    keep_frac=0.40,             # fraction of "hardest" samples to keep for Stage-2
-    test_size=0.2, seed=0, cache_mb=1024
+    keep_frac=0.10,                   # keep this fraction of a *small probe*, not whole train
+    probe_max=100_000,                # at most this many rows probed for margins
+    test_size=0.2, seed=0, cache_mb=512
 ):
     """
-    Two-stage hard-example mining for kernel SVMs (SVC):
-      1) Train SVC on a small stratified subset (optionally float32 inputs via AOCL).
-      2) Score all training samples; keep the 'keep_frac' hardest (small margins).
-      3) Train final SVC on the reduced set in double precision.
-
-    Notes:
-      - This is a *data* hybrid (subset -> refine), not a true precision warm-start,
-        because libsvm/libsvm-based SVC cannot continue optimization.
-      - Setting single_iter_cap=0 makes Stage-1 a no-op and Stage-2 uses all data.
+    Two-stage 'data hybrid' without scanning the full training set:
+      1) Stage-1 on a small stratified subset (float32 OK).
+      2) Build reduced set = {Stage-1 support vectors} ∪ {hard tail from a small random probe}.
+      3) Stage-2 (double) on the reduced set.
     """
-    # split + scale once, for fairness
-    Xtr, Xte, ytr, yte = train_test_split(
-        X, y, test_size=test_size, random_state=seed, stratify=y
-    )
+    Xtr, Xte, ytr, yte = train_test_split(X, y, test_size=test_size,
+                                          random_state=seed, stratify=y)
     scaler = StandardScaler().fit(Xtr)
-    Xtr = scaler.transform(Xtr)
-    Xte = scaler.transform(Xte)
+    Xtr = scaler.transform(Xtr); Xte = scaler.transform(Xte)
 
     rng = np.random.RandomState(seed)
     n = Xtr.shape[0]
-    # interpret cap as percentage (0..100)
+    # interpret cap as percent if >=1
     cap = float(single_iter_cap)
-    cap_frac = float(np.clip(cap/100.0 if cap > 1 else cap, 0.0, 1.0))
+    cap_frac = cap/100.0 if cap >= 1.0 else cap
     m = max(1, int(round(cap_frac * n)))
 
     mem0 = _rss_mb(); t0 = time.perf_counter()
 
-    # ----- Stage 1: cheap probe on subset -----
-    if m > 0:
-        idx_sub = _stratified_subset(ytr, m, rng)
-        # AOCL patch can run float32; casting helps it. If not supported, scikit-learn upcasts.
-        s1 = SVC(C=C, kernel=kernel, gamma=gamma, tol=float(tol_single),
-                 max_iter=int(max_iter_total//3), cache_size=float(cache_mb), random_state=seed)
+    # ----- Stage 1: small subset -----
+    idx_sub = _stratified_subset(ytr, m, rng) if m > 0 else np.array([], int)
+    s1 = SVC(C=C, kernel=kernel, gamma=gamma, tol=float(tol_single),
+             max_iter=int(max_iter_total//3), cache_size=float(cache_mb), random_state=seed)
+    if idx_sub.size:
         s1.fit(Xtr[idx_sub].astype(np.float32, copy=False), ytr[idx_sub])
         it1 = _iters_scalar(getattr(s1, "n_iter_", 0))
 
-        # margins on the full training set (OVR)
-        scores = s1.decision_function(Xtr.astype(np.float32, copy=False))
-        margins = _top2_margin(scores)
-        thr = np.percentile(margins, keep_frac * 100.0)  # keep hardest 'keep_frac'
-        keep = margins <= thr
-        X_red, y_red = Xtr[keep].astype(np.float64, copy=False), ytr[keep]
-        if X_red.shape[0] == 0:  # safety fallback
-            X_red, y_red = Xtr.astype(np.float64, copy=False), ytr
+        # Map subset support-vector indices back to global indices
+        idx_sv = idx_sub[np.asarray(s1.support_, dtype=int)]
     else:
-        # cap=0 => skip Stage-1, use all data
-        it1 = 0
-        X_red, y_red = Xtr.astype(np.float64, copy=False), ytr
+        it1, idx_sv = 0, np.array([], int)
+
+    # ----- Build reduced set (cheap probe) -----
+    # Probe a small random sample of the remaining pool for additional hard cases
+    pool = np.setdiff1d(np.arange(n, dtype=int), idx_sv, assume_unique=False)
+    probe_size = min(int(probe_max), pool.size)
+    if probe_size > 0 and idx_sub.size:
+        probe = rng.choice(pool, size=probe_size, replace=False)
+        scores = s1.decision_function(Xtr[probe].astype(np.float32, copy=False))
+        margins = _top2_margin(scores)
+        k = max(1, int(round(keep_frac * probe_size)))
+        add = probe[np.argpartition(margins, k-1)[:k]]
+        idx_final = np.unique(np.concatenate([idx_sv, add]))
+    else:
+        # no probe or no stage-1 -> fall back to subset only or full data
+        idx_final = idx_sv if idx_sv.size else np.arange(n, dtype=int)
+
+    X_red, y_red = Xtr[idx_final].astype(np.float64, copy=False), ytr[idx_final]
 
     # ----- Stage 2: final fit on reduced set (double) -----
     s2 = SVC(C=C, kernel=kernel, gamma=gamma, tol=float(tol_double),
@@ -138,4 +140,4 @@ def svm_hybrid_precision(
     acc = accuracy_score(yte, s2.predict(Xte.astype(np.float64, copy=False)))
 
     return (tag, len(X), int(np.unique(y).size), float(tol_single), int(single_iter_cap),
-            it1, it2, "Hybrid", elapsed, max(0.0, mem1 - mem0), float(acc))
+            int(it1), int(it2), "Hybrid", elapsed, max(0.0, mem1 - mem0), float(acc))
