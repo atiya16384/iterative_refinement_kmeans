@@ -81,7 +81,7 @@ def run_experiments():
 
 
 if __name__ == "__main__":
-    df_A, df_B = run_experiments()
+    run_experiments()
     visualizer = SVMVisualizer()
     visualizer.plot_cap_vs_accuracy(df_A)
     visualizer.plot_cap_vs_time(df_A)
