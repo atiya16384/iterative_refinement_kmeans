@@ -43,7 +43,10 @@ class SVMExperimentRunner:
                         tol_stage1=tol_sweep, tol_stage2=tol_dB,
                         max_iter_stage1=cfg["max_iter_B_stage1"],
                         max_iter_stage2=cfg["max_iter_B"],
-                        margin_thresh=cfg.get("margin_thresh", 1.0),
+                        target_keep_frac = cfg["target_keep_frac"],
+                        probe_gamma=cfg.get("probe_gamma", None),
+                        cache_size_mb=cfg.get("cache_size_mb", 1000),
+                        scale_X=cfg.get("scale_X", True),
                         seed=rep
                     )
                 )

@@ -33,7 +33,7 @@ def run_experiments():
     "max_iter_A_stage1": 200,
     "tol_fixed_A": 1e-16,          # Stage-1 (tight)
     "tol_double_A": 1e-5,          # Stage-2 final
-    "cap_fracs_A": [0.005, 0.01, 0.02, 0.05, 0.10],
+    "cap_fracs_A": [0.01, 0.02, 0.03, 0.04, 0.05],
     "margin_thresh": 1.0,
 
     # ===== B: Tolerance study =====
