@@ -16,27 +16,27 @@ def print_summary(path, group_by):
 
 def run_experiments():
     # Tuned so hybrid is typically faster than double
+        # SVM_main.py (inside run_experiments)
     config = {
         "n_repeats": 1,
     
-        # ===== Experiment A (cap) =====
-        "epochs_A_total": 20,        # baseline epochs in double
-        "tol_fixed_A": 1e-4,         # logged only in A
-        "caps": [0, 1, 2, 5, 10],    # Stage-1 epochs in float32
-        "polish_epochs_A": 5,        # tiny float64 polish
+        # SVC knobs
+        "C": 1.0,
+        "kernel": "rbf",
+        "gamma": "scale",     # or a float, e.g., 0.1
+        "keep_frac": 0.40,    # how many "hard" points to keep for Stage-2
     
-        # ===== Experiment B (tolerance) =====
-        "epochs_B_total": 20,        # reference baseline epochs
-        "tolerances": [1e-2, 5e-3, 1e-3],  # ES thresholds for Stage-1
-        "tol_double_B": 1e-4,        # logged; Stage-2 is fixed polish
-        "cap_B": 5,                  # max Stage-1 epochs under ES
-        "polish_epochs_B": 3,        # tiny float64 polish
-        "patience_B": 2,             # ES patience
+        # ===== Experiment A (subset percentage) =====
+        "max_iter_A": 300,
+        "tol_fixed_A": 1e-4,
+        "caps": [0, 1, 2, 5, 10, 20],  # interpret as percent of training used in Stage-1
     
-        # ===== Common optimizer knobs =====
-        "alpha": 1e-4,
-        "batch_size": 1024,
-}
+        # ===== Experiment B (Stage-1 tolerance) =====
+        "max_iter_B": 300,
+        "tolerances": [1e-2, 5e-3, 1e-3],
+        "tol_double_B": 1e-4,
+        "cap_B": 10,          # fixed Stage-1 subset percentage for B
+    }
 
     runner = SVMExperimentRunner(config)
     results_A, results_B = [], []
