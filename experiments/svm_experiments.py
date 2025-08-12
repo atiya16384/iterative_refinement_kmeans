@@ -1,5 +1,8 @@
 # experiments/svm_experiments.py
-from experiments.svm_precision import svm_double_precision, svm_hybrid_precision
+from experiments.svm_precision import (
+    rff_sgd_double_precision as svm_double_precision,
+    rff_sgd_hybrid_ir        as svm_hybrid_precision,
+)
 
 class SVMExperimentRunner:
     def __init__(self, config):
@@ -10,36 +13,38 @@ class SVMExperimentRunner:
     def run_all(self, tag, X, y):
         cfg = self.config
         for _ in range(cfg["n_repeats"]):
-            # -----------------
-            # Experiment A: vary cap (as % subset for Stage-1)
-            # tol is fixed (cfg["tol_fixed_A"])
-            # -----------------
+            # A: Vary "cap" = Stage-1 epochs in float32
             for cap in cfg["caps"]:
+                # Baseline: total epochs all in double
                 self.results_A.append(
                     svm_double_precision(tag, X, y,
-                        max_iter=cfg["max_iter_A"], tol=cfg["tol_fixed_A"], cap=cap)
+                        total_epochs=cfg["epochs_A_total"],
+                        tol=cfg["tol_fixed_A"], alpha=cfg["alpha"], gamma=cfg["gamma"],
+                        n_components=cfg["n_components"], batch_size=cfg["batch_size"])
                 )
+                # Hybrid IR: cap epochs in fp32, rest in fp64
                 self.results_A.append(
                     svm_hybrid_precision(tag, X, y,
-                        max_iter_total=cfg["max_iter_A"],
+                        total_epochs=cfg["epochs_A_total"], cap_epochs=cap,
                         tol_single=cfg["tol_fixed_A"], tol_double=cfg["tol_fixed_A"],
-                        single_iter_cap=cap)
+                        alpha=cfg["alpha"], gamma=cfg["gamma"],
+                        n_components=cfg["n_components"], batch_size=cfg["batch_size"])
                 )
 
-            # -----------------
-            # Experiment B: vary Stage-1 tolerance
-            # Stage-2 tol is fixed (cfg["tol_double_B"])
-            # -----------------
+            # B: Vary tolerance (Stage-1 tol_single), fix cap_epochs
             for tol in cfg["tolerances"]:
                 self.results_B.append(
                     svm_double_precision(tag, X, y,
-                        max_iter=cfg["max_iter_B"], tol=cfg["tol_double_B"], cap=cfg["max_iter_B"])
+                        total_epochs=cfg["epochs_B_total"],
+                        tol=cfg["tol_double_B"], alpha=cfg["alpha"], gamma=cfg["gamma"],
+                        n_components=cfg["n_components"], batch_size=cfg["batch_size"])
                 )
                 self.results_B.append(
                     svm_hybrid_precision(tag, X, y,
-                        max_iter_total=cfg["max_iter_B"],
+                        total_epochs=cfg["epochs_B_total"], cap_epochs=cfg["cap_B"],
                         tol_single=tol, tol_double=cfg["tol_double_B"],
-                        single_iter_cap=cfg["cap_B"])  # keep % fixed for fairness
+                        alpha=cfg["alpha"], gamma=cfg["gamma"],
+                        n_components=cfg["n_components"], batch_size=cfg["batch_size"])
                 )
 
     def get_results(self):
