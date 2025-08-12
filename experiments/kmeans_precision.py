@@ -1,7 +1,5 @@
 import time
 import numpy as np
-from aoclda.sklearn import skpatch
-skpatch()
 from sklearn.cluster import KMeans
 
 def evaluate_metrics(inertia):

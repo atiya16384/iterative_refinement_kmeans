@@ -1,7 +1,8 @@
 # SVM_main.py
 import pathlib, pandas as pd
 from aoclda.sklearn import skpatch
-from visualisations.SVM_visualisations import SVMVisualizer; skpatch()
+skpatch()
+from visualisations.SVM_visualisations import SVMVisualizer; 
 from experiments.svm_experiments import SVMExperimentRunner
 from datasets.utils import generate_synthetic_data, synth_specs, svm_columns_A, svm_columns_B
 
