@@ -26,10 +26,10 @@ def print_summary(path, group_by):
 def run_experiments():
     results_A, results_B  = [], [] 
     config = {
-        "n_repeats": 1,
+        "n_repeats": 3,
 
-        "tol_fixed_A": 1e-16,
-        "caps": [0, 50, 100, 150, 200, 250, 300],
+        "tol_fixed_A": 1e-8,
+        "caps": [0, 1, 5 , 10, 25, 50, 100],
 
         "tol_double_B": 1e-5,
         "tolerances": [1e-1, 1e-2, 1e-3, 1e-4],
