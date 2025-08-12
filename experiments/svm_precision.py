@@ -1,116 +1,153 @@
 # experiments/svm_precision.py
 from aoclda.sklearn import skpatch; skpatch()
-from sklearn.svm import SVC
+import numpy as np, time, psutil
+from sklearn.kernel_approximation import RBFSampler
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import SGDClassifier
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
-import numpy as np, time, psutil
-
-def _iters_scalar(n_iter_attr) -> int:
-    if n_iter_attr is None: return 0
-    arr = np.atleast_1d(n_iter_attr)
-    return int(arr.max()) if arr.size else 0
 
 def _rss_mb() -> float:
     return psutil.Process().memory_info().rss / (1024**2)
 
-def _top2_margin(scores: np.ndarray) -> np.ndarray:
-    # scores: (n_samples, n_classes) for OVR; large gap => confident
-    part = np.partition(scores, -2, axis=1)[:, -2:]
-    top1 = part.max(axis=1); top2 = part.min(axis=1)
-    return top1 - top2
+def _epochs_fit(clf: SGDClassifier, Z, y, epochs, batch_size, classes, dtype):
+    """
+    Mini-epoch training loop using partial_fit so we can warm-start.
+    Works for both float32 and float64 features (dtype controls precision).
+    """
+    if epochs <= 0: return 0
+    rng = np.random.RandomState(0)
+    n = Z.shape[0]
+    bs = max(1, int(batch_size))
+    iters = 0
+    # first call of partial_fit must include 'classes'
+    first = True
+    for _ in range(int(epochs)):
+        # one pass (shuffle batches)
+        idx = rng.permutation(n)
+        for i in range(0, n, bs):
+            sl = idx[i:i+bs]
+            if sl.size == 0: continue
+            Xb = Z[sl].astype(dtype, copy=False)
+            yb = y[sl]
+            if first:
+                clf.partial_fit(Xb, yb, classes=classes)
+                first = False
+            else:
+                clf.partial_fit(Xb, yb)
+        iters += 1
+    return iters  # epochs consumed
 
-def svm_double_precision(tag, X, y, *, max_iter, tol, cap=0,
-                         C=1.0, kernel='rbf', test_size=0.2, seed=0):
-    """Pure double-precision SVC (baseline). Returns 11-tuple."""
-    Xtr, Xte, ytr, yte = train_test_split(
-        X, y, test_size=test_size, random_state=seed, stratify=y
-    )
-    # scale BOTH baseline and hybrid fairly
-    scaler = StandardScaler(copy=True).fit(Xtr)
+# -----------------------
+# Baseline: "Double"
+# -----------------------
+def rff_sgd_double_precision(
+    tag, X, y, *,
+    total_epochs,             # total optimization budget (all in float64)
+    tol=1e-4,                 # SGD early-stopping tol (validation-based)
+    alpha=1e-4,               # L2 reg
+    gamma='scale',            # RBF gamma (float or 'scale'/'auto' like SVC)
+    n_components=2048,        # RFF feature dimension (bigger = closer to RBF)
+    batch_size=2048,
+    test_size=0.2,
+    seed=0
+):
+    """
+    Double baseline: Standardize -> RFF (float64) -> SGDClassifier(loss='hinge') in float64.
+    """
+    Xtr, Xte, ytr, yte = train_test_split(X, y, test_size=test_size, random_state=seed, stratify=y)
+    scaler = StandardScaler().fit(Xtr)
     Xtr = scaler.transform(Xtr); Xte = scaler.transform(Xte)
+
+    # gamma choices mimic SVC: 'scale' = 1/(n_features*var(X)), 'auto' = 1/n_features
+    if gamma == 'scale':
+        g = 1.0 / (Xtr.shape[1] * Xtr.var())
+    elif gamma == 'auto':
+        g = 1.0 / Xtr.shape[1]
+    else:
+        g = float(gamma)
+
+    rff = RBFSampler(gamma=g, n_components=int(n_components), random_state=seed)
+    Ztr = rff.fit_transform(Xtr).astype(np.float64, copy=False)
+    Zte = rff.transform(Xte).astype(np.float64, copy=False)
+
+    clf = SGDClassifier(loss='hinge', alpha=float(alpha), learning_rate='optimal',
+                        tol=float(tol), warm_start=True, random_state=seed)
 
     m0 = _rss_mb(); t0 = time.perf_counter()
-    clf = SVC(C=C, kernel=kernel, gamma='scale',
-              tol=float(tol), max_iter=int(max_iter),
-              cache_size=1024, random_state=seed)
-    clf.fit(Xtr, ytr)
+    # Train for 'total_epochs' in float64
+    classes = np.unique(ytr)
+    it_d = _epochs_fit(clf, Ztr, ytr, epochs=int(total_epochs),
+                       batch_size=int(batch_size), classes=classes, dtype=np.float64)
     elapsed = time.perf_counter() - t0; m1 = _rss_mb()
-    acc = accuracy_score(yte, clf.predict(Xte))
-    return (
-        tag, len(X), int(np.unique(y).size), float(tol), int(cap),
-        0, _iters_scalar(getattr(clf, "n_iter_", 0)),
-        "Double", elapsed, max(0.0, m1 - m0), float(acc)
-    )
 
-def svm_hybrid_precision(tag, X, y, *,
-                         max_iter_total,
-                         tol_single, tol_double,
-                         single_iter_cap,            # interpreted as % subset for stage-1 (e.g., 1,2,5,10)
-                         C=1.0, kernel='rbf',
-                         test_size=0.2, seed=0):
+    acc = accuracy_score(yte, clf.predict(Zte))
+    # Return schema: (tag, DatasetSize, NumClasses, Tolerance, Cap, iter_single, iter_double, Suite, Time, Memory_MB, Accuracy)
+    return (tag, len(X), int(classes.size), float(tol), 0, 0, int(it_d),
+            "Double", elapsed, max(0.0, m1 - m0), float(acc))
+
+# -----------------------
+# Hybrid IR: float32 -> float64
+# -----------------------
+def rff_sgd_hybrid_ir(
+    tag, X, y, *,
+    total_epochs,             # total epochs budget
+    cap_epochs,               # Stage-1 epochs in float32 (the "cap")
+    tol_single=1e-3,          # tol used in Stage-1 (SGD tol; loose is fine)
+    tol_double=1e-4,          # tol in Stage-2 (tighter)
+    alpha=1e-4,               # L2 reg
+    gamma='scale',
+    n_components=2048,
+    batch_size=2048,
+    test_size=0.2,
+    seed=0
+):
     """
-    Two-stage hybrid:
-      1) Train SVC on a small random subset (single_iter_cap %) with tol_single
-      2) Use that model to find 'hard' samples (small decision margins) and
-         train final SVC on the reduced set with tol_double.
-    Returns 11-tuple with the same schema as baseline.
+    True iterative refinement with warm-start:
+      - Standardize -> RFF
+      - Stage-1: train for cap_epochs using float32 features (fast)
+      - Stage-2: cast features to float64 and continue training for (total - cap) epochs
     """
-    Xtr, Xte, ytr, yte = train_test_split(
-        X, y, test_size=test_size, random_state=seed, stratify=y
-    )
-    scaler = StandardScaler(copy=True).fit(Xtr)
+    Xtr, Xte, ytr, yte = train_test_split(X, y, test_size=test_size, random_state=seed, stratify=y)
+    scaler = StandardScaler().fit(Xtr)
     Xtr = scaler.transform(Xtr); Xte = scaler.transform(Xte)
 
-    # subset fraction from cap (accept 1..100 or 0..1)
-    cap = float(single_iter_cap)
-    cap_frac = cap/100.0 if cap > 1.0 else cap
-    cap_frac = float(np.clip(cap_frac, 0.01, 0.20))  # keep Stage-1 small (1–20%)
+    if gamma == 'scale':
+        g = 1.0 / (Xtr.shape[1] * Xtr.var())
+    elif gamma == 'auto':
+        g = 1.0 / Xtr.shape[1]
+    else:
+        g = float(gamma)
 
-    rng = np.random.RandomState(seed)
-    n = Xtr.shape[0]
-    m = max(1, int(round(cap_frac * n)))
-    idx_sub = rng.choice(n, size=m, replace=False)
+    rff = RBFSampler(gamma=g, n_components=int(n_components), random_state=seed)
+    # Build both dtypes once to avoid recomputing random features in stage-2
+    Ztr32 = rff.fit_transform(Xtr).astype(np.float32, copy=False)
+    Zte64 = rff.transform(Xte).astype(np.float64, copy=False)  # prediction in double
+    Ztr64 = Ztr32.astype(np.float64, copy=False)               # reuse same features
 
-    mem0 = _rss_mb()
+    classes = np.unique(ytr)
+    cap = int(max(0, min(int(cap_epochs), int(total_epochs))))
+    rem = int(max(0, int(total_epochs) - cap))
 
-    # ---- Stage 1: probe on subset ----
-    t1 = time.perf_counter()
-    s1 = SVC(C=C, kernel=kernel, gamma='scale',
-             tol=float(tol_single),
-             max_iter=max(1, int(max_iter_total // 5)),
-             cache_size=1024, random_state=seed)
-    s1.fit(Xtr[idx_sub], ytr[idx_sub])
-    time1 = time.perf_counter() - t1
-    it1 = _iters_scalar(getattr(s1, "n_iter_", 0))
+    # One model, warm-started across stages
+    clf = SGDClassifier(loss='hinge', alpha=float(alpha), learning_rate='optimal',
+                        tol=float(tol_single), warm_start=True, random_state=seed)
 
-    # ---- Filter hard samples from full train ----
-    scores = s1.decision_function(Xtr)
-    if scores.ndim == 1:                # binary
-        margin = np.abs(scores)
-    else:                               # multiclass OVR
-        margin = _top2_margin(scores)
-    keep_frac = 0.25                    # keep hardest 25% (works well in practice)
-    thresh = np.percentile(margin, keep_frac * 100.0)
-    keep = (margin <= thresh)
-    X_red, y_red = Xtr[keep], ytr[keep]
-    if X_red.shape[0] == 0:
-        X_red, y_red = Xtr, ytr   # fallback
+    m0 = _rss_mb(); t0 = time.perf_counter()
 
-    # ---- Stage 2: final SVC on reduced set ----
-    t2 = time.perf_counter()
-    s2 = SVC(C=C, kernel=kernel, gamma='scale',
-             tol=float(tol_double),
-             max_iter=int(max_iter_total),
-             cache_size=1024, random_state=seed)
-    s2.fit(X_red, y_red)
-    time2 = time.perf_counter() - t2
-    it2 = _iters_scalar(getattr(s2, "n_iter_", 0))
+    # Stage-1 (float32)
+    it_s = _epochs_fit(clf, Ztr32, ytr, epochs=cap,
+                       batch_size=int(batch_size), classes=classes, dtype=np.float32)
 
-    acc = accuracy_score(yte, s2.predict(Xte))
-    mem1 = _rss_mb()
+    # Update tol for double stage (polish)
+    clf.tol = float(tol_double)
 
-    return (
-        tag, len(X), int(np.unique(y).size), float(tol_single), int(single_iter_cap),
-        it1, it2, "Hybrid", time1 + time2, max(0.0, mem1 - mem0), float(acc)
-    )
+    # Stage-2 (float64), continue same model
+    it_d = _epochs_fit(clf, Ztr64, ytr, epochs=rem,
+                       batch_size=int(batch_size), classes=classes, dtype=np.float64)
+
+    elapsed = time.perf_counter() - t0; m1 = _rss_mb()
+    acc = accuracy_score(yte, clf.predict(Zte64))
+
+    return (tag, len(X), int(classes.size), float(tol_single), int(cap),
+            int(it_s), int(it_d), "Hybrid", elapsed, max(0.0, m1 - m0), float(acc))
