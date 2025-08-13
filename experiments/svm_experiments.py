@@ -86,15 +86,16 @@ class SVMExperimentRunner:
                 )
             )
             # Hybrid with the same total budget
-            self.results_B.append(
-                svm_hybrid_precision(
-                    tag, X, y,
-                    max_iter_total=max_iter,
-                    tol_single=tol_s,
-                    tol_double=tol_double,
-                    single_iter_cap=cap_B,
-                    keep_frac=keep_frac,
-                    probe_max=probe_max,
-                    **kw
+            if bool(cfg.get("add_baseline_point_B", True)):
+                self.results_B.append(
+                    svm_hybrid_precision(
+                        tag, X, y,
+                        max_iter_total=max_iter,
+                        tol_single=tol_s,
+                        tol_double=tol_double,
+                        single_iter_cap=0, 
+                        keep_frac=keep_frac,
+                        probe_max=probe_max,
+                        **kw
+                    )
                 )
-            )
