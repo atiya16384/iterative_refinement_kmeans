@@ -1,5 +1,4 @@
 # experiments/svm_precision.py
-from aoclda.sklearn import skpatch; skpatch()
 import numpy as np, time, psutil
 from sklearn.svm import SVC, NuSVC
 from sklearn.metrics import accuracy_score
