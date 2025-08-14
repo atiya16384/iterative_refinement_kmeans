@@ -7,7 +7,7 @@ import pathlib
 DATA_DIR = pathlib.Path("datasets") 
 
 def generate_synthetic_data(n_samples, n_features, n_clusters, random_state):
-    X, y_true = make_blobs(n_samples=n_samples, n_features=n_features, centers=n_clusters, random_state=random_state)
+    X, y_true = make_blobs(n_samples=n_samples, n_features=n_features, centers=n_clusters, random_state=random_state, cluster_std = 3.0, center_box=(-2.0, 2.0))
     
     return X.astype(np.float64), y_true
   
