@@ -1,34 +1,44 @@
+# visualisations/logistic_vis.py
+import os
+import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-import pandas as pd
-import os
 
 RESULTS_DIR = "Results"
 os.makedirs(RESULTS_DIR, exist_ok=True)
+sns.set(style="whitegrid", font_scale=1.2)
+
+def _make_relative(df: pd.DataFrame, metric: str, key_cols: list) -> pd.DataFrame:
+    """
+    Return a tidy DataFrame with columns key_cols + [metric] where
+    metric = mean(Hybrid metric) / mean(Double metric) per key.
+    """
+    # group means for each mode
+    g = df.groupby(key_cols + ["Mode"])[metric].mean().unstack("Mode")
+    # Guard: only keep keys that have BOTH modes
+    g = g.dropna(subset=["Hybrid", "Double"], how="any")
+    rel = (g["Hybrid"] / g["Double"]).reset_index()
+    rel.rename(columns={0: metric}, inplace=True)
+    return rel
 
 class LogisticVisualizer:
-    def __init__(self):
-        sns.set(style="whitegrid", font_scale=1.2)
-
-    def _relative_to_double(self, df, metric_col):
-        """Returns df with Hybrid metric divided by Double metric per group."""
-        # group by dataset params and match Hybrid to Double
-        rel_df = []
-        group_cols = [c for c in df.columns if c not in [metric_col, 'Mode', 'Accuracy', 'Time']]
-        for _, group in df.groupby(group_cols):
-            double_val = group.loc[group['Mode'] == 'Double', metric_col].mean()
-            hybrid_rows = group[group['Mode'] == 'Hybrid'].copy()
-            hybrid_rows[metric_col] = hybrid_rows[metric_col] / double_val if double_val != 0 else float('nan')
-            rel_df.append(hybrid_rows)
-        return pd.concat(rel_df, ignore_index=True)
-
     # ===== EXPERIMENT A =====
-    def plot_cap_vs_time(self, df_A):
-        df_rel = self._relative_to_double(df_A, "Time")
+    def plot_cap_vs_time(self, df_A: pd.DataFrame):
+        # keys for A: by Cap (and dataset identity in case multiple datasets)
+        keys = [c for c in ["DatasetName","DatasetSize","NumClasses","Cap","tolerance_single"] if c in df_A.columns]
+
+        rel = _make_relative(df_A, "Time", keys)
+
+        # numeric and clean
+        if "Cap" in rel.columns:
+            rel["Cap"] = pd.to_numeric(rel["Cap"], errors="coerce")
+        rel = rel.dropna(subset=["Cap", "Time"])
+
         plt.figure(figsize=(8, 6))
-        sns.lineplot(data=df_rel, x="Cap", y="Time", marker="o", ci=None, label="Hybrid")
-        plt.axhline(1.0, color="black", linestyle="--", label="Double Baseline")
-        plt.title("Cap vs Time (Hybrid relative to Double)")
+        sns.lineplot(data=rel, x="Cap", y="Time", marker="o", errorbar=None, label="Hybrid")
+        plt.axhline(1.0, linestyle="--", color="black", label="Double baseline")
+        plt.title("Cap vs Time (Hybrid / Double)")
         plt.xlabel("Cap (Single-Precision Iteration Limit)")
         plt.ylabel("Relative Time to Double")
         plt.legend()
@@ -36,12 +46,18 @@ class LogisticVisualizer:
         plt.savefig(os.path.join(RESULTS_DIR, "logreg_A_cap_vs_time_relative.png"))
         plt.close()
 
-    def plot_cap_vs_accuracy(self, df_A):
-        df_rel = self._relative_to_double(df_A, "Accuracy")
+    def plot_cap_vs_accuracy(self, df_A: pd.DataFrame):
+        keys = [c for c in ["DatasetName","DatasetSize","NumClasses","Cap","tolerance_single"] if c in df_A.columns]
+
+        rel = _make_relative(df_A, "Accuracy", keys)
+        if "Cap" in rel.columns:
+            rel["Cap"] = pd.to_numeric(rel["Cap"], errors="coerce")
+        rel = rel.dropna(subset=["Cap", "Accuracy"])
+
         plt.figure(figsize=(8, 6))
-        sns.lineplot(data=df_rel, x="Cap", y="Accuracy", marker="o", ci=None, label="Hybrid")
-        plt.axhline(1.0, color="black", linestyle="--", label="Double Baseline")
-        plt.title("Cap vs Accuracy (Hybrid relative to Double)")
+        sns.lineplot(data=rel, x="Cap", y="Accuracy", marker="o", errorbar=None, label="Hybrid")
+        plt.axhline(1.0, linestyle="--", color="black", label="Double baseline")
+        plt.title("Cap vs Accuracy (Hybrid / Double)")
         plt.xlabel("Cap (Single-Precision Iteration Limit)")
         plt.ylabel("Relative Accuracy to Double")
         plt.legend()
@@ -50,28 +66,43 @@ class LogisticVisualizer:
         plt.close()
 
     # ===== EXPERIMENT B =====
-    def plot_tolerance_vs_time(self, df_B):
-        df_rel = self._relative_to_double(df_B, "Time")
+    def plot_tolerance_vs_time(self, df_B: pd.DataFrame):
+        keys = [c for c in ["DatasetName","DatasetSize","NumClasses","tolerance_single"] if c in df_B.columns]
+
+        # coerce tolerance to numeric > 0 for log-scale
+        df_B = df_B.copy()
+        df_B["tolerance_single"] = pd.to_numeric(df_B["tolerance_single"], errors="coerce")
+        df_B = df_B[df_B["tolerance_single"] > 0]
+
+        rel = _make_relative(df_B, "Time", keys)
+
         plt.figure(figsize=(8, 6))
-        sns.lineplot(data=df_rel, x="tolerance_single", y="Time", marker="o", ci=None, label="Hybrid")
-        plt.axhline(1.0, color="black", linestyle="--", label="Double Baseline")
-        plt.xscale("log")
-        plt.title("Tolerance vs Time (Hybrid relative to Double)")
-        plt.xlabel("Single-Precision Tolerance")
+        ax = sns.lineplot(data=rel, x="tolerance_single", y="Time", marker="o", errorbar=None, label="Hybrid")
+        ax.set_xscale("log")
+        plt.axhline(1.0, linestyle="--", color="black", label="Double baseline")
+        plt.title("Tolerance vs Time (Hybrid / Double)")
+        plt.xlabel("Single-Precision Tolerance (log scale)")
         plt.ylabel("Relative Time to Double")
         plt.legend()
         plt.tight_layout()
         plt.savefig(os.path.join(RESULTS_DIR, "logreg_B_tolerance_vs_time_relative.png"))
         plt.close()
 
-    def plot_tolerance_vs_accuracy(self, df_B):
-        df_rel = self._relative_to_double(df_B, "Accuracy")
+    def plot_tolerance_vs_accuracy(self, df_B: pd.DataFrame):
+        keys = [c for c in ["DatasetName","DatasetSize","NumClasses","tolerance_single"] if c in df_B.columns]
+
+        df_B = df_B.copy()
+        df_B["tolerance_single"] = pd.to_numeric(df_B["tolerance_single"], errors="coerce")
+        df_B = df_B[df_B["tolerance_single"] > 0]
+
+        rel = _make_relative(df_B, "Accuracy", keys)
+
         plt.figure(figsize=(8, 6))
-        sns.lineplot(data=df_rel, x="tolerance_single", y="Accuracy", marker="o", ci=None, label="Hybrid")
-        plt.axhline(1.0, color="black", linestyle="--", label="Double Baseline")
-        plt.xscale("log")
-        plt.title("Tolerance vs Accuracy (Hybrid relative to Double)")
-        plt.xlabel("Single-Precision Tolerance")
+        ax = sns.lineplot(data=rel, x="tolerance_single", y="Accuracy", marker="o", errorbar=None, label="Hybrid")
+        ax.set_xscale("log")
+        plt.axhline(1.0, linestyle="--", color="black", label="Double baseline")
+        plt.title("Tolerance vs Accuracy (Hybrid / Double)")
+        plt.xlabel("Single-Precision Tolerance (log scale)")
         plt.ylabel("Relative Accuracy to Double")
         plt.legend()
         plt.tight_layout()
