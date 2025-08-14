@@ -194,6 +194,12 @@ kmeans_vis = KMeansVisualizer()
 # kmeans_vis.plot_cap_percentage_vs_time(df_C)
 kmeans_vis.plot_iterpct_vs_inertia(df_D)
 kmeans_vis.plot_iterpct_vs_time(df_D)
+kmeans_vis.plot_E_mbiter_vs_time(df_E)
+kmeans_vis.plot_E_mbiter_vs_inertia(df_E)
+kmeans_vis.plot_F_cap_vs_time(df_F)
+kmeans_vis.plot_F_tol_vs_inertia(df_F)
+kmeans_vis.plot_G_cap_vs_time(df_G)
+kmeans_vis.plot_G_cap_vs_inertia(df_G)
 
 print(os.getcwd())
 
