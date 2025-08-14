@@ -304,3 +304,49 @@ def run_experiment_F(ds_name, X, y_true, n_clusters, initial_centers, config):
         ])
 
     return rows_F
+
+
+def run_experiment_G(ds_name, X, y_true, n_clusters, initial_centers, config):
+    """
+    Experiment G (Optimized Hybrid):
+      - Sweep single-iter cap (config['cap_grid_G'])
+      - Fixed single tol (config['tol_single_G'])
+      - Fixed total budget (config['max_iter_G'])
+      - Double tol baseline: config['tol_double_G']
+    """
+    rows = []
+    tol_single = config["tol_single_G"]
+
+    for cap in config["cap_grid_G"]:
+        # Baseline double
+        centers_d, labels_d, it_d, it_s_dummy, t_d, mem_d, inertia_d = \
+            run_full_double(
+                X, initial_centers, n_clusters,
+                max_iter=config["max_iter_G"],
+                tol=config["tol_double_G"],
+                y_true=y_true
+            )
+        rows.append([
+            ds_name, len(X), n_clusters,
+            "Double", cap, tol_single,
+            it_s_dummy, it_d, "G_opt",
+            t_d, mem_d, inertia_d
+        ])
+
+        # Optimized hybrid
+        labels_h, centers_h, it_s, it_d2, t_h, mem_h, inertia_h = \
+            run_hybrid_optimized(
+                X, initial_centers, n_clusters,
+                max_iter_total=config["max_iter_G"],
+                tol_single=tol_single,
+                tol_double=config["tol_double_G"],
+                single_iter_cap=cap,
+                seed=0
+            )
+        rows.append([
+            ds_name, len(X), n_clusters,
+            "Hybrid-Optimized", cap, tol_single,
+            it_s, it_d2, "G_opt",
+            t_h, mem_h, inertia_h
+        ])
+    return rows
