@@ -63,25 +63,17 @@ columns_E = [
 columns_F = [
     "DatasetName", "DatasetSize", "NumClusters", "Mode", "tol_single", "tol_double", "single_iter_cap", "freeze_stable", "freeze_patience", "iter_single", "iter_double", "Suite", "Time", "Memory_MB", "Inertia"]
 
+columns_G = [ 'DatasetName', 'DatasetSize', 'NumClusters', 'Mode', 'Cap', 'tolerance_single', 'iter_single', 'iter_double', 'Suite','Time', 'Memory_MB', 'Inertia']
+
 # utils.py
-svm_columns_A = [
-    "DatasetName","DatasetSize","NumClasses","Tolerance","Cap",
-    "iter_single","iter_double","Suite","Time","Memory_MB","Accuracy"
+svm_columns_A = [ "DatasetName","DatasetSize","NumClasses","Tolerance","Cap", "iter_single","iter_double","Suite","Time","Memory_MB","Accuracy"
 ]
 svm_columns_B = svm_columns_A  # same schema
 
-
 # Result schemas
-lr_columns_A = [
-    'DatasetName', 'DatasetSize', 'NumClasses',
-    'Mode', 'Cap', 'tolerance_single', 'iter_single', 'iter_double', 'Suite',
-    'Time', 'Memory_MB', 'Accuracy'
-]
+lr_columns_A = [  'DatasetName', 'DatasetSize', 'NumClasses', 'Mode', 'Cap', 'tolerance_single', 'iter_single', 'iter_double', 'Suite', 'Time', 'Memory_MB', 'Accuracy']
 
-lr_columns_B = [
-    'DatasetName', 'DatasetSize', 'NumClasses',
-    'Mode', 'tolerance_single', 'iter_single', 'iter_double', 'Suite',
-    'Time', 'Memory_MB', 'Accuracy'
-]
+lr_columns_B = [ 'DatasetName', 'DatasetSize', 'NumClasses','Mode', 'tolerance_single', 'iter_single', 'iter_double', 'Suite', 'Time', 'Memory_MB', 'Accuracy']
+
 
 
