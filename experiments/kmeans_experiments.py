@@ -108,8 +108,6 @@ def run_experiment_B(ds_name, X, y_true, n_clusters, initial_centers, config):
     return rows_B
 
 
-
-
 def run_experiment_C(ds_name, X, y_true, n_clusters, initial_centers, config):
     rows_C = []
     n_samples = len(X)
@@ -208,7 +206,6 @@ def run_experiment_D(ds_name, X, y_true, n_clusters, initial_centers, config):
 
     return rows_D
 
-
 def run_experiment_E(ds_name, X, y_true, n_clusters, initial_centers, config):
     """
     Experiment E — Mini-batch Hybrid K-Means
@@ -305,7 +302,6 @@ def run_experiment_F(ds_name, X, y_true, n_clusters, initial_centers, config):
 
     return rows_F
 
-
 def run_experiment_G(ds_name, X, y_true, n_clusters, initial_centers, config):
     """
     Experiment G (Optimized Hybrid):
@@ -350,3 +346,4 @@ def run_experiment_G(ds_name, X, y_true, n_clusters, initial_centers, config):
             t_h, mem_h, inertia_h
         ])
     return rows
+
