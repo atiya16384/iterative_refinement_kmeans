@@ -107,6 +107,12 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_D, rows_E, ro
             # rows_C += run_experiment_C(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
             print("Running D")
             rows_D += run_experiment_D(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
+            print("Running E")
+            rows_E += run_experiment_E(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
+            print("Running F")
+            rows_F += run_experiment_F(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
+            print("Running G")
+            rows_G += run_experiment_G(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
            
 
     return  rows_D, rows_E, rows_F, rows_G
@@ -117,6 +123,7 @@ all_rows = []
 # rows_B = []
 # rows_C = []
 rows_D = []
+rows_E, rows_F, rows_G = [], [], []
 
 for tag, n, d, k, seed in synth_specs:
     X, y = generate_synthetic_data(n, d, k, seed)
@@ -134,26 +141,27 @@ for tag, n, d, k, seed in synth_specs:
 # df_B = pd.DataFrame(rows_B, columns=columns_B)
 # df_C= pd.DataFrame(rows_C, columns=columns_C)
 df_D = pd.DataFrame(rows_D, columns=columns_D)
-
-
-
-
-# df_A.to_csv(RESULTS_DIR / "hybrid_kmeans_Results_expA.csv", index = True)
-# df_B.to_csv(RESULTS_DIR / "hybrid_kmeans_Results_expB.csv", index = True)
-# df_C.to_csv(RESULTS_DIR / "hybrid_kmeans_Results_expC.csv", index = True)
-df_D.to_csv(RESULTS_DIR / "hybrid_kmeans_Results_expD.csv", index = True)
+df_E = pd.DataFrame(rows_E, columns=columns_E)
+df_F = pd.DataFrame(rows_F, columns=columns_F)
+df_G = pd.DataFrame(rows_G, columns=columns_G)
 
 
 # df_A = pd.read_csv("Results/hybrid_kmeans_Results_expA.csv")
 # df_B = pd.read_csv("Results/hybrid_kmeans_Results_expB.csv")
 # df_C = pd.read_csv("Results/hybrid_kmeans_Results_expC.csv")
 df_D = pd.read_csv("Results/hybrid_kmeans_Results_expD.csv")
-
+df_E.to_csv(RESULTS_DIR / "hybrid_kmeans_Results_expE.csv", index=False)
+df_F.to_csv(RESULTS_DIR / "hybrid_kmeans_Results_expF.csv", index=False)
+df_G.to_csv(RESULTS_DIR / "hybrid_kmeans_Results_expG.csv", index=False)
 
 
 print("Saved:")
 print("- hybrid_kmeans_results_expA.csv")
 print("- hybrid_kmeans_results_expB.csv")
+print("- hybrid_kmeans_Results_expE.csv")
+print("- hybrid_kmeans_Results_expF.csv")
+print("- hybrid_kmeans_Results_expG.csv")
+
 
 # === SUMMARY: Experiment A ===
 # print("\n==== SUMMARY: EXPERIMENT A ====")
@@ -182,6 +190,19 @@ print(df_D.groupby([
     'DatasetSize', 'NumClusters', 'Mode',
     'tolerance_single','iter_single', 'iter_double', 'Suite'
 ])[['Time', 'Memory_MB', 'Inertia']].mean())
+
+print("\n==== SUMMARY: EXPERIMENT E ====")
+print(df_E.groupby(['DatasetSize','NumClusters','Mode','MB_Iter','MB_Batch','RefineIter','Suite'])
+        [['Time','Memory_MB','Inertia']].mean())
+
+print("\n==== SUMMARY: EXPERIMENT F ====")
+print(df_F.groupby(['DatasetSize','NumClusters','Mode','tol_single','tol_double','single_iter_cap',
+                    'freeze_stable','freeze_patience','Suite'])
+        [['Time','Memory_MB','Inertia']].mean())
+
+print("\n==== SUMMARY: EXPERIMENT G ====")
+print(df_G.groupby(['DatasetSize','NumClusters','Mode','Cap','tolerance_single','Suite'])
+        [['Time','Memory_MB','Inertia']].mean())
 
 # Plots for Experiment A and C (Cap-based)
 # Cap-based plots (Experiments A & C)
