@@ -360,3 +360,76 @@ def run_expF_percluster_mixed(
         "inertia": float(km.inertia_),
         "frozen_mask": frozen,  # which clusters ended Phase 1 frozen
     }
+
+
+def run_hybrid_optimized(
+    X, initial_centers, n_clusters,
+    max_iter_total, tol_single, tol_double, single_iter_cap,
+    seed=0
+):
+    """
+    Optimized hybrid:
+      - Cast X to fp32 and fp64 ONCE each and reuse
+      - Single phase in fp32 for 'single_iter_cap' iters
+      - Warm-start double phase with fp64 centers via init=<centers64>
+    """
+    # --- Cast once, reuse ---
+    X32 = np.asarray(X, dtype=np.float32)
+    X64 = np.asarray(X, dtype=np.float64)
+
+    init32 = np.asarray(initial_centers, dtype=np.float32)
+    init64 = np.asarray(initial_centers, dtype=np.float64)
+
+    single_iter_cap = max(0, min(int(single_iter_cap), int(max_iter_total)))
+
+    # ===== Single (fp32) =====
+    t0 = time.perf_counter()
+    if single_iter_cap > 0:
+        km_single = KMeans(
+            n_clusters=n_clusters,
+            init=init32,
+            n_init=1,
+            max_iter=single_iter_cap,
+            tol=tol_single,
+            algorithm='lloyd',
+            random_state=seed
+        )
+        km_single.fit(X32)
+        t_single = time.perf_counter() - t0
+        iters_single = int(km_single.n_iter_)
+        centers64 = km_single.cluster_centers_.astype(np.float64, copy=False)
+    else:
+        t_single = 0.0
+        iters_single = 0
+        centers64 = init64
+
+    remaining_iter = max(1, int(max_iter_total) - iters_single)
+
+    # ===== Double (fp64 refine) =====
+    t1 = time.perf_counter()
+    km_double = KMeans(
+        n_clusters=n_clusters,
+        init=centers64,           # warm-start via init array
+        n_init=1,
+        max_iter=remaining_iter,
+        tol=tol_double,
+        algorithm='lloyd',
+        random_state=seed
+    )
+    km_double.fit(X64)
+    t_double = time.perf_counter() - t1
+
+    labels_final = km_double.labels_
+    centers_final = km_double.cluster_centers_
+    inertia = evaluate_metrics(km_double.inertia_)
+    iters_double = int(km_double.n_iter_)
+
+    # Memory: count resident arrays
+    mem_MB_total = (X32.nbytes + X64.nbytes) / 1e6
+    total_time = t_single + t_double
+
+    return (
+        labels_final, centers_final,
+        iters_single, iters_double,
+        total_time, mem_MB_total, inertia
+    )
