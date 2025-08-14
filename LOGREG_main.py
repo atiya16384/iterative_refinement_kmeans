@@ -2,6 +2,7 @@ import pathlib
 import pandas as pd
 from utils import generate_synthetic_data, synth_specs, lr_columns_A, lr_columns_B
 from logistic_experiments import run_experiment_A, run_experiment_B
+from visualisations.logistic_vis import LogisticVisualizer
 
 RESULTS_DIR = pathlib.Path("Results")
 RESULTS_DIR.mkdir(exist_ok=True)
@@ -40,6 +41,7 @@ df_B = pd.DataFrame(rows_B, columns=lr_columns_B)
 df_A.to_csv(RESULTS_DIR / "logistic_results_expA.csv", index=False)
 df_B.to_csv(RESULTS_DIR / "logistic_results_expB.csv", index=False)
 
+
 # Summaries
 print("\n==== SUMMARY: EXPERIMENT A ====")
 print(df_A.groupby(["DatasetName", "NumClasses", "Mode", "Cap", "tolerance_single"])[
@@ -50,3 +52,15 @@ print("\n==== SUMMARY: EXPERIMENT B ====")
 print(df_B.groupby(["DatasetName", "NumClasses", "Mode", "tolerance_single"])[
     ["Time", "Memory_MB", "Accuracy"]
 ].mean())
+
+
+# After created df_A and df_B
+log_vis = LogisticVisualizer()
+
+# Experiment A plots
+log_vis.plot_cap_vs_time(df_A)
+log_vis.plot_cap_vs_accuracy(df_A)
+
+# Experiment B plots
+log_vis.plot_tolerance_vs_time(df_B)
+log_vis.plot_tolerance_vs_accuracy(df_B)
