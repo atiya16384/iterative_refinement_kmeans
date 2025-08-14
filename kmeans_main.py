@@ -64,7 +64,6 @@ config = {
     "freeze_stable_F": True,
     "freeze_patience_F": 1,
 
-    config.update({
     "max_iter_G": 300,
     "tol_double_G": 1e-16,
     "tol_single_G": 1e-5,
@@ -81,7 +80,7 @@ precisions = {
     "Double Precision": np.float64
 }
 
-def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_D): #rows_A, rows_B # 
+def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_D, rows_E, rows_F, rows_G): #rows_A, rows_B # 
     X_ns, y_ns = X_full, y_full
 
     n_features = X_ns.shape[1]
@@ -108,8 +107,9 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_D): #rows_A, 
             # rows_C += run_experiment_C(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
             print("Running D")
             rows_D += run_experiment_D(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
+           
 
-    return  rows_D
+    return  rows_D, rows_E, rows_F, rows_G
 
 all_rows = []
 
@@ -134,6 +134,7 @@ for tag, n, d, k, seed in synth_specs:
 # df_B = pd.DataFrame(rows_B, columns=columns_B)
 # df_C= pd.DataFrame(rows_C, columns=columns_C)
 df_D = pd.DataFrame(rows_D, columns=columns_D)
+
 
 
 
