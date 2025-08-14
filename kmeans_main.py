@@ -64,6 +64,13 @@ config = {
     "freeze_stable_F": True,
     "freeze_patience_F": 1,
 
+    config.update({
+    "max_iter_G": 300,
+    "tol_double_G": 1e-16,
+    "tol_single_G": 1e-5,
+    "cap_grid_G": [0, 50, 100, 150, 200, 250, 300],
+  
+
 }
 
 rng_global = np.random.default_rng(0)
