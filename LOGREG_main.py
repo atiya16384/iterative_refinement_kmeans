@@ -1,55 +1,52 @@
-# LOGREG_main.py
-import pathlib, pandas as pd
-from aoclda.sklearn import skpatch; skpatch()
-from experiments.logreg_experiments import LogRegExperimentRunner
-from sklearn.datasets import make_classification
-from datasets.utils import logreg_columns_A, logreg_columns_B
+import pathlib
+import pandas as pd
+from utils import generate_synthetic_data, synth_specs, lr_columns_A, lr_columns_B
+from logistic_experiments import run_experiment_A, run_experiment_B
 
 RESULTS_DIR = pathlib.Path("Results")
 RESULTS_DIR.mkdir(exist_ok=True)
 
-def print_summary(path, group_by):
-    df = pd.read_csv(path)
-    print(f"\n==== SUMMARY: {path.name} ====")
-    print(df.groupby(group_by)[['Accuracy', 'Time', 'Memory_MB']].mean())
+# ===================
+# SINGLE SOURCE CONFIG
+# ===================
+config = {
+    "n_repeats": 1,
 
-def run_experiments():
-    # Simple, readable config
-    config = {
-        "n_repeats": 1,
-        "epochs_A_total": 50,        # total iters for Exp-A
-        "epochs_B_total": 50,        # total iters for Exp-B
-        "tol_fixed_A": 1e-4,         # Exp-A uses fixed tol
-        "tolerances": [5e-3, 1e-3, 5e-4],  # Exp-B sweeps tol_single
-        "tol_double_B": 1e-4,        # polish tol
-        "cap_B": 10,                 # stage-1 iters for Exp-B
-        "caps": [0, 5, 10, 20],      # stage-1 iters for Exp-A
-        "C": 1.0,
-        "solver": "lbfgs",
-        "test_size": 0.2,
-        "seed": 0,
-    }
+    # === Experiment A (cap sweep) ===
+    "cap_grid": [0, 50, 100, 150, 200, 250, 300],
+    "tol_fixed_A": 1e-4,
+    "max_iter_A": 300,
 
-    # Synthetic classification dataset
-    X, y = make_classification(
-        n_samples=60_000, n_features=80, n_informative=40, n_redundant=10,
-        n_classes=5, class_sep=1.5, random_state=0
-    )
+    # === Experiment B (tolerance sweep, no cap) ===
+    "max_iter_B": 300,
+    "tol_double_B": 1e-8,
+    "tol_single_grid": [1e-1, 1e-2, 1e-3, 1e-4],
+}
 
-    runner = LogRegExperimentRunner(config)
-    runner.run_all("LOGREG_SYNTH", X, y)
-    rows_A, rows_B = runner.get_results()
+rows_A, rows_B = [], []
 
-    df_A = pd.DataFrame(rows_A, columns=logreg_columns_A)
-    df_B = pd.DataFrame(rows_B, columns=logreg_columns_B)
-    df_A.to_csv(RESULTS_DIR / "logreg_expA_caps.csv", index=False)
-    df_B.to_csv(RESULTS_DIR / "logreg_expB_tol.csv", index=False)
+# Synthetic datasets
+for tag, n, d, k, seed in synth_specs:
+    X, y = generate_synthetic_data(n, d, k, seed)
+    n_classes = len(set(y))
 
-    print("Saved: logreg_expA_caps.csv, logreg_expB_tol.csv")
-    print_summary(RESULTS_DIR / "logreg_expA_caps.csv", ["Suite"])
-    print_summary(RESULTS_DIR / "logreg_expB_tol.csv", ["Suite"])
+    for _ in range(config["n_repeats"]):
+        rows_A.extend(run_experiment_A(tag, X, y, n_classes, config))
+        rows_B.extend(run_experiment_B(tag, X, y, n_classes, config))
 
-    return df_A, df_B
+# Save results
+df_A = pd.DataFrame(rows_A, columns=lr_columns_A)
+df_B = pd.DataFrame(rows_B, columns=lr_columns_B)
+df_A.to_csv(RESULTS_DIR / "logistic_results_expA.csv", index=False)
+df_B.to_csv(RESULTS_DIR / "logistic_results_expB.csv", index=False)
 
-if __name__ == "__main__":
-    run_experiments()
+# Summaries
+print("\n==== SUMMARY: EXPERIMENT A ====")
+print(df_A.groupby(["DatasetName", "NumClasses", "Mode", "Cap", "tolerance_single"])[
+    ["Time", "Memory_MB", "Accuracy"]
+].mean())
+
+print("\n==== SUMMARY: EXPERIMENT B ====")
+print(df_B.groupby(["DatasetName", "NumClasses", "Mode", "tolerance_single"])[
+    ["Time", "Memory_MB", "Accuracy"]
+].mean())
