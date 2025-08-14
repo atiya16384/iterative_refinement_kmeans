@@ -1,4 +1,4 @@
-from logistic_precision import run_full_double, run_hybrid
+from experiments.logreg_precision import run_full_double, run_hybrid
 
 # ========================
 # Experiment A (Cap sweep)

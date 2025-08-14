@@ -1,8 +1,10 @@
 import pathlib
 import pandas as pd
-from utils import generate_synthetic_data, synth_specs, lr_columns_A, lr_columns_B
-from logistic_experiments import run_experiment_A, run_experiment_B
-from visualisations.logistic_vis import LogisticVisualizer
+from aoclda.sklearn import skpatch
+skpatch()
+from datasets.utils import generate_synthetic_data, synth_specs, lr_columns_A, lr_columns_B
+from experiments.logreg_experiments import run_experiment_A, run_experiment_B
+from visualisations.LOGREG_visualisations import LogisticVisualizer
 
 RESULTS_DIR = pathlib.Path("Results")
 RESULTS_DIR.mkdir(exist_ok=True)
@@ -15,12 +17,12 @@ config = {
 
     # === Experiment A (cap sweep) ===
     "cap_grid": [0, 50, 100, 150, 200, 250, 300],
-    "tol_fixed_A": 1e-4,
+    "tol_fixed_A": 1e-16,
     "max_iter_A": 300,
 
     # === Experiment B (tolerance sweep, no cap) ===
-    "max_iter_B": 300,
-    "tol_double_B": 1e-8,
+    "max_iter_B": 1000,
+    "tol_double_B": 1e-5,
     "tol_single_grid": [1e-1, 1e-2, 1e-3, 1e-4],
 }
 
