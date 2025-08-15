@@ -12,11 +12,11 @@ from visualisations.kmeans_visualisations import KMeansVisualizer
 
 from experiments.kmeans_experiments import (
     run_experiment_A, run_experiment_B,
-    run_experiment_C, run_experiment_D
+    run_experiment_C, run_experiment_D, run_experiment_E, run_experiment_F, run_experiment_G
 )
 from datasets.utils import (
     generate_synthetic_data, real_datasets, synth_specs, load_3d_road, load_susy,
-    columns_A, columns_B, columns_C, columns_D
+    columns_A, columns_B, columns_C, columns_D, columns_E, columns_F, columns_G
 )
 
 RESULTS_DIR = pathlib.Path("Results")
@@ -130,7 +130,7 @@ for tag, n, d, k, seed in synth_specs:
     print(f"[SYNTH] {tag:14s}  shape={X.shape}  any_NaN={np.isnan(X).any()}",
           flush=True)
     # check if the mappings are correct to the run_one_dataset
-    run_one_dataset(tag, X, y,rows_D)
+    run_one_dataset(tag, X, y,rows_D, rows_E, rows_F, rows_G)
 
 # real datasets
 # for tag, loader in real_datasets.items():
