@@ -207,100 +207,93 @@ def run_experiment_D(ds_name, X, y_true, n_clusters, initial_centers, config):
     return rows_D
 
 def run_experiment_E(ds_name, X, y_true, n_clusters, initial_centers, config):
-    """
-    Experiment E — Mini-batch Hybrid K-Means
-    Baseline: full double with budget = mb_iter + refine_iter.
-    Variant:  MiniBatchKMeans(float32) -> KMeans(float64).
-    """
     rows_E = []
     n = len(X)
     reps = int(config["n_repeats"])
 
-    # Fixed POC parameters
-    mb_iter = int(config["mb_iter_E"])
-    mb_batch = int(config["mb_batch_E"])
-    refine_iter = int(config["max_refine_iter_E"])
-    tol_double_baseline = float(config["tol_double_baseline_E"])  # 0.0 => stop by budget
-
-    budget = mb_iter + refine_iter
+    mb_iter_grid = config.get("E_mb_iter_grid", [config["mb_iter_E"]])
+    batch_grid   = config.get("E_batch_grid",   [config["mb_batch_E"]])
+    refine_grid  = config.get("E_refine_grid",  [config["max_refine_iter_E"]])
+    tol_double_baseline = float(config["tol_double_baseline_E"])
 
     for rep in range(reps):
-        # Baseline: pure double with same total iteration budget
-        c_d, l_d, it_d, it_s, t, mem, J = run_full_double(
-            X, initial_centers, n_clusters, budget, tol_double_baseline, y_true
-        )
-        rows_E.append([
-            ds_name, n, n_clusters, "E",
-            mb_iter, mb_batch, refine_iter,
-            it_s, it_d,
-            "Double", t, mem, J
-        ])
+        for mb_iter in mb_iter_grid:
+            for mb_batch in batch_grid:
+                for refine_iter in refine_grid:
+                    budget = mb_iter + refine_iter
 
-        # Variant: Mini-batch -> Full
-        res = run_expE_minibatch_then_full(
-            X, initial_centers, n_clusters,
-            mb_iter=mb_iter, mb_batch=mb_batch, max_refine_iter=refine_iter,
-            seed=rep
-        )
-        rows_E.append([
-            ds_name, n, n_clusters, "E",
-            mb_iter, mb_batch, refine_iter,
-            res["iters_single"], res["iters_double"],
-            "MiniBatch+Full", res["elapsed_time"], res["mem_MB"], res["inertia"]
-        ])
+                    # Baseline: pure double with same total budget
+                    c_d, l_d, it_d, it_s, t, mem, J = run_full_double(
+                        X, initial_centers, n_clusters, budget, tol_double_baseline, y_true
+                    )
+                    rows_E.append([
+                        ds_name, n, n_clusters, "E",
+                        mb_iter, mb_batch, refine_iter,
+                        it_s, it_d,
+                        "Double", t, mem, J
+                    ])
 
+                    # Variant: MiniBatch -> Full
+                    res = run_expE_minibatch_then_full(
+                        X, initial_centers, n_clusters,
+                        mb_iter=mb_iter, mb_batch=mb_batch, max_refine_iter=refine_iter,
+                        seed=rep
+                    )
+                    rows_E.append([
+                        ds_name, n, n_clusters, "E",
+                        mb_iter, mb_batch, refine_iter,
+                        res["iters_single"], res["iters_double"],
+                        "MiniBatch+Full", res["elapsed_time"], res["mem_MB"], res["inertia"]
+                    ])
     return rows_E
 
 
 def run_experiment_F(ds_name, X, y_true, n_clusters, initial_centers, config):
-    """
-    Experiment F — Mixed Precision Per-Cluster
-    Baseline: full double with same total max_iter_F.
-    Variant:  per-cluster float32 Lloyd (optional freezing) -> sklearn KMeans(double).
-    """
     rows_F = []
     n = len(X)
     reps = int(config["n_repeats"])
 
-    # Fixed POC parameters
     max_iter_total = int(config["max_iter_F"])
-    tol_double = float(config["tol_double_F"])
-    tol_single = float(config["tol_single_F"])
-    single_iter_cap = int(config["single_iter_cap_F"])
-    freeze_stable = bool(config["freeze_stable_F"])
-    freeze_patience = int(config["freeze_patience_F"])
+    tol_double     = float(config["tol_double_F"])
+    freeze_stable  = bool(config["freeze_stable_F"])
+    freeze_patience= int(config["freeze_patience_F"])
+
+    cap_grid       = config.get("F_cap_grid",       [config["single_iter_cap_F"]])
+    tol_single_grid= config.get("F_tol_single_grid",[config["tol_single_F"]])
 
     for rep in range(reps):
-        # Baseline: pure double
-        c_d, l_d, it_d, it_s, t, mem, J = run_full_double(
-            X, initial_centers, n_clusters, max_iter_total, tol_double, y_true
-        )
-        rows_F.append([
-            ds_name, n, n_clusters, "F",
-            tol_single, tol_double, single_iter_cap, freeze_stable, freeze_patience,
-            it_s, it_d,
-            "Double", t, mem, J
-        ])
+        for single_iter_cap in cap_grid:
+            for tol_single in tol_single_grid:
+                # Baseline: pure double with same total budget
+                c_d, l_d, it_d, it_s, t, mem, J = run_full_double(
+                    X, initial_centers, n_clusters, max_iter_total, tol_double, y_true
+                )
+                rows_F.append([
+                    ds_name, n, n_clusters, "F",
+                    tol_single, tol_double, single_iter_cap, freeze_stable, freeze_patience,
+                    it_s, it_d,
+                    "Double", t, mem, J
+                ])
 
-        # Variant: per-cluster mixed precision
-        res = run_expF_percluster_mixed(
-            X, initial_centers,
-            max_iter_total=max_iter_total,
-            single_iter_cap=single_iter_cap,
-            tol_single=tol_single,
-            tol_double=tol_double,
-            freeze_stable=freeze_stable,
-            freeze_patience=freeze_patience,
-            seed=rep
-        )
-        rows_F.append([
-            ds_name, n, n_clusters, "F",
-            tol_single, tol_double, single_iter_cap, freeze_stable, freeze_patience,
-            res["iters_single"], res["iters_double"],
-            "MixedPerCluster", res["elapsed_time"], res["mem_MB"], res["inertia"]
-        ])
-
+                # Variant: per‑cluster mixed precision
+                res = run_expF_percluster_mixed(
+                    X, initial_centers,
+                    max_iter_total=max_iter_total,
+                    single_iter_cap=int(single_iter_cap),
+                    tol_single=float(tol_single),
+                    tol_double=tol_double,
+                    freeze_stable=freeze_stable,
+                    freeze_patience=freeze_patience,
+                    seed=rep
+                )
+                rows_F.append([
+                    ds_name, n, n_clusters, "F",
+                    tol_single, tol_double, single_iter_cap, freeze_stable, freeze_patience,
+                    res["iters_single"], res["iters_double"],
+                    "MixedPerCluster", res["elapsed_time"], res["mem_MB"], res["inertia"]
+                ])
     return rows_F
+
 
 def run_experiment_G(ds_name, X, y_true, n_clusters, initial_centers, config):
     """
@@ -346,4 +339,5 @@ def run_experiment_G(ds_name, X, y_true, n_clusters, initial_centers, config):
             t_h, mem_h, inertia_h
         ])
     return rows
+
 
