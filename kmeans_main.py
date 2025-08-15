@@ -50,19 +50,24 @@ config = {
     "shift_tol_D": 1e-3,
     "stability_threshold_D": 0.02,
     
-    # E (Mini-batch Hybrid)
-    "mb_iter_E": 100,
-    "mb_batch_E": 2048,
-    "max_refine_iter_E": 100,
-    "tol_double_baseline_E": 0.0,   # baseline stops by iteration budget
-    
-    # F (Mixed Precision Per-Cluster)
-    "max_iter_F": 300,
-    "tol_double_F": 1e-4,
-    "tol_single_F": 1e-3,
-    "single_iter_cap_F": 100,
-    "freeze_stable_F": True,
-    "freeze_patience_F": 1,
+  # --- E (Mini-batch Hybrid) : sweep these ---
+    "E_mb_iter_grid":   [25, 50, 100, 150],   # was 100
+    "E_batch_grid":     [512, 1024, 2048],    # optional sweep
+    "E_refine_grid":    [50, 100, 150],       # was 100
+    "tol_double_baseline_E": 0.0,             # keep; baseline stops by budget
+
+    # keep single “default” values used if grids not provided
+    "mb_iter_E": 100, "mb_batch_E": 2048, "max_refine_iter_E": 100,
+
+    # --- F (Per‑cluster Mixed) : sweep these ---
+    "F_cap_grid":       [0, 25, 50, 75, 100, 150],  # Phase‑1 cap
+    "F_tol_single_grid":[1e-2, 1e-3, 5e-4],         # stability tol (log-x)
+    "tol_double_F":     1e-4,
+    "freeze_stable_F":  True,
+    "freeze_patience_F":1,
+
+     # keep single defaults used if grids not provided
+    "single_iter_cap_F": 100, "tol_single_F": 1e-3,
 
     "max_iter_G": 300,
     "tol_double_G": 1e-16,
