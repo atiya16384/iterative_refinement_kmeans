@@ -12,11 +12,11 @@ from visualisations.kmeans_visualisations import KMeansVisualizer
 
 from experiments.kmeans_experiments import (
     run_experiment_A, run_experiment_B,
-    run_experiment_C, run_experiment_D, run_experiment_E, run_experiment_F, run_experiment_G
+    run_experiment_C, run_experiment_D, run_experiment_E, run_experiment_F
 )
 from datasets.utils import (
     generate_synthetic_data, real_datasets, synth_specs, load_3d_road, load_susy,
-    columns_A, columns_B, columns_C, columns_D, columns_E, columns_F, columns_G
+    columns_A, columns_B, columns_C, columns_D, columns_E, columns_F
 )
 
 RESULTS_DIR = pathlib.Path("Results")
@@ -68,13 +68,7 @@ config = {
 
      # keep single defaults used if grids not provided
     "single_iter_cap_F": 100, "tol_single_F": 1e-3,
-
-    "max_iter_G": 300,
-    "tol_double_G": 1e-16,
-    "tol_single_G": 1e-5,
-    "cap_grid_G": [0, 50, 100, 150, 200, 250, 300],
   
-
 }
 
 rng_global = np.random.default_rng(0)
@@ -85,7 +79,7 @@ precisions = {
     "Double Precision": np.float64
 }
 
-def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_D, rows_E, rows_F, rows_G): #rows_A, rows_B # 
+def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_D, rows_E, rows_F): #rows_A, rows_B # 
     X_ns, y_ns = X_full, y_full
 
     n_features = X_ns.shape[1]
@@ -116,11 +110,9 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_D, rows_E, ro
             rows_E += run_experiment_E(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
             print("Running F")
             rows_F += run_experiment_F(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
-            print("Running G")
-            rows_G += run_experiment_G(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
-           
 
-    return  rows_D, rows_E, rows_F, rows_G
+
+    return  rows_D, rows_E, rows_F
 
 all_rows = []
 
@@ -128,7 +120,7 @@ all_rows = []
 # rows_B = []
 # rows_C = []
 rows_D = []
-rows_E, rows_F, rows_G = [], [], []
+rows_E, rows_F= [], []
 
 for tag, n, d, k, seed in synth_specs:
     X, y = generate_synthetic_data(n, d, k, seed)
@@ -148,7 +140,7 @@ for tag, n, d, k, seed in synth_specs:
 df_D = pd.DataFrame(rows_D, columns=columns_D)
 df_E = pd.DataFrame(rows_E, columns=columns_E)
 df_F = pd.DataFrame(rows_F, columns=columns_F)
-df_G = pd.DataFrame(rows_G, columns=columns_G)
+
 
 
 # df_A = pd.read_csv("Results/hybrid_kmeans_Results_expA.csv")
@@ -157,7 +149,7 @@ df_G = pd.DataFrame(rows_G, columns=columns_G)
 df_D = pd.read_csv("Results/hybrid_kmeans_Results_expD.csv")
 df_E.to_csv(RESULTS_DIR / "hybrid_kmeans_Results_expE.csv", index=False)
 df_F.to_csv(RESULTS_DIR / "hybrid_kmeans_Results_expF.csv", index=False)
-df_G.to_csv(RESULTS_DIR / "hybrid_kmeans_Results_expG.csv", index=False)
+
 
 
 print("Saved:")
@@ -165,7 +157,7 @@ print("- hybrid_kmeans_results_expA.csv")
 print("- hybrid_kmeans_results_expB.csv")
 print("- hybrid_kmeans_Results_expE.csv")
 print("- hybrid_kmeans_Results_expF.csv")
-print("- hybrid_kmeans_Results_expG.csv")
+
 
 
 # === SUMMARY: Experiment A ===
@@ -205,9 +197,7 @@ print(df_F.groupby(['DatasetSize','NumClusters','Mode','tol_single','tol_double'
                     'freeze_stable','freeze_patience','Suite'])
         [['Time','Memory_MB','Inertia']].mean())
 
-print("\n==== SUMMARY: EXPERIMENT G ====")
-print(df_G.groupby(['DatasetSize','NumClusters','Mode','Cap','tolerance_single','Suite'])
-        [['Time','Memory_MB','Inertia']].mean())
+
 
 # Plots for Experiment A and C (Cap-based)
 # Cap-based plots (Experiments A & C)
@@ -225,8 +215,6 @@ kmeans_vis.plot_E_mbiter_vs_time(df_E)
 kmeans_vis.plot_E_mbiter_vs_inertia(df_E)
 kmeans_vis.plot_F_cap_vs_time(df_F)
 kmeans_vis.plot_F_tol_vs_inertia(df_F)
-kmeans_vis.plot_G_cap_vs_time(df_G)
-kmeans_vis.plot_G_cap_vs_inertia(df_G)
 
 print(os.getcwd())
 
