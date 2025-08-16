@@ -186,81 +186,157 @@ class KMeansVisualizer:
         plt.close()
         print(f"Saved {self.output_dir / 'exp_C_cap_percentage_vs_norm_time.png'}")
     
-    def plot_expD(self, df):
-        """Experiment D: chunk_single vs (Time, Inertia)"""
-        df_D = df.groupby("chunk_single")[["Time", "Inertia"]].mean().reset_index()
-    
-        plt.figure(figsize=(6,4))
-        sns.lineplot(data=df_D, x="chunk_single", y="Time", marker="o")
-        plt.title("Experiment D – Chunk vs Time")
-        plt.ylabel("Runtime (s)")
-        plt.xlabel("Chunk Size")
-        plt.grid(True, linestyle="--", alpha=0.6)
-        plt.tight_layout()
-        plt.savefig(f"{self.output_dir/ 'expD_chunk_vs_time.png'}", dpi=200)
-    
-        plt.figure(figsize=(6,4))
-        sns.lineplot(data=df_D, x="chunk_single", y="Inertia", marker="o")
-        plt.title("Experiment D – Chunk vs Inertia")
-        plt.ylabel("Inertia (lower is better)")
-        plt.xlabel("Chunk Size")
-        plt.grid(True, linestyle="--", alpha=0.6)
-        plt.tight_layout()
-        plt.savefig(f"{self.output_dir/ 'expD_chunk_vs_inertia.png'}", dpi=200)
-    
-    
-    def plot_expE(self, df):
-        """Experiment E: MB_Iter vs (Time, Inertia)"""
-        df_E = df.groupby("MB_Iter")[["Time", "Inertia"]].mean().reset_index()
-    
-        plt.figure(figsize=(6,4))
-        sns.lineplot(data=df_E, x="MB_Iter", y="Time", marker="o")
-        plt.title("Experiment E – Mini-batch Iterations vs Time")
-        plt.ylabel("Runtime (s)")
-        plt.xlabel("Mini-batch Iterations")
-        plt.grid(True, linestyle="--", alpha=0.6)
-        plt.tight_layout()
-        plt.savefig(f"{self.output_dir/ 'expE_mbiter_vs_time.png'}", dpi=200)
-    
-        plt.figure(figsize=(6,4))
-        sns.lineplot(data=df_E, x="MB_Iter", y="Inertia", marker="o")
-        plt.title("Experiment E – Mini-batch Iterations vs Inertia")
-        plt.ylabel("Inertia (lower is better)")
-        plt.xlabel("Mini-batch Iterations")
-        plt.grid(True, linestyle="--", alpha=0.6)
-        plt.tight_layout()
-        plt.savefig(f"{self.output_dir / 'expE_mbiter_vs_inertia.png'}", dpi=200)
-    
-    
-    def plot_expF(self, df):
-        """Experiment F: single_iter_cap vs (Time, Inertia)"""
-        df_F = df.groupby("single_iter_cap")[["Time", "Inertia"]].mean().reset_index()
-    
-        plt.figure(figsize=(6,4))
-        sns.lineplot(data=df_F, x="single_iter_cap", y="Time", marker="o")
-        plt.title("Experiment F – Iteration Cap vs Time")
-        plt.ylabel("Runtime (s)")
-        plt.xlabel("Single Iteration Cap")
-        plt.grid(True, linestyle="--", alpha=0.6)
-        plt.tight_layout()
-        plt.savefig(f"{self.output_dir/'expF_cap_vs_time.png'}", dpi=200)
-    
-        plt.figure(figsize=(6,4))
-        sns.lineplot(data=df_F, x="single_iter_cap", y="Inertia", marker="o")
-        plt.title("Experiment F – Iteration Cap vs Inertia")
-        plt.ylabel("Inertia (lower is better)")
-        plt.xlabel("Single Iteration Cap")
-        plt.grid(True, linestyle="--", alpha=0.6)
-        plt.tight_layout()
-        plt.savefig(f"{self.output_dir/ 'expF_cap_vs_inertia.png'}", dpi=200)
-    
-    
-    # === Usage Example ===
-    # plot_expD(df_D)
-    # plot_expE(df_E)
-    # plot_expF(df_F)
+
+    @staticmethod
+    def _rel(self, df: pd.DataFrame, keys, value_col: str) -> pd.DataFrame:
+        """
+        Build a dataframe keyed by `keys` with columns:
+            [*keys, value_col, BASE, Rel]
+        where Rel = (variant value) / (Double baseline value).
+        Aggregation is mean within each group.
+        """
+        base = (
+            df[df["Suite"] == "Double"]
+            .groupby(keys, as_index=False)[value_col].mean()
+            .rename(columns={value_col: "BASE"})
+        )
+        var = (
+            df[df["Suite"] != "Double"]
+            .groupby(keys, as_index=False)[value_col].mean()
+        )
+        out = var.merge(base, on=keys, how="inner")
+        out["Rel"] = out[value_col] / out["BASE"]
+        return out
+
+    @staticmethod
+    def _clean_line(self, rel_df: pd.DataFrame, xcol: str,
+                    title: str, ylabel: str, outname: str,
+                    logx: bool = False) -> None:
+        """
+        Faint per-(DatasetName, NumClusters) lines + bold median curve.
+        X is sorted; optional log-x for tolerance sweeps.
+        """
+        fig, ax = plt.subplots(figsize=(7, 5))
+
+        # faint per-dataset/cluster curves
+        for (_, _), g in rel_df.groupby(["DatasetName", "NumClusters"]):
+            g = g.sort_values(xcol)
+            ax.plot(g[xcol], g["Rel"], marker="o", alpha=0.35)
+
+        # bold median trend
+        agg = (
+            rel_df.groupby(xcol)["Rel"].median()
+            .reset_index().sort_values(xcol)
+        )
+        ax.plot(agg[xcol], agg["Rel"], marker="o", lw=2, label="Median")
+
+        if logx:
+            ax.set_xscale("log")
+
+        ax.axhline(1.0, ls="--", c="gray", lw=1, label="Double baseline")
+        ax.set_title(title)
+        ax.set_xlabel(xcol)
+        ax.set_ylabel(ylabel)
+        ax.grid(True, ls="--", alpha=0.5)
+        ax.legend()
+        fig.tight_layout()
+        fig.savefig(self.output_dir / outname, dpi=200)
+        plt.close(fig)
 
 
+    def plot_expD_clean(self, df_D: pd.DataFrame) -> None:
+        # single knob: chunk_single
+        keys = ["DatasetName", "NumClusters", "chunk_single"]
+        relT = self._rel(df_D, keys, "Time")
+        relJ = self._rel(df_D, keys, "Inertia")
+
+        self._clean_line(
+            relT, "chunk_single",
+            "D: Chunk (single) vs Relative Time",
+            "Time / Double (↓ better if < 1)",
+            "D_chunk_vs_time_rel.png"
+        )
+        self._clean_line(
+            relJ, "chunk_single",
+            "D: Chunk (single) vs Relative Inertia",
+            "Inertia / Double (≈ 1 good)",
+            "D_chunk_vs_inertia_rel.png"
+        )
+
+    def plot_expE_clean(self, df_E: pd.DataFrame) -> None:
+        # Fix batch and refine to most common values → clean sweep over MB_Iter
+        if "MB_Batch" in df_E.columns and not df_E["MB_Batch"].empty:
+            batch_fix = df_E["MB_Batch"].mode().iat[0]
+            df_E = df_E[df_E["MB_Batch"] == batch_fix].copy()
+        else:
+            batch_fix = None
+
+        refine_fix = int(df_E["RefineIter"].mode().iat[0])
+        df_use = df_E[df_E["RefineIter"] == refine_fix].copy()
+
+        keys = ["DatasetName", "NumClusters", "MB_Iter", "RefineIter"]
+        relT = self._rel(df_use, keys, "Time")
+        relJ = self._rel(df_use, keys, "Inertia")
+
+        suffix = f"(Refine={refine_fix}" + (f", Batch={batch_fix})" if batch_fix is not None else ")"
+
+        self._clean_line(
+            relT, "MB_Iter",
+            f"E: MB_Iter vs Relative Time {suffix}",
+            "Time / Double",
+            "E_mbiter_vs_time_rel.png"
+        )
+        self._clean_line(
+            relJ, "MB_Iter",
+            f"E: MB_Iter vs Relative Inertia {suffix}",
+            "Inertia / Double",
+            "E_mbiter_vs_inertia_rel.png"
+        )
+
+    def plot_expF_clean(self, df_F: pd.DataFrame, use_log_for_tol: bool = True) -> None:
+        # (a) Sweep single_iter_cap with tol_single fixed
+        tol_fix = float(df_F["tol_single"].mode().iat[0])
+        sub_cap = df_F[np.isclose(df_F["tol_single"], tol_fix)].copy()
+        keys_cap = ["DatasetName", "NumClusters", "single_iter_cap", "tol_single"]
+
+        relT_cap = self._rel(sub_cap, keys_cap, "Time")
+        relJ_cap = self._rel(sub_cap, keys_cap, "Inertia")
+
+        self._clean_line(
+            relT_cap, "single_iter_cap",
+            f"F: Cap vs Relative Time (tol={tol_fix:g})",
+            "Time / Double",
+            "F_cap_vs_time_rel.png"
+        )
+        self._clean_line(
+            relJ_cap, "single_iter_cap",
+            f"F: Cap vs Relative Inertia (tol={tol_fix:g})",
+            "Inertia / Double",
+            "F_cap_vs_inertia_rel.png"
+        )
+
+        # (b) Sweep tol_single with cap fixed
+        cap_fix = int(df_F["single_iter_cap"].mode().iat[0])
+        sub_tol = df_F[df_F["single_iter_cap"] == cap_fix].copy()
+        keys_tol = ["DatasetName", "NumClusters", "tol_single", "single_iter_cap"]
+
+        relT_tol = self._rel(sub_tol, keys_tol, "Time")
+        relJ_tol = self._rel(sub_tol, keys_tol, "Inertia")
+
+        self._clean_line(
+            relT_tol.sort_values("tol_single"), "tol_single",
+            f"F: tol_single vs Relative Time (cap={cap_fix})",
+            "Time / Double",
+            "F_tol_vs_time_rel.png",
+            logx=use_log_for_tol
+        )
+        self._clean_line(
+            relJ_tol.sort_values("tol_single"), "tol_single",
+            f"F: tol_single vs Relative Inertia (cap={cap_fix})",
+            "Inertia / Double",
+            "F_tol_vs_inertia_rel.png",
+            logx=use_log_for_tol
+        )
 
     @staticmethod
     def pca_2d_view(X_full, centers_full, resolution=300, random_state=0):
@@ -332,5 +408,6 @@ if __name__ == "__main__":
     kmeans_vis.plot_expD(df_D)
     kmeans_vis.plot_expE(df_E)
     kmeans_vis.plot_expF(df_F)
+
 
 
