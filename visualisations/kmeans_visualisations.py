@@ -185,133 +185,80 @@ class KMeansVisualizer:
         plt.close()
         print(f"Saved {self.output_dir / 'exp_C_cap_percentage_vs_norm_time.png'}")
     
-    def plot_iterpct_vs_inertia(self, df):
-        df_h = df[df["Suite"]=="Adaptive"].copy()
-        print(df["Suite"].unique())
-        df_h["PctSingle"] = df_h["iter_single"] 
-        plt.figure(figsize=(7,5))
-        for (ds,k), grp in df_h.groupby(["DatasetName", "NumClusters"]):
-            base = df[(df["Suite"]=="Double") & (df["DatasetName"]==ds) & (df["NumClusters"]==k)]["Inertia"].mean()
-            grp = grp.copy()
-            grp["Inertia"] = grp["Inertia"] / base
-            plt.plot(grp["PctSingle"], grp["Inertia"], marker='o', label=f"{ds}-C{k}")
-        plt.title("Single‑Precision Iterations vs Final Inertia")
-        plt.xlabel("Iterations in Single Precision")
-        plt.ylabel("Inertia (Relative to double)")
-        plt.axhline(1.0, linestyle='--', color='gray', linewidth=1, label="Double baseline")
-        plt.grid(True); 
-        plt.legend()
-        plt.tight_layout()
-        plt.savefig(self.output_dir / "exp_D_iterpct_vs_inertia.png")
-        plt.close()
-        print(f"Saved {self.output_dir /'exp_D_iterpct_vs_inertia.png'}")
+    def plot_expD(df_D, outdir="Results"):
+        """Experiment D: chunk_single vs (Time, Inertia)"""
+        g = df_D.groupby("chunk_single")[["Time", "Inertia"]].mean().reset_index()
     
-    def plot_iterpct_vs_time(self, df):
-        df_h = df[df["Suite"]=="Adaptive"].copy()
-        df_h["PctSingle"] = df_h["iter_single"]
-        plt.figure(figsize=(7,5))
-        for (ds,k), grp in df_h.groupby(["DatasetName", "NumClusters"]):
-            plt.plot(grp["PctSingle"], grp["Time"], marker='o', label=f"{ds}-C{k}")
-        plt.title("Single‑Precision Iterations vs Total Time")
-        plt.xlabel("Iterations in Single Precision")
-        plt.ylabel("Total Time (Relative to double)")
-        plt.axhline(1.0, linestyle='--', color='gray', linewidth=1, label="Double baseline")
-        plt.grid(True); 
-        plt.legend()
+        plt.figure(figsize=(6,4))
+        sns.lineplot(data=g, x="chunk_single", y="Time", marker="o")
+        plt.title("Experiment D – Chunk vs Time")
+        plt.ylabel("Runtime (s)")
+        plt.xlabel("Chunk Size")
+        plt.grid(True, linestyle="--", alpha=0.6)
         plt.tight_layout()
-        plt.savefig(self.output_dir / "exp_D_iterpct_vs_time.png")
-        plt.close()
-        print(f"Saved {self.output_dir / 'exp_D_iterpct_vs_time.png'}")
+        plt.savefig(f"{outdir}/expD_chunk_vs_time.png", dpi=200)
+    
+        plt.figure(figsize=(6,4))
+        sns.lineplot(data=g, x="chunk_single", y="Inertia", marker="o")
+        plt.title("Experiment D – Chunk vs Inertia")
+        plt.ylabel("Inertia (lower is better)")
+        plt.xlabel("Chunk Size")
+        plt.grid(True, linestyle="--", alpha=0.6)
+        plt.tight_layout()
+        plt.savefig(f"{outdir}/expD_chunk_vs_inertia.png", dpi=200)
+    
+    
+    def plot_expE(df_E, outdir="Results"):
+        """Experiment E: MB_Iter vs (Time, Inertia)"""
+        g = df_E.groupby("MB_Iter")[["Time", "Inertia"]].mean().reset_index()
+    
+        plt.figure(figsize=(6,4))
+        sns.lineplot(data=g, x="MB_Iter", y="Time", marker="o")
+        plt.title("Experiment E – Mini-batch Iterations vs Time")
+        plt.ylabel("Runtime (s)")
+        plt.xlabel("Mini-batch Iterations")
+        plt.grid(True, linestyle="--", alpha=0.6)
+        plt.tight_layout()
+        plt.savefig(f"{outdir}/expE_mbiter_vs_time.png", dpi=200)
+    
+        plt.figure(figsize=(6,4))
+        sns.lineplot(data=g, x="MB_Iter", y="Inertia", marker="o")
+        plt.title("Experiment E – Mini-batch Iterations vs Inertia")
+        plt.ylabel("Inertia (lower is better)")
+        plt.xlabel("Mini-batch Iterations")
+        plt.grid(True, linestyle="--", alpha=0.6)
+        plt.tight_layout()
+        plt.savefig(f"{outdir}/expE_mbiter_vs_inertia.png", dpi=200)
+    
+    
+    def plot_expF(df_F, outdir="Results"):
+        """Experiment F: single_iter_cap vs (Time, Inertia)"""
+        g = df_F.groupby("single_iter_cap")[["Time", "Inertia"]].mean().reset_index()
+    
+        plt.figure(figsize=(6,4))
+        sns.lineplot(data=g, x="single_iter_cap", y="Time", marker="o")
+        plt.title("Experiment F – Iteration Cap vs Time")
+        plt.ylabel("Runtime (s)")
+        plt.xlabel("Single Iteration Cap")
+        plt.grid(True, linestyle="--", alpha=0.6)
+        plt.tight_layout()
+        plt.savefig(f"{outdir}/expF_cap_vs_time.png", dpi=200)
+    
+        plt.figure(figsize=(6,4))
+        sns.lineplot(data=g, x="single_iter_cap", y="Inertia", marker="o")
+        plt.title("Experiment F – Iteration Cap vs Inertia")
+        plt.ylabel("Inertia (lower is better)")
+        plt.xlabel("Single Iteration Cap")
+        plt.grid(True, linestyle="--", alpha=0.6)
+        plt.tight_layout()
+        plt.savefig(f"{outdir}/expF_cap_vs_inertia.png", dpi=200)
+    
+    
+    # === Usage Example ===
+    # plot_expD(df_D)
+    # plot_expE(df_E)
+    # plot_expF(df_F)
 
-    def plot_E_mbiter_vs_time(self, df):
-        """
-        X: MB_Iter (mini-batch iterations)
-        Y: Time (Hybrid / Double)
-        Only plots the MiniBatch+Full curve (relative to Double).
-        """
-        df_var = df[df["Suite"] == "MiniBatch+Full"].copy()
-        plt.figure(figsize=(7, 5))
-        for (ds, k), grp in df_var.groupby(["DatasetName", "NumClusters"]):
-            base = df[(df["Suite"] == "Double") &
-                      (df["DatasetName"] == ds) &
-                      (df["NumClusters"] == k)]["Time"].mean()
-            g = grp.sort_values("MB_Iter").copy()
-            g["RelTime"] = g["Time"] / base
-            plt.plot(g["MB_Iter"], g["RelTime"], marker="o", label=f"{ds}-C{k}")
-        plt.title("E: Mini‑batch Iterations vs Time (Hybrid / Double)")
-        plt.xlabel("Mini‑batch Iterations")
-        plt.ylabel("Relative Time to Double")
-        plt.axhline(1.0, ls="--", c="gray", lw=1, label="Double baseline")
-        plt.grid(True); plt.legend(); plt.tight_layout()
-        plt.savefig(self.output_dir / "E_mbiter_vs_time_relative.png"); plt.close()
-
-    def plot_E_mbiter_vs_inertia(self, df):
-        """
-        X: MB_Iter (mini-batch iterations)
-        Y: Inertia (Hybrid / Double)
-        """
-        df_var = df[df["Suite"] == "MiniBatch+Full"].copy()
-        plt.figure(figsize=(7, 5))
-        for (ds, k), grp in df_var.groupby(["DatasetName", "NumClusters"]):
-            base = df[(df["Suite"] == "Double") &
-                      (df["DatasetName"] == ds) &
-                      (df["NumClusters"] == k)]["Inertia"].mean()
-            g = grp.sort_values("MB_Iter").copy()
-            g["RelInertia"] = g["Inertia"] / base
-            plt.plot(g["MB_Iter"], g["RelInertia"], marker="o", label=f"{ds}-C{k}")
-        plt.title("E: Mini‑batch Iterations vs Inertia (Hybrid / Double)")
-        plt.xlabel("Mini‑batch Iterations")
-        plt.ylabel("Inertia (Relative to Double)")
-        plt.axhline(1.0, ls="--", c="gray", lw=1, label="Double baseline")
-        plt.grid(True); plt.legend(); plt.tight_layout()
-        plt.savefig(self.output_dir / "E_mbiter_vs_inertia_relative.png"); plt.close()
-
-    # =========================
-    # ===== Experiment F  =====
-    # =========================
-    def plot_F_cap_vs_time(self, df):
-        """
-        X: single_iter_cap
-        Y: Time (Hybrid / Double)
-        Variant rows are Suite == 'MixedPerCluster'
-        """
-        df_var = df[df["Suite"] == "MixedPerCluster"].copy()
-        plt.figure(figsize=(7, 5))
-        for (ds, k), grp in df_var.groupby(["DatasetName", "NumClusters"]):
-            base = df[(df["Suite"] == "Double") &
-                      (df["DatasetName"] == ds) &
-                      (df["NumClusters"] == k)]["Time"].mean()
-            g = grp.sort_values("single_iter_cap").copy()
-            g["RelTime"] = g["Time"] / base
-            plt.plot(g["single_iter_cap"], g["RelTime"], marker="o", label=f"{ds}-C{k}")
-        plt.title("F: Cap vs Time (Hybrid / Double)")
-        plt.xlabel("Cap (Single‑Precision Iteration Cap)")
-        plt.ylabel("Relative Time to Double")
-        plt.axhline(1.0, ls="--", c="gray", lw=1, label="Double baseline")
-        plt.grid(True); plt.legend(); plt.tight_layout()
-        plt.savefig(self.output_dir / "F_cap_vs_time_relative.png"); plt.close()
-
-    def plot_F_tol_vs_inertia(self, df):
-        """
-        X: tol_single (log‑x)
-        Y: Inertia (Hybrid / Double)
-        """
-        df_var = df[df["Suite"] == "MixedPerCluster"].copy()
-        plt.figure(figsize=(7, 5))
-        for (ds, k), grp in df_var.groupby(["DatasetName", "NumClusters"]):
-            base = df[(df["Suite"] == "Double") &
-                      (df["DatasetName"] == ds) &
-                      (df["NumClusters"] == k)]["Inertia"].mean()
-            g = grp.sort_values("tol_single").copy()
-            g["RelInertia"] = g["Inertia"] / base
-            plt.plot(g["tol_single"], g["RelInertia"], marker="o", label=f"{ds}-C{k}")
-        plt.title("F: tol_single vs Inertia (Hybrid / Double)")
-        plt.xlabel("Single‑Precision Tolerance (log)")
-        plt.xscale("log")
-        plt.ylabel("Inertia (Relative to Double)")
-        plt.axhline(1.0, ls="--", c="gray", lw=1, label="Double baseline")
-        plt.grid(True); plt.legend(); plt.tight_layout()
-        plt.savefig(self.output_dir / "F_tol_vs_inertia_relative.png"); plt.close()
 
 
     @staticmethod
@@ -360,6 +307,7 @@ class KMeansVisualizer:
         plt.savefig(cluster_dir / f"{filename}.png")
         plt.close()
     
+
 
 
 
