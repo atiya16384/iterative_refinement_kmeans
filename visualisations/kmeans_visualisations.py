@@ -313,14 +313,14 @@ class KMeansVisualizer:
 if __name__ == "__main__":
 
 
-
-
-
     # Plots for Experiment A and C (Cap-based)
     # Cap-based plots (Experiments A & C)
-    df_D = pd.read_csv("Results/hybrid_kmeans_Results_expD.csv")
-    df_E = pd.read_csv("Results/hybrid_kmeans_Results_expE.csv")
-    df_F = pd.read_csv("Results/hybrid_kmeans_Results_expF.csv")
+    # df_A = pd.read_csv("../Results/hybrid_kmeans_Results_expA.csv")
+    # df_B = pd.read_csv("../Results/hybrid_kmeans_Results_expB.csv")
+    # df_C = pd.read_csv("../Results/hybrid_kmeans_Results_expC.csv")
+    df_D = pd.read_csv("../Results/hybrid_kmeans_Results_expD.csv")
+    df_E = pd.read_csv("../Results/hybrid_kmeans_Results_expE.csv")
+    df_F = pd.read_csv("../Results/hybrid_kmeans_Results_expF.csv")
 
     kmeans_vis = KMeansVisualizer()
     # kmeans_vis.plot_cap_vs_time(df_A)
