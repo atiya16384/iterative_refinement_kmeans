@@ -179,21 +179,30 @@ print("- hybrid_kmeans_Results_expF.csv")
 #     'tolerance_single', 'iter_single', 'iter_double', 'Suite'
 # ])[['Time', 'Memory_MB','Inertia']].mean())
 
-# === SUMMARY: Experiment D ===
 print("\n==== SUMMARY: EXPERIMENT D ====")
-print(df_D.groupby([
-    'DatasetSize', 'NumClusters', 'Mode',
-    'tolerance_single','iter_single', 'iter_double', 'Suite'
-])[['Time', 'Memory_MB', 'Inertia']].mean())
+print(
+    df_D.groupby([
+        "DatasetSize","NumClusters","Mode",
+        "chunk_single","improve_threshold","Suite"
+    ])[["Time","Memory_MB","Inertia"]].mean()
+)
 
 print("\n==== SUMMARY: EXPERIMENT E ====")
-print(df_E.groupby(['DatasetSize','NumClusters','Mode','MB_Iter','MB_Batch','RefineIter','Suite'])
-        [['Time','Memory_MB','Inertia']].mean())
+print(
+    df_E.groupby([
+        "DatasetSize","NumClusters","Mode",
+        "MB_Iter","MB_Batch","RefineIter","Suite"
+    ])[["Time","Memory_MB","Inertia"]].mean()
+)
 
 print("\n==== SUMMARY: EXPERIMENT F ====")
-print(df_F.groupby(['DatasetSize','NumClusters','Mode','tol_single','tol_double','single_iter_cap',
-                    'freeze_stable','freeze_patience','Suite'])
-        [['Time','Memory_MB','Inertia']].mean())
+print(
+    df_F.groupby([
+        "DatasetSize","NumClusters","Mode",
+        "tol_single","tol_double","single_iter_cap",
+        "freeze_stable","freeze_patience","Suite"
+    ])[["Time","Memory_MB","Inertia"]].mean()
+)
 
 
 print(os.getcwd())
