@@ -60,6 +60,7 @@ config = {
     "mb_iter_E": 100, "mb_batch_E": 2048, "max_refine_iter_E": 100,
 
     # --- F (Per‑cluster Mixed) : sweep these ---
+    "max_iter_F": 300,
     "F_cap_grid":       [0, 25, 50, 75, 100, 150],  # Phase‑1 cap
     "F_tol_single_grid":[1e-2, 1e-3, 5e-4],         # stability tol (log-x)
     "tol_double_F":     1e-4,
