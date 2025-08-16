@@ -23,48 +23,83 @@ def run_full_double(X, initial_centers, n_clusters, max_iter, tol, y_true):
     return centers, labels, iters_double_tot, iters_single_tot,  elapsed, mem_MB_double, inertia, 
 
 # Hybrid precison loop 
-def run_hybrid(X, initial_centers, n_clusters, max_iter_total, tol_single, tol_double, single_iter_cap, y_true, seed=0):
-    # single floating point type
-    start_time_single = time.time()
-    X_single = X.astype(np.float32)
-    # Define the initial centers
-    initial_centers_32 = initial_centers.astype(np.float32)
-    # this
-    max_iter_single=max(1,min(single_iter_cap, max_iter_total))
-    # K=means algorithm for single precision
-    kmeans_single = KMeans(n_clusters=n_clusters, init=initial_centers_32, n_init=1, max_iter=max_iter_single, tol=tol_single,random_state=0, algorithm = 'lloyd'
+def run_hybrid(
+    X,
+    initial_centers,
+    n_clusters,
+    max_iter_total,
+    tol_single,
+    tol_double,
+    single_iter_cap,
+    y_true,                      # unused, kept for signature parity
+    seed=0,
+    algorithm="lloyd",
+):
+    """
+    Float32 (capped) -> Float64 refinement.
+    Optimized to cast once up-front and reuse arrays (X32/X64, init32/init64).
+    """
+
+    # Cast ONCE and reuse (avoids repeated .astype allocations)
+    X32  = np.asarray(X, dtype=np.float32)
+    X64  = np.asarray(X, dtype=np.float64)
+    init32 = np.asarray(initial_centers, dtype=np.float32)
+    init64 = np.asarray(initial_centers, dtype=np.float64)
+
+    # Cap sanitization
+    cap = int(max(0, min(int(single_iter_cap), int(max_iter_total))))
+
+    # ----- Phase 1: float32 (optional if cap > 0) -----
+    iters_single = 0
+    t_single = 0.0
+    centers64 = init64
+
+    if cap > 0:
+        t0 = time.perf_counter()
+        km_s = KMeans(
+            n_clusters=n_clusters,
+            init=init32,
+            n_init=1,
+            max_iter=cap,
+            tol=tol_single,
+            algorithm=algorithm,
+            random_state=seed,
+        ).fit(X32)
+        t_single = time.perf_counter() - t0
+        iters_single = int(km_s.n_iter_)
+        centers64 = km_s.cluster_centers_.astype(np.float64, copy=False)
+
+    # ----- Phase 2: float64 refinement -----
+    remaining = max(1, int(max_iter_total) - iters_single)
+    t1 = time.perf_counter()
+    km_d = KMeans(
+        n_clusters=n_clusters,
+        init=centers64,          # warm-start via init array (legal)
+        n_init=1,
+        max_iter=remaining,
+        tol=tol_double,
+        algorithm=algorithm,
+        random_state=seed,
+    ).fit(X64)
+    t_double = time.perf_counter() - t1
+
+    # Outputs
+    labels_final   = km_d.labels_
+    centers_final  = km_d.cluster_centers_
+    iters_double   = int(km_d.n_iter_)
+    inertia        = evaluate_metrics(km_d.inertia_)
+    total_time     = t_single + t_double
+    mem_MB_total   = (X32.nbytes + X64.nbytes) / 1e6
+
+    return (
+        labels_final,
+        centers_final,
+        iters_single,
+        iters_double,
+        total_time,
+        mem_MB_total,
+        inertia,
     )
-    # start time 
-    kmeans_single.fit(X_single)
-    end_time_single = time.time() - start_time_single
-
-    iters_single = kmeans_single.n_iter_
-    print(f"This is total single iteration: {iters_single}")
-    centers32 = kmeans_single.cluster_centers_
-
-    remaining_iter = max_iter_total - iters_single
-    remaining_iter = max(1, remaining_iter)
-    start_time_double = time.time()
-    # X_double = X.astype(np.float64)
-    initial_centers_64 = centers32.astype(np.float64)
-
-    kmeans_double = KMeans( n_clusters=n_clusters, init=initial_centers_64, n_init=1, max_iter=remaining_iter, tol=tol_double, random_state=seed, algorithm= 'lloyd')
-    kmeans_double.fit(X)
-    
-    end_time_double = time.time() - start_time_double
-
-    labels_final = kmeans_double.labels_
-    centers_final = kmeans_double.cluster_centers_
-    inertia = kmeans_double.inertia_
-
-    inertia = evaluate_metrics(inertia)
-    mem_MB_double = X.astype(np.float64).nbytes / 1e6
-    mem_MB_total = mem_MB_double + X_single.nbytes / 1e6
-    iters_double = kmeans_double.n_iter_
-    print(f"This is iters_double: {iters_double}")
-    total_time = end_time_single + end_time_double
-    
-    return ( labels_final, centers_final, iters_single, iters_double,total_time, mem_MB_total, inertia)
     
 # kmeans_precision.py — Experiments D, E, F (simple, sklearn-first, AOCL-compatible)
 
@@ -361,75 +396,3 @@ def run_expF_percluster_mixed(
         "frozen_mask": frozen,  # which clusters ended Phase 1 frozen
     }
 
-
-def run_hybrid_optimized(
-    X, initial_centers, n_clusters,
-    max_iter_total, tol_single, tol_double, single_iter_cap,
-    seed=0
-):
-    """
-    Optimized hybrid:
-      - Cast X to fp32 and fp64 ONCE each and reuse
-      - Single phase in fp32 for 'single_iter_cap' iters
-      - Warm-start double phase with fp64 centers via init=<centers64>
-    """
-    # --- Cast once, reuse ---
-    X32 = np.asarray(X, dtype=np.float32)
-    X64 = np.asarray(X, dtype=np.float64)
-
-    init32 = np.asarray(initial_centers, dtype=np.float32)
-    init64 = np.asarray(initial_centers, dtype=np.float64)
-
-    single_iter_cap = max(0, min(int(single_iter_cap), int(max_iter_total)))
-
-    # ===== Single (fp32) =====
-    t0 = time.perf_counter()
-    if single_iter_cap > 0:
-        km_single = KMeans(
-            n_clusters=n_clusters,
-            init=init32,
-            n_init=1,
-            max_iter=single_iter_cap,
-            tol=tol_single,
-            algorithm='lloyd',
-            random_state=seed
-        )
-        km_single.fit(X32)
-        t_single = time.perf_counter() - t0
-        iters_single = int(km_single.n_iter_)
-        centers64 = km_single.cluster_centers_.astype(np.float64, copy=False)
-    else:
-        t_single = 0.0
-        iters_single = 0
-        centers64 = init64
-
-    remaining_iter = max(1, int(max_iter_total) - iters_single)
-
-    # ===== Double (fp64 refine) =====
-    t1 = time.perf_counter()
-    km_double = KMeans(
-        n_clusters=n_clusters,
-        init=centers64,           # warm-start via init array
-        n_init=1,
-        max_iter=remaining_iter,
-        tol=tol_double,
-        algorithm='lloyd',
-        random_state=seed
-    )
-    km_double.fit(X64)
-    t_double = time.perf_counter() - t1
-
-    labels_final = km_double.labels_
-    centers_final = km_double.cluster_centers_
-    inertia = evaluate_metrics(km_double.inertia_)
-    iters_double = int(km_double.n_iter_)
-
-    # Memory: count resident arrays
-    mem_MB_total = (X32.nbytes + X64.nbytes) / 1e6
-    total_time = t_single + t_double
-
-    return (
-        labels_final, centers_final,
-        iters_single, iters_double,
-        total_time, mem_MB_total, inertia
-    )
