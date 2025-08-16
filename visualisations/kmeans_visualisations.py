@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+import pandas as pd
 import seaborn as sns
 import pathlib
 import numpy as np
@@ -309,6 +310,27 @@ class KMeansVisualizer:
     
 
 
+if __name__ == "__main__":
 
+
+
+
+
+    # Plots for Experiment A and C (Cap-based)
+    # Cap-based plots (Experiments A & C)
+    df_D = pd.read_csv("Results/hybrid_kmeans_Results_expD.csv")
+    df_E = pd.read_csv("Results/hybrid_kmeans_Results_expE.csv")
+    df_F = pd.read_csv("Results/hybrid_kmeans_Results_expF.csv")
+
+    kmeans_vis = KMeansVisualizer()
+    # kmeans_vis.plot_cap_vs_time(df_A)
+    # kmeans_vis.plot_hybrid_cap_vs_inertia(df_A)
+    # kmeans_vis.plot_tolerance_vs_inertia(df_B)
+    # kmeans_vis.plot_tolerance_vs_time(df_B)
+    # kmeans_vis.plot_cap_percentage_vs_inertia(df_C)
+    # kmeans_vis.plot_cap_percentage_vs_time(df_C)
+    kmeans_vis.plot_expD(df_D)
+    kmeans_vis.plot_expE(df_E)
+    kmeans_vis.plot_expF(df_F)
 
 

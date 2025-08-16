@@ -112,7 +112,6 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_D, rows_E, ro
             print("Running F")
             rows_F += run_experiment_F(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
 
-
     return  rows_D, rows_E, rows_F
 
 all_rows = []
@@ -123,12 +122,12 @@ all_rows = []
 rows_D = []
 rows_E, rows_F= [], []
 
-# for tag, n, d, k, seed in synth_specs:
-#     X, y = generate_synthetic_data(n, d, k, seed)
-#     print(f"[SYNTH] {tag:14s}  shape={X.shape}  any_NaN={np.isnan(X).any()}",
-#           flush=True)
-#     # check if the mappings are correct to the run_one_dataset
-#     run_one_dataset(tag, X, y,rows_D, rows_E, rows_F)
+for tag, n, d, k, seed in synth_specs:
+    X, y = generate_synthetic_data(n, d, k, seed)
+    print(f"[SYNTH] {tag:14s}  shape={X.shape}  any_NaN={np.isnan(X).any()}",
+          flush=True)
+    # check if the mappings are correct to the run_one_dataset
+    run_one_dataset(tag, X, y,rows_D, rows_E, rows_F)
 
 # real datasets
 # for tag, loader in real_datasets.items():
@@ -147,9 +146,9 @@ df_F = pd.DataFrame(rows_F, columns=columns_F)
 # df_A = pd.read_csv("Results/hybrid_kmeans_Results_expA.csv")
 # df_B = pd.read_csv("Results/hybrid_kmeans_Results_expB.csv")
 # df_C = pd.read_csv("Results/hybrid_kmeans_Results_expC.csv")
-df_D = pd.read_csv("Results/hybrid_kmeans_Results_expD.csv")
-df_E = pd.read_csv("Results/hybrid_kmeans_Results_expE.csv")
-df_F = pd.read_csv("Results/hybrid_kmeans_Results_expF.csv")
+df_D.to_csv("Results/hybrid_kmeans_Results_expD.csv", index = False)
+df_E.to_csv("Results/hybrid_kmeans_Results_expE.csv", index = False)
+df_F.to_csv("Results/hybrid_kmeans_Results_expF.csv", index = False)
 
 print("Saved:")
 print("- hybrid_kmeans_results_expA.csv")
@@ -195,22 +194,6 @@ print("\n==== SUMMARY: EXPERIMENT F ====")
 print(df_F.groupby(['DatasetSize','NumClusters','Mode','tol_single','tol_double','single_iter_cap',
                     'freeze_stable','freeze_patience','Suite'])
         [['Time','Memory_MB','Inertia']].mean())
-
-
-
-# Plots for Experiment A and C (Cap-based)
-# Cap-based plots (Experiments A & C)
-
-kmeans_vis = KMeansVisualizer()
-# kmeans_vis.plot_cap_vs_time(df_A)
-# kmeans_vis.plot_hybrid_cap_vs_inertia(df_A)
-# kmeans_vis.plot_tolerance_vs_inertia(df_B)
-# kmeans_vis.plot_tolerance_vs_time(df_B)
-# kmeans_vis.plot_cap_percentage_vs_inertia(df_C)
-# kmeans_vis.plot_cap_percentage_vs_time(df_C)
-kmeans_vis.plot_expD(df_D)
-kmeans_vis.plot_expE(df_E)
-kmeans_vis.plot_expF(df_F)
 
 
 print(os.getcwd())
