@@ -123,12 +123,12 @@ all_rows = []
 rows_D = []
 rows_E, rows_F= [], []
 
-for tag, n, d, k, seed in synth_specs:
-    X, y = generate_synthetic_data(n, d, k, seed)
-    print(f"[SYNTH] {tag:14s}  shape={X.shape}  any_NaN={np.isnan(X).any()}",
-          flush=True)
-    # check if the mappings are correct to the run_one_dataset
-    run_one_dataset(tag, X, y,rows_D, rows_E, rows_F)
+# for tag, n, d, k, seed in synth_specs:
+#     X, y = generate_synthetic_data(n, d, k, seed)
+#     print(f"[SYNTH] {tag:14s}  shape={X.shape}  any_NaN={np.isnan(X).any()}",
+#           flush=True)
+#     # check if the mappings are correct to the run_one_dataset
+#     run_one_dataset(tag, X, y,rows_D, rows_E, rows_F)
 
 # real datasets
 # for tag, loader in real_datasets.items():
@@ -148,10 +148,8 @@ df_F = pd.DataFrame(rows_F, columns=columns_F)
 # df_B = pd.read_csv("Results/hybrid_kmeans_Results_expB.csv")
 # df_C = pd.read_csv("Results/hybrid_kmeans_Results_expC.csv")
 df_D = pd.read_csv("Results/hybrid_kmeans_Results_expD.csv")
-df_E.to_csv(RESULTS_DIR / "hybrid_kmeans_Results_expE.csv", index=False)
-df_F.to_csv(RESULTS_DIR / "hybrid_kmeans_Results_expF.csv", index=False)
-
-
+df_E = pd.read_csv("Results/hybrid_kmeans_Results_expE.csv")
+df_F = pd.read_csv("Results/hybrid_kmeans_Results_expF.csv")
 
 print("Saved:")
 print("- hybrid_kmeans_results_expA.csv")
@@ -210,12 +208,10 @@ kmeans_vis = KMeansVisualizer()
 # kmeans_vis.plot_tolerance_vs_time(df_B)
 # kmeans_vis.plot_cap_percentage_vs_inertia(df_C)
 # kmeans_vis.plot_cap_percentage_vs_time(df_C)
-kmeans_vis.plot_iterpct_vs_inertia(df_D)
-kmeans_vis.plot_iterpct_vs_time(df_D)
-kmeans_vis.plot_E_mbiter_vs_time(df_E)
-kmeans_vis.plot_E_mbiter_vs_inertia(df_E)
-kmeans_vis.plot_F_cap_vs_time(df_F)
-kmeans_vis.plot_F_tol_vs_inertia(df_F)
+kmeans_vis.plot_expD(df_D)
+kmeans_vis.plot_expE(df_E)
+kmeans_vis.plot_expF(df_F)
+
 
 print(os.getcwd())
 

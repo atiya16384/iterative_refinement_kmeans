@@ -185,73 +185,73 @@ class KMeansVisualizer:
         plt.close()
         print(f"Saved {self.output_dir / 'exp_C_cap_percentage_vs_norm_time.png'}")
     
-    def plot_expD(df_D, outdir="Results"):
+    def plot_expD(self, df):
         """Experiment D: chunk_single vs (Time, Inertia)"""
-        g = df_D.groupby("chunk_single")[["Time", "Inertia"]].mean().reset_index()
+        df_D = df.groupby("chunk_single")[["Time", "Inertia"]].mean().reset_index()
     
         plt.figure(figsize=(6,4))
-        sns.lineplot(data=g, x="chunk_single", y="Time", marker="o")
+        sns.lineplot(data=df_D, x="chunk_single", y="Time", marker="o")
         plt.title("Experiment D – Chunk vs Time")
         plt.ylabel("Runtime (s)")
         plt.xlabel("Chunk Size")
         plt.grid(True, linestyle="--", alpha=0.6)
         plt.tight_layout()
-        plt.savefig(f"{outdir}/expD_chunk_vs_time.png", dpi=200)
+        plt.savefig(f"{self.output_dir/ 'expD_chunk_vs_time.png'}", dpi=200)
     
         plt.figure(figsize=(6,4))
-        sns.lineplot(data=g, x="chunk_single", y="Inertia", marker="o")
+        sns.lineplot(data=df_D, x="chunk_single", y="Inertia", marker="o")
         plt.title("Experiment D – Chunk vs Inertia")
         plt.ylabel("Inertia (lower is better)")
         plt.xlabel("Chunk Size")
         plt.grid(True, linestyle="--", alpha=0.6)
         plt.tight_layout()
-        plt.savefig(f"{outdir}/expD_chunk_vs_inertia.png", dpi=200)
+        plt.savefig(f"{self.output_dir/ 'expD_chunk_vs_inertia.png'}", dpi=200)
     
     
-    def plot_expE(df_E, outdir="Results"):
+    def plot_expE(self, df):
         """Experiment E: MB_Iter vs (Time, Inertia)"""
-        g = df_E.groupby("MB_Iter")[["Time", "Inertia"]].mean().reset_index()
+        df_E = df.groupby("MB_Iter")[["Time", "Inertia"]].mean().reset_index()
     
         plt.figure(figsize=(6,4))
-        sns.lineplot(data=g, x="MB_Iter", y="Time", marker="o")
+        sns.lineplot(data=df_E, x="MB_Iter", y="Time", marker="o")
         plt.title("Experiment E – Mini-batch Iterations vs Time")
         plt.ylabel("Runtime (s)")
         plt.xlabel("Mini-batch Iterations")
         plt.grid(True, linestyle="--", alpha=0.6)
         plt.tight_layout()
-        plt.savefig(f"{outdir}/expE_mbiter_vs_time.png", dpi=200)
+        plt.savefig(f"{self.output_dir/ 'expE_mbiter_vs_time.png'}", dpi=200)
     
         plt.figure(figsize=(6,4))
-        sns.lineplot(data=g, x="MB_Iter", y="Inertia", marker="o")
+        sns.lineplot(data=df_E, x="MB_Iter", y="Inertia", marker="o")
         plt.title("Experiment E – Mini-batch Iterations vs Inertia")
         plt.ylabel("Inertia (lower is better)")
         plt.xlabel("Mini-batch Iterations")
         plt.grid(True, linestyle="--", alpha=0.6)
         plt.tight_layout()
-        plt.savefig(f"{outdir}/expE_mbiter_vs_inertia.png", dpi=200)
+        plt.savefig(f"{self.output_dir / 'expE_mbiter_vs_inertia.png'}", dpi=200)
     
     
-    def plot_expF(df_F, outdir="Results"):
+    def plot_expF(self, df):
         """Experiment F: single_iter_cap vs (Time, Inertia)"""
-        g = df_F.groupby("single_iter_cap")[["Time", "Inertia"]].mean().reset_index()
+        df_F = df.groupby("single_iter_cap")[["Time", "Inertia"]].mean().reset_index()
     
         plt.figure(figsize=(6,4))
-        sns.lineplot(data=g, x="single_iter_cap", y="Time", marker="o")
+        sns.lineplot(data=df_F, x="single_iter_cap", y="Time", marker="o")
         plt.title("Experiment F – Iteration Cap vs Time")
         plt.ylabel("Runtime (s)")
         plt.xlabel("Single Iteration Cap")
         plt.grid(True, linestyle="--", alpha=0.6)
         plt.tight_layout()
-        plt.savefig(f"{outdir}/expF_cap_vs_time.png", dpi=200)
+        plt.savefig(f"{self.output_dir/'expF_cap_vs_time.png'}", dpi=200)
     
         plt.figure(figsize=(6,4))
-        sns.lineplot(data=g, x="single_iter_cap", y="Inertia", marker="o")
+        sns.lineplot(data=df_F, x="single_iter_cap", y="Inertia", marker="o")
         plt.title("Experiment F – Iteration Cap vs Inertia")
         plt.ylabel("Inertia (lower is better)")
         plt.xlabel("Single Iteration Cap")
         plt.grid(True, linestyle="--", alpha=0.6)
         plt.tight_layout()
-        plt.savefig(f"{outdir}/expF_cap_vs_inertia.png", dpi=200)
+        plt.savefig(f"{self.output_dir/ 'expF_cap_vs_inertia.png'}", dpi=200)
     
     
     # === Usage Example ===
