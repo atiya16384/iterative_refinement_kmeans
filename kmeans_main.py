@@ -128,7 +128,7 @@ for tag, n, d, k, seed in synth_specs:
     print(f"[SYNTH] {tag:14s}  shape={X.shape}  any_NaN={np.isnan(X).any()}",
           flush=True)
     # check if the mappings are correct to the run_one_dataset
-    run_one_dataset(tag, X, y,rows_D, rows_E, rows_F, rows_G)
+    run_one_dataset(tag, X, y,rows_D, rows_E, rows_F)
 
 # real datasets
 # for tag, loader in real_datasets.items():
