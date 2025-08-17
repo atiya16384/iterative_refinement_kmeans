@@ -4,7 +4,7 @@ from aoclda.sklearn import skpatch
 skpatch()
 from datasets.utils import (
     generate_synthetic_data_lr as generate_lr_data,
-    synth_specs_lr as synth_specs, lr_columns_A, lr_columns_B
+    synth_specs as synth_specs, lr_columns_A, lr_columns_B
 )
 from experiments.logreg_experiments import run_experiment_A, run_experiment_B
 from visualisations.LOGREG_visualisations import LogisticVisualizer
