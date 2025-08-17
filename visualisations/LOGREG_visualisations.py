@@ -4,7 +4,7 @@ import seaborn as sns
 import pathlib
 import pandas as pd
 
-RESULTS_DIR = pathlib.Path("Results")
+RESULTS_DIR = pathlib.Path("../Results")
 RESULTS_DIR.mkdir(exist_ok=True)
 
 class LogisticVisualizer:
@@ -104,8 +104,8 @@ class LogisticVisualizer:
 
 if __name__ == '__main__':
     # Load results
-    df_A = pd.read_csv("Results/logistic_results_expA.csv")
-    df_B = pd.read_csv("Results/logistic_results_expB.csv")
+    df_A = pd.read_csv("../Results/logistic_results_expA.csv")
+    df_B = pd.read_csv("../Results/logistic_results_expB.csv")
 
     log_vis = LogisticVisualizer(out_dir=RESULTS_DIR)
 
