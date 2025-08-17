@@ -96,9 +96,9 @@ def adaptive_mixed_precision_lr(X, y, switch_tol=1e-3, max_iter=1000):
     
     # FP32 phase
     clf = LogisticRegression(solver='lbfgs', max_iter=max_iter, warm_start=True)
-    t_fp32_start = perf_counter()
+    t_fp32_start = time.perf_counter()
     clf.fit(X_fp32, y)
-    t_fp32 = perf_counter() - t_fp32_start
+    t_fp32 = time.perf_counter() - t_fp32_start
     
     # Switching logic
     grad_norm = np.linalg.norm(clf.coef_)
@@ -110,9 +110,9 @@ def adaptive_mixed_precision_lr(X, y, switch_tol=1e-3, max_iter=1000):
         clf.coef_ = clf.coef_.astype(np.float64)
         clf.intercept_ = clf.intercept_.astype(np.float64)
         
-        t_fp64_start = perf_counter()
+        t_fp64_start = time.perf_counter()
         clf.fit(X_fp64, y)
-        t_fp64 = perf_counter() - t_fp64_start
+        t_fp64 = time.perf_counter() - t_fp64_start
         
     # Store instrumentation data
     clf._used_mixed_precision = needs_refinement
