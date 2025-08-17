@@ -9,6 +9,7 @@ import os
 import pathlib
 import numpy as np
 from visualisations.kmeans_visualisations import KMeansVisualizer
+from scipy.stats import ttest, wilcoxon
 
 from experiments.kmeans_experiments import (
     run_experiment_A, run_experiment_B,
