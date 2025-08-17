@@ -8,6 +8,7 @@ RESULTS_DIR = pathlib.Path("../Results")
 RESULTS_DIR.mkdir(exist_ok=True)
 
 class LogisticVisualizer:
+    
     def __init__(self, out_dir=RESULTS_DIR):
         self.out_dir = pathlib.Path(out_dir)
         self.out_dir.mkdir(parents=True, exist_ok=True)
