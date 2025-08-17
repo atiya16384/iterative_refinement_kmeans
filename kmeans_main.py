@@ -115,30 +115,45 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A, rows_B, ro
 
     return  rows_A, rows_B, rows_C
 
-def analyze_experiment(csv_file, value_col="Time"):
+
+def analyze_experiment(csv_file, metrics=("Time","Inertia")):
     df = pd.read_csv(csv_file)
-    pivoted = df.pivot_table(
-        index=["DatasetName","NumClusters"],
-        columns="Suite",
-        values=value_col,
-        aggfunc="mean"
-    ).dropna()
 
-    times_double = pivoted["Double"].values
-    times_hybrid = pivoted["Hybrid"].values
+    results = {}
+    for metric in metrics:
+        pivoted = df.pivot_table(
+            index=["DatasetName","NumClusters"],
+            columns="Suite",
+            values=metric,
+            aggfunc="mean"
+        ).dropna()
 
-    improvement = (times_double - times_hybrid) / times_double * 100
-    diff = times_double - times_hybrid
+        if "Double" not in pivoted.columns or "Hybrid" not in pivoted.columns:
+            continue  # skip if missing Suite
 
-    return {
-        "mean_double": times_double.mean(),
-        "mean_hybrid": times_hybrid.mean(),
-        "mean_improvement_%": improvement.mean(),
-        "t_test_p": ttest_rel(times_double, times_hybrid).pvalue,
-        "wilcoxon_p": wilcoxon(times_double, times_hybrid).pvalue,
-        "cohens_d": diff.mean() / diff.std(ddof=1),
-    }
+        times_double = pivoted["Double"].values
+        times_hybrid = pivoted["Hybrid"].values
 
+        # relative improvement (%)
+        improvement = (times_double - times_hybrid) / times_double * 100
+        diff = times_double - times_hybrid
+
+        # store both per-dataset and global stats
+        results[metric] = {
+            "per_dataset": pivoted.assign(
+                Improvement_pct=improvement
+            ),
+            "summary": {
+                "mean_double": times_double.mean(),
+                "mean_hybrid": times_hybrid.mean(),
+                "mean_improvement_%": improvement.mean(),
+                "t_test_p": ttest_rel(times_double, times_hybrid).pvalue,
+                "wilcoxon_p": wilcoxon(times_double, times_hybrid).pvalue,
+                "cohens_d": diff.mean() / diff.std(ddof=1),
+            }
+        }
+
+    return results
 
 all_rows = []
 
@@ -161,11 +176,17 @@ for tag, n, d, k, seed in synth_specs:
 #     X_real, y_real = loader()
 #     run_one_dataset(tag, X_real, y_real, rows_A, rows_B, rows_C, rows_D)
 
-for exp in ["A","B","C"]:  # add D,E,F once enabled
+# --- run for A, B, C (extend with D–F once CSVs exist) ---
+for exp in ["A","B","C"]:
     res = analyze_experiment(f"Results/hybrid_kmeans_Results_exp{exp}.csv")
+
     print(f"\n==== Stats Summary: Experiment {exp} ====")
-    for k,v in res.items():
-        print(f"{k}: {v:.4f}")
+    for metric, stat_dict in res.items():
+        print(f"\n--- {metric} ---")
+        print(stat_dict["per_dataset"][["Improvement_pct"]])  # per dataset improvement
+        print("\nSummary:")
+        for k, v in stat_dict["summary"].items():
+            print(f"{k}: {v:.4f}")
 
 df_A = pd.DataFrame(rows_A, columns=columns_A)
 df_B = pd.DataFrame(rows_B, columns=columns_B)
