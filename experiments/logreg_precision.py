@@ -1,8 +1,8 @@
-# logreg_precision.py
+# experiments/logreg_precision.py
 import time
 import numpy as np
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, log_loss
 
 def evaluate_metrics(y_true, y_pred):
     return accuracy_score(y_true, y_pred)
@@ -11,13 +11,12 @@ def _iter_scalar(n_iter_attr):
     arr = np.asarray(n_iter_attr)
     return int(arr.max()) if arr.ndim else int(arr)
 
-# --- Full double-precision run ---
 def run_full_double(X, y, n_classes, max_iter, tol):
     X64 = np.asarray(X, dtype=np.float64)
     t0 = time.perf_counter()
     clf = LogisticRegression(
         max_iter=max_iter, tol=tol,
-        solver="lbfgs", multi_class="auto", n_jobs=1
+        solver="lbfgs", multi_class="auto"  # AOCL ignores n_jobs
     )
     clf.fit(X64, y)
     elapsed = time.perf_counter() - t0
@@ -26,62 +25,66 @@ def run_full_double(X, y, n_classes, max_iter, tol):
     mem_MB = X64.nbytes / 1e6
     return clf, 0, _iter_scalar(clf.n_iter_), elapsed, mem_MB, acc
 
-# --- Hybrid with warm-start from fp32 to fp64 ---
-def run_hybrid(X, y, n_classes, max_iter_total, tol_single, tol_double, single_iter_cap):
+def run_hybrid(
+    X, y, n_classes,
+    max_iter_total,
+    tol_single,
+    tol_double,
+    single_iter_cap,
+    min_acc_to_skip=None,   # e.g., 0.98 to skip fp64 if fp32 is already that good
+):
+    """
+    AOCL-compatible hybrid:
+      1) run fp32 for up to 'cap' iterations (lbfgs)
+      2) if fp32 converged early (did not hit cap) and satisfies 'min_acc_to_skip' (if set),
+         SKIP fp64 and return
+      3) else run a fresh fp64 model for the REMAINING budget (no warm_start)
+    Notes:
+      - No warm_start and no pre-fit attribute injection (AOCL forbids/ignores).
+      - Memory is reported as peak of {fp32, fp64} arrays.
+    """
     X32 = np.asarray(X, dtype=np.float32)
     X64 = np.asarray(X, dtype=np.float64)
 
-    # No cap -> let single use entire budget (still warm-start later)
-    if single_iter_cap is None:
-        single_iter_cap = max_iter_total
+    # sanitize cap
+    cap = max_iter_total if single_iter_cap is None else int(single_iter_cap)
+    cap = int(max(0, min(cap, int(max_iter_total))))
 
-    cap = int(max(0, min(single_iter_cap, max_iter_total)))
-
-    # Pure double if cap==0
-    if cap == 0:
-        t0 = time.perf_counter()
-        clf_d = LogisticRegression(
-            max_iter=max(1, int(max_iter_total)), tol=tol_double,
-            solver="lbfgs", multi_class="auto", n_jobs=1
-        )
-        clf_d.fit(X64, y)
-        t = time.perf_counter() - t0
-        y_pred = clf_d.predict(X64)
-        acc = accuracy_score(y, y_pred)
-        # Report peak footprint rather than sum (more realistic)
-        mem_MB = max(X32.nbytes, X64.nbytes) / 1e6
-        return 0, _iter_scalar(clf_d.n_iter_), t, mem_MB, acc
-
-    # ----- fp32 phase -----
+    # === fp32 phase ===
     t0 = time.perf_counter()
     clf_s = LogisticRegression(
         max_iter=cap, tol=tol_single,
-        solver="lbfgs", multi_class="auto", n_jobs=1
+        solver="lbfgs", multi_class="auto"
     )
     clf_s.fit(X32, y)
     t_single = time.perf_counter() - t0
     it_single = _iter_scalar(clf_s.n_iter_)
 
-    # ----- fp64 refinement (WARM-START) -----
+    # training accuracy (cheap proxy)
+    acc_single = accuracy_score(y, clf_s.predict(X32))
+
+    # If fp32 converged BEFORE hitting the cap, sklearn sets n_iter_ < cap
+    converged_fp32 = (it_single < cap)
+
+    # === SKIP rule (AOCL-friendly) ===
+    if converged_fp32 and (min_acc_to_skip is None or acc_single >= float(min_acc_to_skip)):
+        mem_MB = max(X32.nbytes, X64.nbytes) / 1e6
+        return it_single, 0, t_single, mem_MB, acc_single
+
+    # === fp64 refinement (fresh, no warm-start) ===
     remaining = max(1, int(max_iter_total) - it_single)
+    t1 = time.perf_counter()
     clf_d = LogisticRegression(
         max_iter=remaining, tol=tol_double,
-        solver="lbfgs", multi_class="auto",
-        warm_start=True, n_jobs=1
+        solver="lbfgs", multi_class="auto"
     )
-    # transplant parameters & classes (cast to float64)
-    clf_d.classes_   = clf_s.classes_
-    clf_d.coef_      = clf_s.coef_.astype(np.float64, copy=True)
-    clf_d.intercept_ = clf_s.intercept_.astype(np.float64, copy=True)
-
-    t1 = time.perf_counter()
-    clf_d.fit(X64, y)   # continues from fp32 solution
+    clf_d.fit(X64, y)
     t_double = time.perf_counter() - t1
+    it_double = _iter_scalar(clf_d.n_iter_)
 
     y_pred = clf_d.predict(X64)
     acc = accuracy_score(y, y_pred)
     mem_MB = max(X32.nbytes, X64.nbytes) / 1e6
-    it_double = _iter_scalar(clf_d.n_iter_)
 
     return it_single, it_double, (t_single + t_double), mem_MB, acc
 
