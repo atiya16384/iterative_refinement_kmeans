@@ -3,7 +3,7 @@ import pandas as pd
 from aoclda.sklearn import skpatch
 skpatch()
 from datasets.utils import (
-    generate_synthetic_data_lr as generate_lr_data,
+    generate_synthetic_data,
     synth_specs as synth_specs, lr_columns_A, lr_columns_B
 )
 from experiments.logreg_experiments import run_experiment_A, run_experiment_B
@@ -12,6 +12,9 @@ from visualisations.LOGREG_visualisations import LogisticVisualizer
 RESULTS_DIR = pathlib.Path("Results")
 RESULTS_DIR.mkdir(exist_ok=True)
 
+# ===================
+# SINGLE SOURCE CONFIG
+# ===================
 # logreg_main.py (config)
 config = {
     "n_repeats": 3,
@@ -23,8 +26,8 @@ config = {
     "max_iter_A": 300,
 
     # Tolerance sweep (no cap)
-    "max_iter_B": 1000,
-    "tol_double_B": 1e-4,    # fp64 stricter target
+    "max_iter_B": 300,
+    "tol_double_B": 1e-6,    # fp64 stricter target
     "tol_single_grid": [1e-1, 5e-2, 1e-2, 5e-3, 1e-3],
 }
 
@@ -32,13 +35,7 @@ rows_A, rows_B = [], []
 
 # Synthetic datasets
 for tag, n, d, k, seed in synth_specs:
-    X, y = generate_lr_data(
-        n_samples=n, n_features=d, n_classes=k, seed=seed,
-        informative_ratio=0.8,    # ensures enough informative feats for k=5, d=5
-        n_clusters_per_class=1,   # safer for small d with many classes
-        class_sep=0.9, flip_y=0.03,
-    )
-
+    X, y = generate_synthetic_data(n, d, k, seed)
     n_classes = len(set(y))
     for _ in range(config["n_repeats"]):
         rows_A.extend(run_experiment_A(tag, X, y, n_classes, config))
@@ -61,4 +58,5 @@ print("\n==== SUMMARY: EXPERIMENT B ====")
 print(df_B.groupby(["DatasetName", "NumClasses", "Mode", "tolerance_single"])[
     ["Time", "Memory_MB", "Accuracy"]
 ].mean())
+
 
