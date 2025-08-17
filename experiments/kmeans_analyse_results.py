@@ -1,52 +1,79 @@
+# kmeans_analyse_results.py
 import pandas as pd
 from scipy.stats import ttest_rel, wilcoxon
+from pathlib import Path
 
-def analyze_experiment(csv_file, metrics=("Time","Inertia"), group_index=("DatasetSize","NumClusters")):
+def analyze_experiment(csv_file, metrics=("Time", "Inertia")):
     df = pd.read_csv(csv_file)
+    if df.empty:
+        return {"_note": "empty file"}
 
-    # quick sanity: see what the file actually has
-    # print(df[["Suite","Mode"]].drop_duplicates().head())
+    # We aggregate per dataset & K, ignoring sweep columns
+    # (works for A..F even if they have different extra columns).
+    base_index = ["DatasetName", "NumClusters"]
+    if not set(base_index).issubset(df.columns):
+        # Older files may have DatasetSize but not DatasetName
+        base_index = [c for c in ["DatasetSize", "NumClusters"] if c in df.columns]
 
-    results = {}
+    suites = sorted(df["Suite"].unique().tolist())
+    if "Double" not in suites:
+        return {"_note": "no Double rows in file"}
+
+    # Pick the “hybrid/other” suite automatically.
+    # For E this will be MiniBatch+Full, for F MixedPerCluster, for D Hybrid, etc.
+    hybrid_candidates = [s for s in suites if s != "Double"]
+    if not hybrid_candidates:
+        return {"_note": "no non-Double rows to compare against"}
+    hybrid_name = hybrid_candidates[0]  # if more than one, compare with the first
+
+    out = {}
+
     for metric in metrics:
-        # group per dataset/cluster (average over any sweep params)
-        pivoted = (
-            df.pivot_table(
-                index=list(group_index),
-                columns="Mode",             # <<--- THIS is the key change
-                values=metric,
-                aggfunc="mean"
-            )
-            .dropna(subset=["Double","Hybrid"], how="any")
-        )
-
-        if pivoted.empty:
+        if metric not in df.columns:
             continue
 
-        times_double = pivoted["Double"].to_numpy()
-        times_hybrid = pivoted["Hybrid"].to_numpy()
+        # pivot to Double vs Hybrid-like suite
+        pivoted = (
+            df.pivot_table(index=base_index, columns="Suite", values=metric, aggfunc="mean")
+              .filter(items=["Double", hybrid_name])  # keep only the 2 suites
+              .dropna()
+        )
 
-        improvement = (times_double - times_hybrid) / times_double * 100
-        diff = times_double - times_hybrid
+        if pivoted.empty or {"Double", hybrid_name} - set(pivoted.columns):
+            continue
 
-        t_stat, t_p = ttest_rel(times_double, times_hybrid)
-        w_stat, w_p = wilcoxon(times_double, times_hybrid, zero_method="wilcox")
+        d = pivoted["Double"].to_numpy()
+        h = pivoted[hybrid_name].to_numpy()
 
-        results[metric] = {
-            "n_pairs": len(pivoted),
-            "per_dataset": pivoted.assign(Improvement_pct=improvement),
+        improvement_pct = (d - h) / d * 100.0
+        diff = d - h
+
+        # stats (safe guards for size 1)
+        if len(d) >= 2:
+            t_stat, t_p = ttest_rel(d, h)
+            try:
+                w_stat, w_p = wilcoxon(d, h)
+            except ValueError:
+                w_stat, w_p = float("nan"), float("nan")
+            cohens_d = diff.mean() / diff.std(ddof=1) if diff.std(ddof=1) > 0 else float("nan")
+        else:
+            t_stat = t_p = w_stat = w_p = cohens_d = float("nan")
+
+        out[metric] = {
+            "hybrid_label": hybrid_name,
+            "per_dataset": pivoted.assign(Improvement_pct=improvement_pct),
             "summary": {
-                "mean_double": float(times_double.mean()),
-                "mean_hybrid": float(times_hybrid.mean()),
-                "mean_improvement_%": float(improvement.mean()),
-                "t_test_stat": float(t_stat),
-                "t_test_p": float(t_p),
-                "wilcoxon_stat": float(w_stat),
-                "wilcoxon_p": float(w_p),
-                "cohens_d": float(diff.mean() / diff.std(ddof=1)) if diff.std(ddof=1) else 0.0,
-            }
+                "n_pairs": len(d),
+                "mean_double": d.mean(),
+                "mean_other": h.mean(),
+                "mean_improvement_%": improvement_pct.mean(),
+                "t_test_stat": t_stat, "t_test_p": t_p,
+                "wilcoxon_stat": w_stat, "wilcoxon_p": w_p,
+                "cohens_d": cohens_d,
+            },
         }
-    return results
+
+    return out
 
 if __name__ == "__main__":
     csv_files = [
@@ -59,14 +86,20 @@ if __name__ == "__main__":
     ]
 
     for f in csv_files:
-        try:
-            out = analyze_experiment(f)
-            print(f"\n==== {f} ====")
-            if not out:
-                print("No Double/Hybrid pairs found (check that A/B/C were run or the column names).")
-            for metric, res in out.items():
-                print(f"[{metric}] pairs={res['n_pairs']}")
-                print(res["summary"])
-        except FileNotFoundError:
-            print(f"[skip] {f} not found")
+        p = Path(f)
+        if not p.exists() or p.stat().st_size == 0:
+            print(f"[skip] {f} missing or empty")
+            continue
+
+        print(f"\n==== {f} ====")
+        res = analyze_experiment(f)
+        note = res.get("_note")
+        if note:
+            print(note)
+            continue
+
+        for metric, r in res.items():
+            print(f"\n[{metric}] vs '{r['hybrid_label']}'")
+            for k, v in r["summary"].items():
+                print(f"  {k:>20}: {v}")
 
