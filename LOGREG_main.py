@@ -12,9 +12,6 @@ from visualisations.LOGREG_visualisations import LogisticVisualizer
 RESULTS_DIR = pathlib.Path("Results")
 RESULTS_DIR.mkdir(exist_ok=True)
 
-# ===================
-# SINGLE SOURCE CONFIG
-# ===================
 # logreg_main.py (config)
 config = {
     "n_repeats": 3,
