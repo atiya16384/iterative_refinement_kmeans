@@ -34,11 +34,10 @@ def load_susy(n_rows=1_000_000):
 
 synth_specs = [
     # number of samples; number of features, number of clusters, random seeds
-    ("SYNTH_C_5_F_5_n1000_000k_logistic", 1000_000, 150,  5, 0),
-    # ("SYNTH_C_80_F_5_n1000_000k_kmeans", 10000_00, 5, 80, 1),
-
-    # ("SYNTH_C_30_F_5_n1000_000k_kmeans", 10000_00, 5, 40, 1),
-    # ("SYNTH_C_5_F_50_n1000_000k_kmeans", 10000_00, 100, 5, 1),
+    # ("SYNTH_C_5_F_5_n1000_000k_logistic", 1000_000, 150,  5, 0),
+    ("SYNTH_C_80_F_5_n1000_000k_kmeans", 10000_00, 5, 80, 1),
+    ("SYNTH_C_40_F_5_n1000_000k_kmeans", 10000_00, 5, 40, 1),
+    ("SYNTH_C_5_F_5_n1000_000k_kmeans", 10000_00, 5, 5, 1),
 ]
 
 # Real-dataset

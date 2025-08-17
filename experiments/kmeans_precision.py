@@ -1,6 +1,9 @@
 import time
 import numpy as np
 from sklearn.cluster import KMeans
+import time
+import numpy as np
+from sklearn.cluster import KMeans, MiniBatchKMeans
 
 def evaluate_metrics(inertia):
     return inertia
@@ -103,9 +106,7 @@ def run_hybrid(
     
 # kmeans_precision.py — Experiments D, E, F (simple, sklearn-first, AOCL-compatible)
 
-import time
-import numpy as np
-from sklearn.cluster import KMeans, MiniBatchKMeans
+
 
 # -----------------------------------------------------------------------------
 # small helper: estimate memory use in MiB for any numpy arrays we keep around
@@ -250,7 +251,7 @@ def run_expE_minibatch_then_full(
     mb_batch=2048,          # mini-batch size (≈ 10–20% of data if feasible)
     max_refine_iter=100,    # final full-batch refinement iters
     seed=0,
-    algorithm="lloyd",
+    algorithm="elkan",
 ):
     # prepare views
     X32 = X.astype(np.float32, copy=False)
@@ -321,7 +322,7 @@ def run_expF_percluster_mixed(
     freeze_stable=True,     # if True, stop updating clusters that are stable
     freeze_patience=1,      # require N consecutive "below tol" moves to freeze
     seed=0,
-    algorithm="lloyd",
+    algorithm="elkan",
 ):
     t0 = time.perf_counter()
 

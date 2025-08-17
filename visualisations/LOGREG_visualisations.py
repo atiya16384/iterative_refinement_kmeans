@@ -80,10 +80,7 @@ class LogisticVisualizer:
     def __init__(self, out_dir=RESULTS_DIR):
         self.out_dir = pathlib.Path(out_dir)
         self.out_dir.mkdir(parents=True, exist_ok=True)
-
-    # =========================
     # Experiment A: Cap sweep
-    # =========================
     def plot_cap_vs_time(self, df_A: pd.DataFrame):
         if df_A.empty:
             print("[WARN] plot_cap_vs_time: df_A is empty.")
@@ -124,9 +121,8 @@ class LogisticVisualizer:
         plt.savefig(self.out_dir / "logreg_cap_vs_accuracy.png")
         plt.close()
 
-    # =========================
+
     # Experiment B: Tolerance sweep
-    # =========================
     def plot_tolerance_vs_time(self, df_B: pd.DataFrame):
         if df_B.empty:
             print("[WARN] plot_tolerance_vs_time: df_B is empty.")
@@ -137,7 +133,7 @@ class LogisticVisualizer:
         plt.figure(figsize=(8, 5))
         for (ds, k), grp in rel.groupby(["DatasetName", classes_col]):
             plt.plot(grp["tolerance_single"], grp["rel"], marker="o", label=f"{ds}-C{k}")
-        plt.xscale("log")
+        # plt.xscale("log")
         plt.axhline(1.0, linestyle="--", color="gray", linewidth=1, label="Double baseline")
         plt.title("Experiment B: Tolerance vs Runtime (Hybrid / Double)")
         plt.xlabel("Single-precision Tolerance (log)")
@@ -158,7 +154,7 @@ class LogisticVisualizer:
         plt.figure(figsize=(8, 5))
         for (ds, k), grp in rel.groupby(["DatasetName", classes_col]):
             plt.plot(grp["tolerance_single"], grp["rel"], marker="o", label=f"{ds}-C{k}")
-        plt.xscale("log")
+        # plt.xscale("log")
         plt.axhline(1.0, linestyle="--", color="gray", linewidth=1, label="Double baseline")
         plt.title("Experiment B: Tolerance vs Accuracy (Hybrid / Double)")
         plt.xlabel("Single-precision Tolerance (log)")

@@ -13,8 +13,8 @@ RESULTS_DIR.mkdir(exist_ok=True)
 
 # Config
 config = {
-    "n_repeats": 1,
-    "cap_grid": [1, 10, 20, 50, 100],
+    "n_repeats": 3,
+    "cap_grid": [1, 10, 25, 50, 100, 150, 200, 300],
     "tol_fixed_A": 1e-2,
     "max_iter_A": 300,
     "max_iter_B": 200,
