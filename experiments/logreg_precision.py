@@ -86,3 +86,38 @@ def run_hybrid_optimized(
     mem_MB = max(X32.nbytes, X64.nbytes) / 1e6
     
     return it_single, it_double, total_time, mem_MB, acc
+
+
+def adaptive_mixed_precision_lr(X, y, switch_tol=1e-3, max_iter=1000):
+    """Instrumented version with tracking"""
+    # Precision conversion
+    X_fp32 = np.asarray(X, dtype=np.float32, order='C')
+    X_fp64 = X.astype(np.float64, copy=False) if X.dtype != np.float64 else X
+    
+    # FP32 phase
+    clf = LogisticRegression(solver='lbfgs', max_iter=max_iter, warm_start=True)
+    t_fp32_start = perf_counter()
+    clf.fit(X_fp32, y)
+    t_fp32 = perf_counter() - t_fp32_start
+    
+    # Switching logic
+    grad_norm = np.linalg.norm(clf.coef_)
+    needs_refinement = grad_norm > switch_tol
+    
+    # FP64 phase if needed
+    t_fp64 = 0
+    if needs_refinement:
+        clf.coef_ = clf.coef_.astype(np.float64)
+        clf.intercept_ = clf.intercept_.astype(np.float64)
+        
+        t_fp64_start = perf_counter()
+        clf.fit(X_fp64, y)
+        t_fp64 = perf_counter() - t_fp64_start
+        
+    # Store instrumentation data
+    clf._used_mixed_precision = needs_refinement
+    clf._time_fp32 = t_fp32
+    clf._time_fp64 = t_fp64
+    clf._final_precision = 'mixed' if needs_refinement else 'fp32'
+    
+    return clf
