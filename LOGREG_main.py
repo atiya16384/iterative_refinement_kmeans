@@ -13,13 +13,13 @@ RESULTS_DIR.mkdir(exist_ok=True)
 
 # Config
 config = {
-    "n_repeats": 3,
-    "cap_grid": [0, 5, 10, 25, 50, 100, 150],
-    "tol_fixed_A": 1e-3,
+    "n_repeats": 1,
+    "cap_grid": [1, 10, 20, 50, 100],
+    "tol_fixed_A": 1e-2,
     "max_iter_A": 300,
-    "max_iter_B": 1000,
-    "tol_double_B": 1e-4,
-    "tol_single_grid": [1e-1, 5e-2, 1e-2, 5e-3, 1e-3],
+    "max_iter_B": 200,
+    "tol_double_B": 1e-11,
+    "tol_single_grid": [1e-4, 1e-5, 1e-6, 1e-7, 1e-8, 1e-10],
 }
 
 rows_A, rows_B = [], []
