@@ -1,19 +1,11 @@
-from experiments.logreg_precision import run_full_double, run_hybrid
-
-# ========================
-# Experiment A (Cap sweep)
-# ========================
-# - Fixed single-precision tolerance: config["tol_fixed_A"]
-# - Sweep single-iter cap:           config["cap_grid"]
-# - Total iteration budget:          config["max_iter_A"]
 # experiments/logreg_experiments.py
 def run_experiment_A(ds_name, X, y, n_classes, config):
     rows = []
     tol_single = config["tol_fixed_A"]
 
-    # one double baseline per dataset
+    # compute once per dataset
     _, it_s_b, it_d_b, t_b, mem_b, acc_b = run_full_double(
-        X, y, n_classes, config["max_iter_A"], tol=config["tol_double_B"] if "tol_double_B" in config else 1e-6
+        X, y, n_classes, config["max_iter_A"], tol=config.get("tol_double_B", 1e-6)
     )
 
     for cap in config["cap_grid"]:
@@ -25,47 +17,31 @@ def run_experiment_A(ds_name, X, y, n_classes, config):
             max_iter_total=config["max_iter_A"],
             tol_single=tol_single,
             tol_double=config.get("tol_double_B", 1e-6),
-            single_iter_cap=cap
+            single_iter_cap=cap,
+            min_acc_to_skip=config.get("min_acc_to_skip", None),  # e.g., 0.98
         )
         rows.append([ds_name, len(X), n_classes, "Hybrid", cap, tol_single,
                      it_s, it_d, "LR_ExpA", t, mem, acc])
     return rows
 
-
-# ===================================
-# Experiment B (Tolerance-only sweep)
-# ===================================
-# - Sweep single-precision tolerance: config["tol_single_grid"]
-# - No cap; single runs until tol or budget
-# - Total iteration budget:           config["max_iter_B"]
-# - Double tolerance:                 config["tol_double_B"]
 def run_experiment_B(ds_name, X, y, n_classes, config):
     rows = []
     for tol_single in config["tol_single_grid"]:
-        # Double baseline (same every loop; keep it paired for plotting convenience)
-        _, it_s, it_d, t, mem, acc = run_full_double(
+        _, it_s_b, it_d_b, t_b, mem_b, acc_b = run_full_double(
             X, y, n_classes, config["max_iter_B"], tol=config["tol_double_B"]
         )
-        rows.append([
-            ds_name, len(X), n_classes,
-            "Double", tol_single,
-            it_s, it_d, "LR_ExpB",
-            t, mem, acc
-        ])
+        rows.append([ds_name, len(X), n_classes, "Double", tol_single,
+                     it_s_b, it_d_b, "LR_ExpB", t_b, mem_b, acc_b])
 
-        # Hybrid (no cap -> single_iter_cap=None)
         it_s, it_d, t, mem, acc = run_hybrid(
             X, y, n_classes,
             max_iter_total=config["max_iter_B"],
             tol_single=tol_single,
             tol_double=config["tol_double_B"],
-            single_iter_cap=None
+            single_iter_cap=None,  # no cap
+            min_acc_to_skip=config.get("min_acc_to_skip", None),
         )
-        rows.append([
-            ds_name, len(X), n_classes,
-            "Hybrid", tol_single,
-            it_s, it_d, "LR_ExpB",
-            t, mem, acc
-        ])
+        rows.append([ds_name, len(X), n_classes, "Hybrid", tol_single,
+                     it_s, it_d, "LR_ExpB", t, mem, acc])
     return rows
 
