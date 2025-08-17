@@ -1,4 +1,7 @@
 # experiments/logreg_experiments.py
+from experiments.kmeans_precision import run_full_double, run_hybrid
+
+
 def run_experiment_A(ds_name, X, y, n_classes, config):
     rows = []
     tol_single = config["tol_fixed_A"]
