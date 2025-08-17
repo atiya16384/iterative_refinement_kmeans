@@ -18,17 +18,34 @@ def generate_synthetic_data(n_samples, n_features, n_clusters, random_state):
 def generate_synthetic_data_lr(n_samples, n_features, n_classes, seed,
                                class_sep=1.0, flip_y=0.05,
                                informative_ratio=0.6, redundant_ratio=0.2,
-                               imbalance=0.0):
+                               n_clusters_per_class=2, imbalance=0.0):
     """
-    Logistic-regression–friendly synthetic data.
-    Returns (X, y) with standardized features (float64).
+    Harder synthetic data for logistic regression.
+    Auto-fixes sklearn constraint:
+        n_classes * n_clusters_per_class <= 2 ** n_informative
+    and keeps n_informative + n_redundant <= n_features - 1.
     """
-    n_inform = max(1, int(informative_ratio * n_features))
-    n_redund = max(0, int(redundant_ratio * n_features))
+    # initial targets
+    n_inform = max(1, int(round(informative_ratio * n_features)))
+    n_redund = max(0, int(round(redundant_ratio * n_features)))
+    if n_inform + n_redund >= n_features:
+        n_redund = max(0, n_features - n_inform - 1)
+
+    # enforce the constraint by increasing informative if needed
+    min_inf = int(math.ceil(math.log2(max(1, n_classes * n_clusters_per_class))))
+    n_inform = min(max(n_inform, min_inf), n_features - 1)
+
+    # if still infeasible (too few features), reduce clusters per class
+    while n_classes * n_clusters_per_class > 2 ** n_inform and n_clusters_per_class > 1:
+        n_clusters_per_class -= 1
+
+    # recalc redundant if informative changed
+    if n_inform + n_redund >= n_features:
+        n_redund = max(0, n_features - n_inform - 1)
 
     weights = None
     if imbalance > 0 and n_classes == 2:
-        weights = [min(0.95, 0.5 + imbalance/2.)]
+        weights = [min(0.95, 0.5 + imbalance / 2.0)]
 
     X, y = make_classification(
         n_samples=n_samples,
@@ -37,7 +54,7 @@ def generate_synthetic_data_lr(n_samples, n_features, n_classes, seed,
         n_redundant=n_redund,
         n_repeated=0,
         n_classes=n_classes,
-        n_clusters_per_class=2,
+        n_clusters_per_class=n_clusters_per_class,
         class_sep=class_sep,
         flip_y=flip_y,
         weights=weights,
@@ -45,6 +62,9 @@ def generate_synthetic_data_lr(n_samples, n_features, n_classes, seed,
     )
     X = StandardScaler().fit_transform(X).astype(np.float64)
     return X, y
+
+# convenient alias so imports can be: from datasets.utils import generate_lr_data
+generate_lr_data = generate_synthetic_data_lr
   
 def load_3d_road(n_rows=1_000_000):
     path = DATA_DIR / "3D_spatial_network.csv"
@@ -108,6 +128,7 @@ svm_columns_B = svm_columns_A  # same schema
 lr_columns_A = [  'DatasetName', 'DatasetSize', 'NumClasses', 'Mode', 'Cap', 'tolerance_single', 'iter_single', 'iter_double', 'Suite', 'Time', 'Memory_MB', 'Accuracy']
 
 lr_columns_B = [ 'DatasetName', 'DatasetSize', 'NumClasses','Mode', 'tolerance_single', 'iter_single', 'iter_double', 'Suite', 'Time', 'Memory_MB', 'Accuracy']
+
 
 
 
