@@ -3,6 +3,9 @@ import pandas as pd
 import numpy as np
 from sklearn.datasets import make_blobs
 import pathlib
+from sklearn.datasets import make_classification
+from sklearn.preprocessing import StandardScaler
+import numpy as np
 
 DATA_DIR = pathlib.Path("datasets") 
 
@@ -105,6 +108,7 @@ svm_columns_B = svm_columns_A  # same schema
 lr_columns_A = [  'DatasetName', 'DatasetSize', 'NumClasses', 'Mode', 'Cap', 'tolerance_single', 'iter_single', 'iter_double', 'Suite', 'Time', 'Memory_MB', 'Accuracy']
 
 lr_columns_B = [ 'DatasetName', 'DatasetSize', 'NumClasses','Mode', 'tolerance_single', 'iter_single', 'iter_double', 'Suite', 'Time', 'Memory_MB', 'Accuracy']
+
 
 
 
