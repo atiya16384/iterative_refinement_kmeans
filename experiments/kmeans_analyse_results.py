@@ -1,49 +1,53 @@
 import pandas as pd
 from scipy.stats import ttest_rel, wilcoxon
 
-# --- your function, unchanged ---
-def analyze_experiment(csv_file, metrics=("Time","Inertia")):
+def analyze_experiment(csv_file, metrics=("Time","Inertia"), group_index=("DatasetSize","NumClusters")):
     df = pd.read_csv(csv_file)
+
+    # quick sanity: see what the file actually has
+    # print(df[["Suite","Mode"]].drop_duplicates().head())
 
     results = {}
     for metric in metrics:
-        pivoted = df.pivot_table(
-            index=["DatasetSize","NumClusters"],
-            columns="Suite",
-            values=metric,
-            aggfunc="mean"
-        ).dropna()
+        # group per dataset/cluster (average over any sweep params)
+        pivoted = (
+            df.pivot_table(
+                index=list(group_index),
+                columns="Mode",             # <<--- THIS is the key change
+                values=metric,
+                aggfunc="mean"
+            )
+            .dropna(subset=["Double","Hybrid"], how="any")
+        )
 
-        if "Double" not in pivoted.columns or "Hybrid" not in pivoted.columns:
-            continue  # skip if missing Suite
+        if pivoted.empty:
+            continue
 
-        times_double = pivoted["Double"].values
-        times_hybrid = pivoted["Hybrid"].values
+        times_double = pivoted["Double"].to_numpy()
+        times_hybrid = pivoted["Hybrid"].to_numpy()
 
-        # relative improvement (%)
         improvement = (times_double - times_hybrid) / times_double * 100
         diff = times_double - times_hybrid
 
         t_stat, t_p = ttest_rel(times_double, times_hybrid)
-        w_stat, w_p = wilcoxon(times_double, times_hybrid)
-        
+        w_stat, w_p = wilcoxon(times_double, times_hybrid, zero_method="wilcox")
+
         results[metric] = {
+            "n_pairs": len(pivoted),
             "per_dataset": pivoted.assign(Improvement_pct=improvement),
             "summary": {
-                "mean_double": times_double.mean(),
-                "mean_hybrid": times_hybrid.mean(),
-                "mean_improvement_%": improvement.mean(),
-                "t_test_stat": t_stat,
-                "t_test_p": t_p,
-                "wilcoxon_stat": w_stat,
-                "wilcoxon_p": w_p,
-                "cohens_d": diff.mean() / diff.std(ddof=1),
+                "mean_double": float(times_double.mean()),
+                "mean_hybrid": float(times_hybrid.mean()),
+                "mean_improvement_%": float(improvement.mean()),
+                "t_test_stat": float(t_stat),
+                "t_test_p": float(t_p),
+                "wilcoxon_stat": float(w_stat),
+                "wilcoxon_p": float(w_p),
+                "cohens_d": float(diff.mean() / diff.std(ddof=1)) if diff.std(ddof=1) else 0.0,
             }
         }
     return results
 
-
-# --- Just call it for each experiment CSV ---
 if __name__ == "__main__":
     csv_files = [
         "../Results/hybrid_kmeans_Results_expA.csv",
@@ -56,10 +60,13 @@ if __name__ == "__main__":
 
     for f in csv_files:
         try:
-            results = analyze_experiment(f)
+            out = analyze_experiment(f)
             print(f"\n==== {f} ====")
-            for metric, res in results.items():
-                print(f"[{metric}] Summary:")
+            if not out:
+                print("No Double/Hybrid pairs found (check that A/B/C were run or the column names).")
+            for metric, res in out.items():
+                print(f"[{metric}] pairs={res['n_pairs']}")
                 print(res["summary"])
         except FileNotFoundError:
             print(f"[skip] {f} not found")
+
