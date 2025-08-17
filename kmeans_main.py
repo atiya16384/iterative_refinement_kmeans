@@ -138,7 +138,9 @@ def analyze_experiment(csv_file, metrics=("Time","Inertia")):
         improvement = (times_double - times_hybrid) / times_double * 100
         diff = times_double - times_hybrid
 
-        # store both per-dataset and global stats
+        t_stat, t_p = ttest_rel(times_double, times_hybrid)
+        w_stat, w_p = wilcoxon(times_double, times_hybrid)
+        
         results[metric] = {
             "per_dataset": pivoted.assign(
                 Improvement_pct=improvement
@@ -147,12 +149,13 @@ def analyze_experiment(csv_file, metrics=("Time","Inertia")):
                 "mean_double": times_double.mean(),
                 "mean_hybrid": times_hybrid.mean(),
                 "mean_improvement_%": improvement.mean(),
-                "t_test_p": ttest_rel(times_double, times_hybrid).pvalue,
-                "wilcoxon_p": wilcoxon(times_double, times_hybrid).pvalue,
+                "t_test_stat": t_stat,
+                "t_test_p": t_p,
+                "wilcoxon_stat": w_stat,
+                "wilcoxon_p": w_p,
                 "cohens_d": diff.mean() / diff.std(ddof=1),
             }
         }
-
     return results
 
 all_rows = []
