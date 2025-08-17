@@ -1,14 +1,16 @@
 # experiments/logreg_experiments.py
-from experiments.kmeans_precision import run_full_double, run_hybrid
-
+from experiments.logreg_precision import run_full_double, run_hybrid
 
 def run_experiment_A(ds_name, X, y, n_classes, config):
     rows = []
-    tol_single = config["tol_fixed_A"]
+    tol_single = config["tol_single_A"]
+    tol_double = config["tol_double"]
+    max_iter   = config["max_iter_A"]
+    min_acc    = config.get("min_acc_to_skip", None)
 
-    # compute once per dataset
+    # one fp64 baseline for this dataset / budget
     _, it_s_b, it_d_b, t_b, mem_b, acc_b = run_full_double(
-        X, y, n_classes, config["max_iter_A"], tol=config.get("tol_double_B", 1e-6)
+        X, y, n_classes, max_iter, tol=tol_double
     )
 
     for cap in config["cap_grid"]:
@@ -17,11 +19,11 @@ def run_experiment_A(ds_name, X, y, n_classes, config):
 
         it_s, it_d, t, mem, acc = run_hybrid(
             X, y, n_classes,
-            max_iter_total=config["max_iter_A"],
+            max_iter_total=max_iter,
             tol_single=tol_single,
-            tol_double=config.get("tol_double_B", 1e-6),
+            tol_double=tol_double,
             single_iter_cap=cap,
-            min_acc_to_skip=config.get("min_acc_to_skip", None),  # e.g., 0.98
+            min_acc_to_skip=min_acc,
         )
         rows.append([ds_name, len(X), n_classes, "Hybrid", cap, tol_single,
                      it_s, it_d, "LR_ExpA", t, mem, acc])
@@ -29,22 +31,28 @@ def run_experiment_A(ds_name, X, y, n_classes, config):
 
 def run_experiment_B(ds_name, X, y, n_classes, config):
     rows = []
-    for tol_single in config["tol_single_grid"]:
+    tol_double = config["tol_double"]
+    max_iter   = config["max_iter_B"]
+    min_acc    = config.get("min_acc_to_skip", None)
+
+    for tol_single in config["tol_single_grid_B"]:
+        # pair with baseline (computed with same budget/tol)
         _, it_s_b, it_d_b, t_b, mem_b, acc_b = run_full_double(
-            X, y, n_classes, config["max_iter_B"], tol=config["tol_double_B"]
+            X, y, n_classes, max_iter, tol=tol_double
         )
         rows.append([ds_name, len(X), n_classes, "Double", tol_single,
                      it_s_b, it_d_b, "LR_ExpB", t_b, mem_b, acc_b])
 
         it_s, it_d, t, mem, acc = run_hybrid(
             X, y, n_classes,
-            max_iter_total=config["max_iter_B"],
+            max_iter_total=max_iter,
             tol_single=tol_single,
-            tol_double=config["tol_double_B"],
-            single_iter_cap=None,  # no cap
-            min_acc_to_skip=config.get("min_acc_to_skip", None),
+            tol_double=tol_double,
+            single_iter_cap=None,        # no cap for B
+            min_acc_to_skip=min_acc,
         )
         rows.append([ds_name, len(X), n_classes, "Hybrid", tol_single,
                      it_s, it_d, "LR_ExpB", t, mem, acc])
     return rows
+
 
