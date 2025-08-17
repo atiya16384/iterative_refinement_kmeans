@@ -10,6 +10,38 @@ def generate_synthetic_data(n_samples, n_features, n_clusters, random_state):
     X, y_true = make_blobs(n_samples=n_samples, n_features=n_features, centers=n_clusters, random_state=random_state, cluster_std = 3.0, center_box=(-2.0, 2.0))
     
     return X.astype(np.float64), y_true
+
+
+def generate_synthetic_data_lr(n_samples, n_features, n_classes, seed,
+                               class_sep=1.0, flip_y=0.05,
+                               informative_ratio=0.6, redundant_ratio=0.2,
+                               imbalance=0.0):
+    """
+    Logistic-regression–friendly synthetic data.
+    Returns (X, y) with standardized features (float64).
+    """
+    n_inform = max(1, int(informative_ratio * n_features))
+    n_redund = max(0, int(redundant_ratio * n_features))
+
+    weights = None
+    if imbalance > 0 and n_classes == 2:
+        weights = [min(0.95, 0.5 + imbalance/2.)]
+
+    X, y = make_classification(
+        n_samples=n_samples,
+        n_features=n_features,
+        n_informative=n_inform,
+        n_redundant=n_redund,
+        n_repeated=0,
+        n_classes=n_classes,
+        n_clusters_per_class=2,
+        class_sep=class_sep,
+        flip_y=flip_y,
+        weights=weights,
+        random_state=seed,
+    )
+    X = StandardScaler().fit_transform(X).astype(np.float64)
+    return X, y
   
 def load_3d_road(n_rows=1_000_000):
     path = DATA_DIR / "3D_spatial_network.csv"
@@ -73,6 +105,7 @@ svm_columns_B = svm_columns_A  # same schema
 lr_columns_A = [  'DatasetName', 'DatasetSize', 'NumClasses', 'Mode', 'Cap', 'tolerance_single', 'iter_single', 'iter_double', 'Suite', 'Time', 'Memory_MB', 'Accuracy']
 
 lr_columns_B = [ 'DatasetName', 'DatasetSize', 'NumClasses','Mode', 'tolerance_single', 'iter_single', 'iter_double', 'Suite', 'Time', 'Memory_MB', 'Accuracy']
+
 
 
 
