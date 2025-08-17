@@ -114,6 +114,31 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A, rows_B, ro
 
     return  rows_A, rows_B, rows_C
 
+def analyze_experiment(csv_file, value_col="Time"):
+    df = pd.read_csv(csv_file)
+    pivoted = df.pivot_table(
+        index=["DatasetName","NumClusters"],
+        columns="Suite",
+        values=value_col,
+        aggfunc="mean"
+    ).dropna()
+
+    times_double = pivoted["Double"].values
+    times_hybrid = pivoted["Hybrid"].values
+
+    improvement = (times_double - times_hybrid) / times_double * 100
+    diff = times_double - times_hybrid
+
+    return {
+        "mean_double": times_double.mean(),
+        "mean_hybrid": times_hybrid.mean(),
+        "mean_improvement_%": improvement.mean(),
+        "t_test_p": ttest_rel(times_double, times_hybrid).pvalue,
+        "wilcoxon_p": wilcoxon(times_double, times_hybrid).pvalue,
+        "cohens_d": diff.mean() / diff.std(ddof=1),
+    }
+
+
 all_rows = []
 
 rows_A = []
@@ -129,10 +154,17 @@ for tag, n, d, k, seed in synth_specs:
     # check if the mappings are correct to the run_one_dataset
     run_one_dataset(tag, X, y, rows_A, rows_B, rows_C)
 
+
 # real datasets
 # for tag, loader in real_datasets.items():
 #     X_real, y_real = loader()
 #     run_one_dataset(tag, X_real, y_real, rows_A, rows_B, rows_C, rows_D)
+
+for exp in ["A","B","C"]:  # add D,E,F once enabled
+    res = analyze_experiment(f"Results/hybrid_kmeans_Results_exp{exp}.csv")
+    print(f"\n==== Stats Summary: Experiment {exp} ====")
+    for k,v in res.items():
+        print(f"{k}: {v:.4f}")
 
 df_A = pd.DataFrame(rows_A, columns=columns_A)
 df_B = pd.DataFrame(rows_B, columns=columns_B)
