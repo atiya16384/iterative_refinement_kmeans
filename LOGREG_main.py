@@ -37,9 +37,11 @@ rows_A, rows_B = [], []
 for tag, n, d, k, seed in synth_specs:
     X, y = generate_lr_data(
         n_samples=n, n_features=d, n_classes=k, seed=seed,
-        informative_ratio=0.8, n_clusters_per_class=1,  # 1 avoids constraint pain for small d
+        informative_ratio=0.8,    # ensures enough informative feats for k=5, d=5
+        n_clusters_per_class=1,   # safer for small d with many classes
         class_sep=0.9, flip_y=0.03,
     )
+
     n_classes = len(set(y))
     for _ in range(config["n_repeats"]):
         rows_A.extend(run_experiment_A(tag, X, y, n_classes, config))
