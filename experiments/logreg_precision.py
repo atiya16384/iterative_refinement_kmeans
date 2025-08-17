@@ -28,7 +28,7 @@ def _iter_scalar(n_iter_attr):
     arr = np.asarray(n_iter_attr)
     return int(arr.max()) if arr.ndim else int(arr)
 
-def run_hybrid_optimized(
+def run_hybrid(
     X, y, n_classes,
     max_iter_total,
     tol_single,
