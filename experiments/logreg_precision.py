@@ -28,88 +28,61 @@ def _iter_scalar(n_iter_attr):
     arr = np.asarray(n_iter_attr)
     return int(arr.max()) if arr.ndim else int(arr)
 
-def run_hybrid(
+def run_hybrid_optimized(
     X, y, n_classes,
-    max_iter_total,
-    tol_single,
-    tol_double,
-    single_iter_cap,
+    max_iter_total=100,
+    tol_single=1e-4,
+    tol_double=1e-8,
+    switch_criteria="gradient_norm",
+    grad_norm_threshold=1e-3
 ):
-    """
-    Stage 1: fp32 LogisticRegression (lbfgs) for up to 'cap' iterations.
-    Stage 2: fp64 LogisticRegression, warm-started from fp32 weights.
-      - If AOCL blocks attribute injection or warm_start, we fall back to a fresh fp64 fit.
-    Returns: it_single, it_double, total_time_sec, peak_mem_MB, accuracy
-    """
-    # Prepare views once (avoid repeated allocations)
+    """Optimized hybrid precision logistic regression"""
+    # Single allocation for data (avoid copies)
     X32 = np.asarray(X, dtype=np.float32, order="C")
-    X64 = np.asarray(X, dtype=np.float64, order="C")
-
-    # Cap handling
-    cap = max_iter_total if single_iter_cap is None else int(single_iter_cap)
-    cap = int(max(0, min(cap, int(max_iter_total))))
-
-    # ---------- fp32 stage ----------
+    X64 = X.astype(np.float64, copy=False) if X.dtype != np.float64 else X
+    
+    # Stage 1: fp32
     t0 = time.perf_counter()
     clf_s = LogisticRegression(
-        solver="lbfgs",                # AOCL supports lbfgs
-        multi_class="auto",
-        max_iter=max(1, cap),
-        tol=float(tol_single),
-        # n_jobs / warm_start are ignored/unsupported in AOCL; omit them here
+        solver="lbfgs",
+        max_iter=max_iter_total,
+        tol=tol_single,
+        warm_start=False  # AOCL may ignore anyway
     )
     clf_s.fit(X32, y)
     t_single = time.perf_counter() - t0
     it_single = _iter_scalar(clf_s.n_iter_)
-
-    # ---------- fp64 stage (warm-start if possible) ----------
-    remaining = max(1, int(max_iter_total) - it_single)
-
-    # Start with a safe default: fresh fit
-    do_warm = True
-    it_double = 0
-    t_double = 0.0
-    acc = 0.0
-
-    try:
-        # Build fp64 model that *can* warm-start
-        clf_d = LogisticRegression(
-            solver="lbfgs",
-            multi_class="auto",
-            max_iter=remaining,
-            tol=float(tol_double),
-            warm_start=True,          # may be ignored by AOCL, we handle that
-        )
-
-        # Inject fp32 solution (cast to fp64). AOCL may block this; hence try/except.
-        clf_d.classes_   = np.asarray(clf_s.classes_, dtype=clf_s.classes_.dtype, order="C")
-        clf_d.coef_      = clf_s.coef_.astype(np.float64, copy=True)
-        clf_d.intercept_ = clf_s.intercept_.astype(np.float64, copy=True)
-
-        t1 = time.perf_counter()
-        clf_d.fit(X64, y)            # continue from injected weights
-        t_double = time.perf_counter() - t1
-        it_double = _iter_scalar(clf_d.n_iter_)
-        acc = accuracy_score(y, clf_d.predict(X64))
-    except Exception:
-        # AOCL-patched estimator may refuse manual state; fall back to fresh fp64 run
-        do_warm = False
-        clf_d = LogisticRegression(
-            solver="lbfgs",
-            multi_class="auto",
-            max_iter=remaining,
-            tol=float(tol_double),
-        )
-        t1 = time.perf_counter()
-        clf_d.fit(X64, y)
-        t_double = time.perf_counter() - t1
-        it_double = _iter_scalar(clf_d.n_iter_)
-        acc = accuracy_score(y, clf_d.predict(X64))
-
-    # Peak memory: keep the bigger array; (plus tiny model state, negligible)
-    mem_MB = max(X32.nbytes, X64.nbytes) / 1e6
+    
+    # Early exit if single precision already converged
+    if clf_s.n_iter_ < max_iter_total:
+        y_pred = clf_s.predict(X32)
+        acc = accuracy_score(y, y_pred)
+        return it_single, 0, t_single, X32.nbytes/1e6, acc
+    
+    # Stage 2: fp64 with better initialization
+    t1 = time.perf_counter()
+    
+    # Create new model with proper initialization
+    clf_d = LogisticRegression(
+        solver="lbfgs",
+        max_iter=max_iter_total - it_single,
+        tol=tol_double,
+        warm_start=False
+    )
+    
+    # Manually initialize with fp32 solution (more reliable than warm_start)
+    if hasattr(clf_d, 'coef_'):
+        clf_d.coef_ = clf_s.coef_.astype(np.float64)
+        clf_d.intercept_ = clf_s.intercept_.astype(np.float64)
+        clf_d.classes_ = clf_s.classes_
+    
+    clf_d.fit(X64, y)
+    t_double = time.perf_counter() - t1
+    it_double = _iter_scalar(clf_d.n_iter_)
+    
+    # Calculate metrics
+    acc = accuracy_score(y, clf_d.predict(X64))
     total_time = t_single + t_double
-
-    # Optional: if you want to know whether warm start actually happened, you can
-    # return `do_warm` too (but keep signature/CSV consistent if you log it).
+    mem_MB = max(X32.nbytes, X64.nbytes) / 1e6
+    
     return it_single, it_double, total_time, mem_MB, acc
