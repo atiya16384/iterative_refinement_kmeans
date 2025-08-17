@@ -117,3 +117,19 @@ class LogisticVisualizer:
         plt.close()
 
 
+if __name__ == '__main__':
+    # After created df_A and df_B
+
+    df_A = pd.read_csv("Results/logistic_results_expA.csv")
+    df_B = pd.read_csv("Results/logistic_results_expB.csv")
+
+
+    log_vis = LogisticVisualizer(output_dir= "../Results")
+
+    # Experiment A plots
+    log_vis.plot_cap_vs_time(df_A)
+    log_vis.plot_cap_vs_accuracy(df_A)
+
+    # Experiment B plots
+    log_vis.plot_tolerance_vs_time(df_B)
+    log_vis.plot_tolerance_vs_accuracy(df_B)

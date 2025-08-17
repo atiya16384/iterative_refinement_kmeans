@@ -1,3 +1,4 @@
+import matplotlib
 import matplotlib.pyplot as plt
 import pandas as pd
 from aoclda.sklearn import skpatch
@@ -9,7 +10,7 @@ import os
 import pathlib
 import numpy as np
 from visualisations.kmeans_visualisations import KMeansVisualizer
-from scipy.stats import ttest, wilcoxon
+from scipy.stats import ttest_rel, wilcoxon
 
 from experiments.kmeans_experiments import (
     run_experiment_A, run_experiment_B,
@@ -180,16 +181,6 @@ for tag, n, d, k, seed in synth_specs:
 #     run_one_dataset(tag, X_real, y_real, rows_A, rows_B, rows_C, rows_D)
 
 # --- run for A, B, C (extend with D–F once CSVs exist) ---
-for exp in ["A","B","C"]:
-    res = analyze_experiment(f"Results/hybrid_kmeans_Results_exp{exp}.csv")
-
-    print(f"\n==== Stats Summary: Experiment {exp} ====")
-    for metric, stat_dict in res.items():
-        print(f"\n--- {metric} ---")
-        print(stat_dict["per_dataset"][["Improvement_pct"]])  # per dataset improvement
-        print("\nSummary:")
-        for k, v in stat_dict["summary"].items():
-            print(f"{k}: {v:.4f}")
 
 df_A = pd.DataFrame(rows_A, columns=columns_A)
 df_B = pd.DataFrame(rows_B, columns=columns_B)
@@ -204,6 +195,17 @@ df_C.to_csv("Results/hybrid_kmeans_Results_expC.csv", index = False)
 #df_D.to_csv("Results/hybrid_kmeans_Results_expD.csv", index = False)
 #df_E.to_csv("Results/hybrid_kmeans_Results_expE.csv", index = False)
 #df_F.to_csv("Results/hybrid_kmeans_Results_expF.csv", index = False)
+
+for exp in ["A","B","C"]:
+    res = analyze_experiment(f"Results/hybrid_kmeans_Results_exp{exp}.csv")
+
+    print(f"\n==== Stats Summary: Experiment {exp} ====")
+    for metric, stat_dict in res.items():
+        print(f"\n--- {metric} ---")
+        print(stat_dict["per_dataset"][["Improvement_pct"]])  # per dataset improvement
+        print("\nSummary:")
+        for k, v in stat_dict["summary"].items():
+            print(f"{k}: {v:.4f}")
 
 print("Saved:")
 
