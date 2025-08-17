@@ -46,12 +46,12 @@ def analyze_experiment(csv_file, metrics=("Time","Inertia")):
 # --- Just call it for each experiment CSV ---
 if __name__ == "__main__":
     csv_files = [
-        "Results/hybrid_kmeans_Results_expA.csv",
-        "Results/hybrid_kmeans_Results_expB.csv",
-        "Results/hybrid_kmeans_Results_expC.csv",
-        "Results/hybrid_kmeans_Results_expD.csv",
-        "Results/hybrid_kmeans_Results_expE.csv",
-        "Results/hybrid_kmeans_Results_expF.csv",
+        "../Results/hybrid_kmeans_Results_expA.csv",
+        "../Results/hybrid_kmeans_Results_expB.csv",
+        "../Results/hybrid_kmeans_Results_expC.csv",
+        "../Results/hybrid_kmeans_Results_expD.csv",
+        "../Results/hybrid_kmeans_Results_expE.csv",
+        "../Results/hybrid_kmeans_Results_expF.csv",
     ]
 
     for f in csv_files:
