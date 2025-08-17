@@ -2,7 +2,10 @@ import pathlib
 import pandas as pd
 from aoclda.sklearn import skpatch
 skpatch()
-from datasets.utils import generate_synthetic_data, synth_specs, lr_columns_A, lr_columns_B
+from datasets.utils import (
+    generate_synthetic_data_lr as generate_lr_data,
+    synth_specs_lr as synth_specs, lr_columns_A, lr_columns_B
+)
 from experiments.logreg_experiments import run_experiment_A, run_experiment_B
 from visualisations.LOGREG_visualisations import LogisticVisualizer
 
@@ -32,7 +35,10 @@ rows_A, rows_B = [], []
 
 # Synthetic datasets
 for tag, n, d, k, seed in synth_specs:
-    X, y = generate_synthetic_data(n, d, k, seed)
+    X, y = generate_lr_data(
+        n_samples=n, n_features=d, n_classes=k, seed=seed,
+        class_sep=0.9, flip_y=0.03, informative_ratio=0.6, redundant_ratio=0.25, imbalance=0.2
+    )
     n_classes = len(set(y))
 
     for _ in range(config["n_repeats"]):
