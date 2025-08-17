@@ -12,18 +12,20 @@ RESULTS_DIR.mkdir(exist_ok=True)
 # ===================
 # SINGLE SOURCE CONFIG
 # ===================
+# logreg_main.py (config)
 config = {
-    "n_repeats": 1,
+    "n_repeats": 3,
 
-    # === Experiment A (cap sweep) ===
-    "cap_grid": [0, 50, 100, 150, 200, 250, 300],
-    "tol_fixed_A": 1e-16,
+    # Cap sweep
+    "cap_grid": [0, 5, 10, 25, 50, 100, 150],
+    "tol_fixed_A": 1e-3,     # fp32 target tolerance (looser)
+
     "max_iter_A": 300,
 
-    # === Experiment B (tolerance sweep, no cap) ===
-    "max_iter_B": 1000,
-    "tol_double_B": 1e-5,
-    "tol_single_grid": [1e-1, 1e-2, 1e-3, 1e-4],
+    # Tolerance sweep (no cap)
+    "max_iter_B": 300,
+    "tol_double_B": 1e-6,    # fp64 stricter target
+    "tol_single_grid": [1e-1, 5e-2, 1e-2, 5e-3, 1e-3],
 }
 
 rows_A, rows_B = [], []
