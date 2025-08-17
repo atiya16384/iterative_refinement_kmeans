@@ -26,8 +26,8 @@ config = {
     "max_iter_A": 300,
 
     # Tolerance sweep (no cap)
-    "max_iter_B": 300,
-    "tol_double_B": 1e-6,    # fp64 stricter target
+    "max_iter_B": 1000,
+    "tol_double_B": 1e-4,    # fp64 stricter target
     "tol_single_grid": [1e-1, 5e-2, 1e-2, 5e-3, 1e-3],
 }
 
