@@ -28,65 +28,63 @@ def _iter_scalar(n_iter_attr):
     arr = np.asarray(n_iter_attr)
     return int(arr.max()) if arr.ndim else int(arr)
 
-def run_hybrid(
+def run_hybrid_optimized(
     X, y, n_classes,
-    max_iter_total=100,
-    tol_single=1e-4,
-    tol_double=1e-8,
-    switch_criteria="gradient_norm",
-    grad_norm_threshold=1e-3
+    max_iter_total,
+    tol_single,
+    tol_double,
+    single_iter_cap,
 ):
-    """Optimized hybrid precision logistic regression"""
-    # Single allocation for data (avoid copies)
+    """Optimized non-adaptive hybrid logistic regression"""
+    # Single allocation with memory reuse
     X32 = np.asarray(X, dtype=np.float32, order="C")
     X64 = X.astype(np.float64, copy=False) if X.dtype != np.float64 else X
     
-    # Stage 1: fp32
+    # Cap handling - ensure we don't exceed max_iter_total
+    cap = min(int(single_iter_cap), int(max_iter_total))
+    
+    # --- Phase 1: FP32 with early stopping check ---
     t0 = time.perf_counter()
     clf_s = LogisticRegression(
         solver="lbfgs",
-        max_iter=max_iter_total,
+        max_iter=cap,
         tol=tol_single,
-        warm_start=False  # AOCL may ignore anyway
+        warm_start=False,
+        random_state=42  # For reproducibility
     )
     clf_s.fit(X32, y)
     t_single = time.perf_counter() - t0
     it_single = _iter_scalar(clf_s.n_iter_)
     
-    # Early exit if single precision already converged
-    if clf_s.n_iter_ < max_iter_total:
-        y_pred = clf_s.predict(X32)
-        acc = accuracy_score(y, y_pred)
-        return it_single, 0, t_single, X32.nbytes/1e6, acc
-    
-    # Stage 2: fp64 with better initialization
+    # --- Phase 2: FP64 with manual warm start ---
+    remaining_iters = max(1, max_iter_total - it_single)
     t1 = time.perf_counter()
     
-    # Create new model with proper initialization
+    # Create new model and manually inject FP32 solution
     clf_d = LogisticRegression(
         solver="lbfgs",
-        max_iter=max_iter_total - it_single,
+        max_iter=remaining_iters,
         tol=tol_double,
-        warm_start=False
+        warm_start=False  # Explicitly disabled for AOCL
     )
     
-    # Manually initialize with fp32 solution (more reliable than warm_start)
-    if hasattr(clf_d, 'coef_'):
-        clf_d.coef_ = clf_s.coef_.astype(np.float64)
-        clf_d.intercept_ = clf_s.intercept_.astype(np.float64)
-        clf_d.classes_ = clf_s.classes_
+    # Direct attribute injection (more reliable than warm_start)
+    clf_d.coef_ = clf_s.coef_.astype(np.float64, copy=False)
+    clf_d.intercept_ = clf_s.intercept_.astype(np.float64, copy=False)
+    clf_d.classes_ = clf_s.classes_.copy()
+    clf_d.n_iter_ = [0]  # Reset iteration counter
     
     clf_d.fit(X64, y)
     t_double = time.perf_counter() - t1
     it_double = _iter_scalar(clf_d.n_iter_)
     
-    # Calculate metrics
-    acc = accuracy_score(y, clf_d.predict(X64))
+    # --- Metrics ---
+    y_pred = clf_d.predict(X64)
+    acc = accuracy_score(y, y_pred)
     total_time = t_single + t_double
     mem_MB = max(X32.nbytes, X64.nbytes) / 1e6
     
     return it_single, it_double, total_time, mem_MB, acc
-
 
 def adaptive_mixed_precision_lr(X, y, switch_tol=1e-3, max_iter=1000):
     """Instrumented version with tracking"""
