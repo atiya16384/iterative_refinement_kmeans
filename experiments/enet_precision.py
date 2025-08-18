@@ -39,49 +39,49 @@ def run_full_double(
 # -------------------------------------------------
 def run_hybrid(
     X, y,
-    alpha, l1_ratio,
     max_iter_total,
+    tol_single, tol_double,
     single_iter_cap,
-    tol_single, tol_double
+    alpha, l1_ratio,
+    random_state=0
 ):
+
+
+    # Prepare float32 and float64 versions
     X32 = np.asarray(X, dtype=np.float32)
     X64 = np.asarray(X, dtype=np.float64)
 
-    # cap rules
     cap = max_iter_total if single_iter_cap is None else int(single_iter_cap)
-    cap = int(max(1, min(cap, int(max_iter_total))))
+    cap = int(max(0, min(cap, int(max_iter_total))))
 
     # ---- fp32 stage ----
     t0 = time.perf_counter()
     en32 = ElasticNet(
         alpha=alpha, l1_ratio=l1_ratio,
         max_iter=cap, tol=tol_single,
-        warm_start=False, selection="cyclic"
+        fit_intercept=True, random_state=random_state
     )
     en32.fit(X32, y)
     t_single = time.perf_counter() - t0
-    it_single = int(en32.n_iter_)
+    it_single = int(getattr(en32, "n_iter_", cap))
 
-    # ---- fp64 refinement (true warm-start) ----
+    # ---- fp64 stage (fresh, always run) ----
     remaining = max(1, int(max_iter_total) - it_single)
+    t1 = time.perf_counter()
     en64 = ElasticNet(
         alpha=alpha, l1_ratio=l1_ratio,
         max_iter=remaining, tol=tol_double,
-        warm_start=True, selection="cyclic"
+        fit_intercept=True, random_state=random_state
     )
-    # Seed state (supported by sklearn + AOCL patch):
-    en64.coef_ = en32.coef_.astype(np.float64, copy=True)
-    en64.intercept_ = float(en32.intercept_)
-
-    t1 = time.perf_counter()
-    en64.fit(X64, y)        # continues from seeded coef_/intercept_
+    en64.fit(X64, y)
     t_double = time.perf_counter() - t1
-    it_double = int(en64.n_iter_)
+    it_double = int(getattr(en64, "n_iter_", remaining))
 
-    yhat = en64.predict(X64)
-    r2 = r2_score(y, yhat)
-    mse = mean_squared_error(y, yhat)
+    # Evaluate final fp64 model
+    yhat64 = en64.predict(X64)
+    r2_64  = r2_score(y, yhat64)
+    mse_64 = mean_squared_error(y, yhat64)
 
-    # report peak footprint (realistic): the larger of {X32, X64}
-    mem_MB = max(_mem_MB(X32), _mem_MB(X64))
-    return it_single, it_double, (t_single + t_double), mem_MB, r2, mse
+    mem_MB = max(X32.nbytes, X64.nbytes) / 1e6
+    return it_single, it_double, (t_single + t_double), mem_MB, r2_64, mse_64
+
