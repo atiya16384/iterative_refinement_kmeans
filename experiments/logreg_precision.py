@@ -4,10 +4,6 @@ import numpy as np
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score
 
-def _iter_scalar(n_iter_attr):
-    arr = np.asarray(n_iter_attr)
-    return int(arr.max()) if arr.ndim else int(arr)
-
 # --- Pure double precision run ---
 def run_full_double(X, y, n_classes, max_iter, tol):
     X64 = np.asarray(X, dtype=np.float64)
@@ -28,58 +24,51 @@ def _iter_scalar(n_iter_attr):
     arr = np.asarray(n_iter_attr)
     return int(arr.max()) if arr.ndim else int(arr)
 
-def run_hybrid(
-    X, y, n_classes,
-    max_iter_total,
-    tol_single,
-    tol_double,
-    single_iter_cap,
-):
-    """AOCL-compatible hybrid precision logistic regression"""
-    # Single allocation with memory reuse
-    X32 = np.asarray(X, dtype=np.float32, order="C")
-    X64 = X.astype(np.float64, copy=False) if X.dtype != np.float64 else X
-    
-    # Cap handling
-    cap = min(int(single_iter_cap), int(max_iter_total))
-    
-    # --- Phase 1: FP32 ---
+# --- Hybrid: fp32 stage (capped) + fp64 stage (fresh) ---
+def run_hybrid(X, y, n_classes, max_iter_total, tol_single, tol_double, single_iter_cap):
+
+    def _iter_scalar(n_iter_attr):
+        arr = np.asarray(n_iter_attr)
+        return int(arr.max()) if arr.ndim else int(arr)
+
+    X32 = np.asarray(X, dtype=np.float32)
+    X64 = np.asarray(X, dtype=np.float64)
+
+    cap = max_iter_total if single_iter_cap is None else int(single_iter_cap)
+    cap = int(max(0, min(cap, int(max_iter_total))))
+
+    # fp32 stage (capped)
     t0 = time.perf_counter()
     clf_s = LogisticRegression(
-        solver="lbfgs",
         max_iter=cap,
         tol=tol_single,
-        warm_start=False
-    ).fit(X32, y)
+        solver="lbfgs",
+        multi_class="auto",
+    )
+    clf_s.fit(X32, y)
     t_single = time.perf_counter() - t0
     it_single = _iter_scalar(clf_s.n_iter_)
-    
-    # --- Phase 2: FP64 ---
+
+    # fp64 stage (fresh model; AOCL-friendly — no warm_start, no manual init)
+    remaining = max(1, int(max_iter_total) - it_single)
     t1 = time.perf_counter()
-    
-    # AOCL-compatible initialization
     clf_d = LogisticRegression(
-        solver="lbfgs",
-        max_iter=max_iter_total - it_single,
+        max_iter=remaining,
         tol=tol_double,
-        warm_start=False,
-        # Initialize with FP32 solution through parameters
-        coef_init=clf_s.coef_.astype(np.float64),
-        intercept_init=clf_s.intercept_.astype(np.float64)
-    ).fit(X64, y)
-    
+        solver="lbfgs",
+        multi_class="auto",
+    )
+    clf_d.fit(X64, y)
     t_double = time.perf_counter() - t1
     it_double = _iter_scalar(clf_d.n_iter_)
-    
-    # Metrics
-    acc = accuracy_score(y, clf_d.predict(X64))
-    return (
-        it_single,
-        it_double,
-        t_single + t_double,
-        max(X32.nbytes, X64.nbytes) / 1e6,
-        acc
-    )
+
+    y_pred = clf_d.predict(X64)
+    acc = accuracy_score(y, y_pred)
+    mem_MB = max(X32.nbytes, X64.nbytes) / 1e6
+
+    return it_single, it_double, (t_single + t_double), mem_MB, acc
+
+
 
 def adaptive_mixed_precision_lr(X, y, switch_tol=1e-3, max_iter=1000):
     """AOCL-compatible adaptive mixed precision logistic regression"""
