@@ -32,6 +32,48 @@ def load_susy(n_rows=1_000_000):
     X = df.iloc[:, 1:].to_numpy()     
     return X, None
 
+
+def generate_synthetic_data_en(
+    n_samples: int,
+    n_features: int,
+    seed: int = 0,
+    sparsity: float = 0.1,
+    noise: float = 1.0,
+    rho: float = 0.5,
+):
+    """
+    ElasticNet/Lasso-friendly synthetic regression:
+      - Correlated features with Toeplitz covariance (rho^{|i-j|})
+      - Sparse true beta (first floor(sparsity * n_features) non-zero)
+      - y = X @ beta + ε
+    """
+    rng = np.random.default_rng(seed)
+
+    # Toeplitz covariance
+    idx = np.arange(n_features)
+    cov = rho ** np.abs(idx[:, None] - idx[None, :])
+
+    # sample X ~ N(0, cov)
+    L = np.linalg.cholesky(cov + 1e-12 * np.eye(n_features))
+    Z = rng.standard_normal((n_samples, n_features))
+    X = Z @ L.T  # correlated
+
+    # sparse beta
+    k = max(1, int(sparsity * n_features))
+    beta = np.zeros(n_features)
+    nz = rng.choice(n_features, size=k, replace=False)
+    beta[nz] = rng.normal(0, 1.0, size=k)
+
+    y = X @ beta + noise * rng.standard_normal(n_samples)
+    return X.astype(np.float64, copy=False), y.astype(np.float64, copy=False)
+
+# A tiny spec list you can expand
+enet_specs = [
+    # (tag, n_samples, n_features, sparsity, noise, seed)
+    ( "EN_SYNTH_n100k_d200_s10", 100_000, 200, 0.10, 1.0, 0 ),
+    ( "EN_SYNTH_n200k_d400_s05", 200_000, 400, 0.05, 1.0, 1 ),
+]
+
 synth_specs = [
     # number of samples; number of features, number of clusters, random seeds
     # ("SYNTH_C_5_F_5_n1000_000k_logistic", 1000_000, 150,  5, 0),
@@ -39,6 +81,8 @@ synth_specs = [
     ("SYNTH_C_40_F_5_n1000_000k_kmeans", 10000_00, 5, 40, 1),
     ("SYNTH_C_5_F_5_n1000_000k_kmeans", 10000_00, 5, 5, 1),
 ]
+
+
 
 # Real-dataset
 real_datasets = {
@@ -88,6 +132,7 @@ en_columns_B = [
     "DatasetName","NumFeatures","Mode","tolerance_single",
     "iter_single","iter_double","Suite","Time","Memory_MB","R2","MSE"
 ]
+
 
 
 
