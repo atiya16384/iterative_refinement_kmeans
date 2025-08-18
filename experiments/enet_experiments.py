@@ -15,15 +15,9 @@ def _cfg(config: dict, key: str, fallback_key: str | None = None):
 # Experiment A: cap sweep (fixed single tolerance)
 # ============================================================
 def run_experiment_A(ds_name: str, X, y, d: int, config: dict) -> list[list]:
-    """
-    Sweep the fp32 iteration cap; keep single-precision tolerance fixed.
-    We also emit a 'Double' row per setting (useful for normalized plots).
-    """
     rows: list[list] = []
 
-    # config w/ fallbacks so your earlier dicts keep working
-    tol_single = _cfg(config, "tol_single_A", "tol_fixed_A")
-    tol_double = _cfg(config, "tol_double_B", "tol_double")
+    tol_fixed  = _cfg(config, "tol_single_A", "tol_fixed_A")  # single tol
     max_iter   = _cfg(config, "max_iter_A", "max_iter")
     cap_grid   = _cfg(config, "cap_grid", "CapGrid")
     alpha      = _cfg(config, "alpha", "enet_alpha")
@@ -32,44 +26,34 @@ def run_experiment_A(ds_name: str, X, y, d: int, config: dict) -> list[list]:
     n = len(X)
     p = getattr(X, "shape", [None, d])[1]
 
-    # one fp64 baseline evaluation (we'll repeat the row for each cap)
+    # fp64 baseline once (uses the SAME tolerance)
     it_s_b, it_d_b, t_b, mem_b, r2_b, mse_b = run_full_double(
         X, y,
         max_iter=max_iter,
-        tol=tol_double,
+        tol=tol_fixed,               # <— same tol
         alpha=alpha,
         l1_ratio=l1_ratio,
         random_state=0,
     )
 
     for cap in cap_grid:
-        # pair a baseline row with each cap value (handy for plotting/normalizing)
-        rows.append([
-            ds_name, n, p,
-            "Double", cap, tol_single,
-            it_s_b, it_d_b, "ENet_ExpA",
-            t_b, mem_b, r2_b, mse_b
-        ])
+        rows.append([ds_name, n, p, "Double", cap, tol_fixed,
+                     it_s_b, it_d_b, "ENet_ExpA", t_b, mem_b, r2_b, mse_b])
 
         it_s, it_d, t, mem, r2, mse = run_hybrid(
             X, y,
             max_iter_total=max_iter,
-            tol_single=tol_single,
-            tol_double=tol_double,
+            tol_single=tol_fixed,     # <— same tol
+            tol_double=tol_fixed,     # <— same tol
             single_iter_cap=cap,
             alpha=alpha,
             l1_ratio=l1_ratio,
             random_state=0,
         )
-        rows.append([
-            ds_name, n, p,
-            "Hybrid", cap, tol_single,
-            it_s, it_d, "ENet_ExpA",
-            t, mem, r2, mse
-        ])
+        rows.append([ds_name, n, p, "Hybrid", cap, tol_fixed,
+                     it_s, it_d, "ENet_ExpA", t, mem, r2, mse])
 
     return rows
-
 
 # ============================================================
 # Experiment B: fp32 tolerance sweep (no cap; use full budget)
