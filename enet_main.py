@@ -31,9 +31,8 @@ config = {
 
     # --- Exp A: cap sweep at fixed fp32 tol ---
     "cap_grid": [1, 5, 10, 20, 50, 100],
-    "tol_fixed_A": 1e-3,
+    "tol_fixed_A": 1e-16,     # <— single tolerance for Exp A
     "max_iter_A": 300,
-    "tol_double_A": 1e-6,
 
     # --- Exp B: tol sweep (no cap) ---
     "max_iter_B": 300,
