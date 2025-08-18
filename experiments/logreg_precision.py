@@ -129,3 +129,52 @@ def adaptive_mixed_precision_lr(X, y, switch_tol=1e-3, max_iter=1000):
     clf_fp64._final_precision = 'mixed'
     
     return clf_fp64
+
+def adaptive_mixed_precision_lr(X, y, switch_tol=1e-3, max_iter=1000):
+    """AOCL-compatible adaptive mixed precision logistic regression"""
+    # Precision conversion
+    X_fp32 = np.asarray(X, dtype=np.float32, order='C')
+    X_fp64 = X.astype(np.float64, copy=False) if X.dtype != np.float64 else X
+    
+    # --- FP32 Phase ---
+    clf_fp32 = LogisticRegression(
+        solver='lbfgs',
+        max_iter=max_iter,
+        warm_start=False  # Explicitly disabled for AOCL
+    )
+    t_fp32_start = time.perf_counter()
+    clf_fp32.fit(X_fp32, y)
+    t_fp32 = time.perf_counter() - t_fp32_start
+    
+    # --- Switching Logic ---
+    grad_norm = np.linalg.norm(clf_fp32.coef_)
+    needs_refinement = grad_norm > switch_tol
+    
+    if not needs_refinement:
+        # Early return if FP32 is sufficient
+        clf_fp32._used_mixed_precision = False
+        clf_fp32._time_fp32 = t_fp32
+        clf_fp32._time_fp64 = 0
+        clf_fp32._final_precision = 'fp32'
+        return clf_fp32
+    
+    # --- FP64 Refinement Phase ---
+    t_fp64_start = time.perf_counter()
+    clf_fp64 = LogisticRegression(
+        solver='lbfgs',
+        max_iter=max_iter,
+        warm_start=False,
+        # AOCL-compatible initialization
+        coef_init=clf_fp32.coef_.astype(np.float64),
+        intercept_init=clf_fp32.intercept_.astype(np.float64)
+    )
+    clf_fp64.fit(X_fp64, y)
+    t_fp64 = time.perf_counter() - t_fp64_start
+    
+    # --- Instrumentation ---
+    clf_fp64._used_mixed_precision = True
+    clf_fp64._time_fp32 = t_fp32
+    clf_fp64._time_fp64 = t_fp64
+    clf_fp64._final_precision = 'mixed'
+    
+    return clf_fp64
