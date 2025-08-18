@@ -106,7 +106,7 @@ class ENetVisualizer:
 
 if __name__ == "__main__":
     # Load CSVs produced by ENET_main.py
-    results_dir = pathlib.Path("Results")  # where ENET_main writes CSVs
+    results_dir = pathlib.Path("../Results")  # where ENET_main writes CSVs
     df_A = pd.read_csv(results_dir / "enet_results_expA.csv")
     df_B = pd.read_csv(results_dir / "enet_results_expB.csv")
 

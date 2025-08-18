@@ -10,6 +10,9 @@ from datasets.utils import (
 )
 from experiments.enet_experiments import (
     run_experiment_A, run_experiment_B,
+)
+
+from datasets.utils import (
     en_columns_A, en_columns_B
 )
 
