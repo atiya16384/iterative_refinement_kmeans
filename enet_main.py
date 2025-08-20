@@ -13,7 +13,7 @@ from experiments.enet_experiments import (
 )
 
 from datasets.utils import (
-    en_columns_A, en_columns_B
+    enet_columns_A, enet_columns_B
 )
 
 RESULTS_DIR = pathlib.Path("Results")
@@ -30,14 +30,14 @@ config = {
     "l1_ratio": 0.5,     # 1.0 = Lasso, 0.0 = Ridge-like, (0,1) = ElasticNet
 
     # --- Exp A: cap sweep at fixed fp32 tol ---
-    "cap_grid": [1, 5, 10, 20, 50, 100],
+    "cap_grid": [1, 5, 10, 20, 50, 100, 150, 200, 250, 300],
     "tol_fixed_A": 1e-16,     # <— single tolerance for Exp A
     "max_iter_A": 300,
 
     # --- Exp B: tol sweep (no cap) ---
-    "max_iter_B": 300,
-    "tol_double_B": 1e-6,
-    "tol_single_grid": [1e-2, 5e-3, 1e-3, 5e-4],
+    "max_iter_B": 1000,
+    "tol_double_B": 1e-7,
+    "tol_single_grid": [1e-2, 5e-3, 1e-3, 5e-4, 1e-5, 1e-6, 1e-7, 1e-8, 1e-9],
 }
 
 rows_A, rows_B = [], []
@@ -53,8 +53,8 @@ for tag, n, d, sparsity, noise, seed in enet_specs:
         rows_B.extend(run_experiment_B(tag, X, y, d, config))
 
 # Save results
-df_A = pd.DataFrame(rows_A, columns=en_columns_A)
-df_B = pd.DataFrame(rows_B, columns=en_columns_B)
+df_A = pd.DataFrame(rows_A, columns=enet_columns_A)
+df_B = pd.DataFrame(rows_B, columns=enet_columns_B)
 df_A.to_csv(RESULTS_DIR / "enet_results_expA.csv", index=False)
 df_B.to_csv(RESULTS_DIR / "enet_results_expB.csv", index=False)
 
