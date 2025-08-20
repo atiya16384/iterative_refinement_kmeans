@@ -1,116 +1,255 @@
-# experiments/logreg_precision.py
-# experiments/logreg_precision.py
 import time
+import itertools
 import numpy as np
-from aoclda.linear_model import linmod
-from sklearn.metrics import roc_auc_score
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
-import pathlib
 import pandas as pd
 
-from datasets.utils import generate_synthetic_data, synth_specs, lr_columns_A, lr_columns_B
-from visualisations.LOGREG_visualisations import LogisticVisualizer
+from sklearn.datasets import load_breast_cancer
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import roc_auc_score, average_precision_score, log_loss
 
-RESULTS_DIR = pathlib.Path("Results")
-RESULTS_DIR.mkdir(exist_ok=True)
+from aoclda.linear_model import linmod
 
-# Config
-rows_A, rows_B = [], []
-
-# Run synthetic datasets
-for tag, n, d, k, seed in synth_specs:
-    X, y = generate_synthetic_data(n_samples=n, n_features=d, n_clusters=k, random_state=seed)
-    n_classes = len(set(y))
-
-# ---------------- helpers ----------------
-def _iter_scalar(n_iter_attr) -> int:
-    """Normalize scikit/AOCL's n_iter_ (int or array) to a single int."""
-    arr = np.asarray(n_iter_attr)
-    return int(arr.max()) if arr.ndim else int(arr)
-
-def _mem_mb_from_arrays(*arrays) -> float:
-    """Simple peak-ish memory proxy: max of involved array byte sizes."""
-    if not arrays:
+# -------------------------
+# Helpers
+# -------------------------
+def _map_penalty_to_alpha(penalty, alpha=None):
+    """Translate a 'penalty' label to reg_alpha.
+       If alpha is provided and penalty is 'elasticnet', we use alpha directly."""
+    if penalty is None:
+        # treat as unpenalized -> reg_alpha doesn't matter if reg_lambda == 0
         return 0.0
-    return float(max(getattr(a, "nbytes", 0) for a in arrays) / 1e6)
+    p = penalty.lower()
+    if p == "l2":
+        return 0.0
+    if p == "l1":
+        return 1.0
+    if p == "elasticnet":
+        if alpha is None:
+            return 0.5
+        return float(alpha)
+    raise ValueError(f"Unknown penalty: {penalty}")
 
-# ---------------- baseline: full fp64 ----------------
-def run_full_double(X, y, n_classes, max_iter, tol):
-    """
-    Train AOCL logistic regression fully in double precision on the train set,
-    evaluate on a held-out test set. Returns:
-      (model, it_single=0, it_double, time_s, mem_MB, accuracy)
-    """
-    # Labels as integers (classification); check class count.
-    y = np.asarray(y).astype(int, copy=False)
-    if n_classes is None:
-        n_classes = int(np.unique(y).size)
-    else:
-        assert int(n_classes) == int(np.unique(y).size), \
-            f"n_classes mismatch: got {n_classes}, found {np.unique(y).size}"
+def _map_C_to_lambda(C=None, reg_lambda=None):
+    """AOCL-DA uses reg_lambda. If C is given (sklearn-style), use reg_lambda = 1/C."""
+    if reg_lambda is not None:
+        return float(reg_lambda)
+    if C is None:
+        return 0.0
+    C = float(C)
+    if C <= 0:
+        raise ValueError("C must be > 0")
+    return 1.0 / C
 
-    # Split + scale
-    Xtr, Xte, ytr, yte = train_test_split(
-        X, y, test_size=0.2, random_state=0, stratify=y
+# -------------------------
+# Train & evaluate (AOCL-DA)
+# -------------------------
+def train_linmod(X, y, *, precision="single", reg_lambda=0.0, reg_alpha=0.0,
+                 solver="coord", max_iter=10000, tol=1e-4, scaling="standardize"):
+    """
+    AOCL-DA logistic:
+    - Use scaling='standardize' so 'coord' is valid (variance=1).
+    - For ridge-like only, 'lbfgs' can be used; 'coord' works across penalties.
+    """
+    mdl = linmod(
+        mod="logistic",
+        solver=solver,
+        precision=precision,
+        intercept=True,
+        max_iter=max_iter,
+        scaling=scaling
     )
-    scaler = StandardScaler().fit(Xtr)
-    Xtr64 = scaler.transform(Xtr).astype(np.float64, copy=False)
-    Xte64 = scaler.transform(Xte).astype(np.float64, copy=False)
+    mdl.fit(X, y, reg_lambda=float(reg_lambda), reg_alpha=float(reg_alpha), tol=float(tol))
+    return mdl
 
-    # Fit (double)
+
+
+def evaluate(model, X, y):
+    # Build logits via [X | 1] @ coef, then sigmoid to get P(y=1)
+    X_aug = np.hstack([X, np.ones((X.shape[0], 1), dtype=X.dtype)])
+    z = X_aug @ model.coef.astype(X.dtype)
+    p = 1.0 / (1.0 + np.exp(-z))
+
+    metrics = {
+        "roc_auc": float(roc_auc_score(y, p)),           # AUC (ROC)
+        "pr_auc":  float(average_precision_score(y, p)), # AUC (PR)
+        "logloss": float(log_loss(y, p, eps=1e-12)),
+        "loss_internal": float(model.loss[0]),
+    }
+    return metrics
+
+# -------------------------
+# Your three approaches
+# -------------------------
+def approach_single(Xtr, ytr, Xte, yte, *, solver="coord", reg_lambda=0.01, reg_alpha=0.0,
+                    max_iter=10000, tol=1e-4):
     t0 = time.perf_counter()
-    clf = linmod(
-        "logistic",
-        solver="auto",
-        max_iter=int(max_iter),
-        precision="double",
-    )
-    clf.fit(Xtr64, ytr, tol=float(tol))
-    elapsed = time.perf_counter() - t0
+    mdl = train_linmod(Xtr, ytr, precision="single", solver=solver,
+                       reg_lambda=reg_lambda, reg_alpha=reg_alpha,
+                       max_iter=max_iter, tol=tol)
+    t1 = time.perf_counter()
+    metrics = evaluate(mdl, Xte, yte)
+    return {"approach": "single(f32)", "time_sec": t1 - t0, "iters": mdl.n_iter, **metrics}
 
-    # Metrics
-    it_double = _iter_scalar(getattr(clf, "n_iter_", 0))
-    acc = float(roc_auc_score(yte, clf.predict(Xte64)))
-    mem_MB = _mem_mb_from_arrays(Xtr64, Xte64)
+def approach_double(Xtr, ytr, Xte, yte, *, solver="coord", reg_lambda=0.01, reg_alpha=0.0,
+                    max_iter=10000, tol=1e-4):
+    t0 = time.perf_counter()
+    mdl = train_linmod(Xtr, ytr, precision="double", solver=solver,
+                       reg_lambda=reg_lambda, reg_alpha=reg_alpha,
+                       max_iter=max_iter, tol=tol)
+    t1 = time.perf_counter()
+    metrics = evaluate(mdl, Xte, yte)
+    return {"approach": "double(f64)", "time_sec": t1 - t0, "iters": mdl.n_iter, **metrics}
 
-    return clf, 0, it_double, elapsed, mem_MB, acc
+def approach_hybrid(Xtr, ytr, Xte, yte, *, solver="coord", reg_lambda=0.01, reg_alpha=0.0,
+                    max_iter_single=200, max_iter_double=10000, tol=1e-4):
+    # Stage A: fast f32 warm start
+    t0 = time.perf_counter()
+    mdl_f32 = train_linmod(Xtr, ytr, precision="single", solver=solver,
+                           reg_lambda=reg_lambda, reg_alpha=reg_alpha,
+                           max_iter=max_iter_single, tol=tol)
+    x0 = mdl_f32.coef
 
-# ---------------- hybrid: fp32 probe -> fp64 fresh ----------------
-def run_hybrid(X, y, n_classes, max_iter_total, tol_single, tol_double, single_iter_cap):
+    # Stage B: refine in f64 from warm start
+    mdl_f64 = linmod(mod="logistic", solver=solver, precision="double",
+                     intercept=True, max_iter=max_iter_double, scaling="standardize")
+    mdl_f64.fit(Xtr, ytr, reg_lambda=float(reg_lambda), reg_alpha=float(reg_alpha),
+                x0=x0, tol=float(tol))
+    t1 = time.perf_counter()
 
-    # Labels as integers (classification); check class count.
-    y = np.asarray(y).astype(int, copy=False)
-    if n_classes is None:
-        n_classes = int(np.unique(y).size)
-    else:
-        assert int(n_classes) == int(np.unique(y).size), \
-            f"n_classes mismatch: got {n_classes}, found {np.unique(y).size}"
+    metrics = evaluate(mdl_f64, Xte, yte)
+    return {"approach": "hybrid(f32→f64)", "time_sec": t1 - t0, "iters": mdl_f64.n_iter, **metrics}
 
-    # Split + scale once
+# -------------------------
+# Grid runner
+# -------------------------
+def run_experiments(X, y,
+                    grid=None,
+                    test_size=0.25, random_state=42, stratify=True):
+    """
+    grid keys (values are lists):
+      - penalty: ["l2","l1","elasticnet"]  (maps to reg_alpha)
+      - alpha:   [None, 0.25, 0.5, 0.75]   (only used when penalty='elasticnet')
+      - lambda:  [1e-3, 1e-2, 1e-1]        (AOCL reg_lambda); OR use 'C' instead
+      - C:       [0.1, 1.0, 10.0]          (ignored if lambda is present)
+      - solver:  ["coord","lbfgs"]         (coord works for logistic + L1/EN; lbfgs best for ridge-like)
+      - max_iter:     [2000, 10000]
+      - tol:          [1e-4, 1e-6]
+      - max_iter_single (hybrid warm start): [100, 300]
+      - approaches: ["single","double","hybrid"]  (which to run)
+    """
+    if grid is None:
+        grid = {
+            "penalty":   ["l2", "l1", "elasticnet"],
+            "alpha":     [None, 0.5],          # used when elasticnet
+            "lambda":    [1e-3, 1e-2, 1e-1],
+            "C":         [None],               # set non-None to use C mapping instead of lambda
+            "solver":    ["coord"],            # safest for logistic + L1/EN
+            "max_iter":  [10000],
+            "tol":       [1e-4, 1e-6],
+            "max_iter_single": [200],          # hybrid warm-start
+            "approaches": ["single","double","hybrid"]
+        }
+
     Xtr, Xte, ytr, yte = train_test_split(
-        X, y, test_size=0.2, random_state=0, stratify=y
+        X, y, test_size=test_size, random_state=random_state,
+        stratify=y if stratify else None
     )
-    scaler = StandardScaler().fit(Xtr)
-    Xtr32 = scaler.transform(Xtr).astype(np.float32, copy=False)
-    Xtr64 = Xtr32.astype(np.float64, copy=False)   # exact same scaling/path
-    Xte64 = scaler.transform(Xte).astype(np.float64, copy=False)
-    t0=time.perf_counter()
-    
-    
-  
 
-    # Evaluate on test
-    acc = float(roc_auc_score(yte, clf64.predict(Xte64)))
+    keys = ["penalty", "alpha", "lambda", "C", "solver", "max_iter", "tol", "max_iter_single"]
+    combos = list(itertools.product(*[grid.get(k, [None]) for k in keys]))
 
-    # Simple peak-ish memory proxy (scaled arrays we held concurrently)
-    mem_MB = _mem_mb_from_arrays(Xtr32, Xtr64, Xte64)
+    rows = []
 
-    return it_single, it_double, (t_single + t_double), mem_MB, acc
+    for vals in combos:
+        penalty, alpha, lam, C, solver, max_iter, tol, max_iter_single = vals
 
+        try:
+            reg_alpha = _map_penalty_to_alpha(penalty, alpha)
+            reg_lambda = _map_C_to_lambda(C=C, reg_lambda=lam)
 
-    
-#     # --- Switching Logic ---
-#     grad_norm = np.linalg.norm(clf_fp32.coef_)
-#     needs_refinement = grad_norm > switch_tol
-    
+            # guard: if using 'lbfgs', prefer ridge-like (alpha ~ 0). For L1/EN, coord is recommended.
+            if solver == "lbfgs" and reg_alpha != 0.0:
+                # Skip incompatible combo (lbfgs not suitable for L1/EN in AOCL-DA docs)
+                continue
+
+            for approach in grid.get("approaches", ["single","double","hybrid"]):
+                if approach == "single":
+                    res = approach_single(
+                        Xtr, ytr, Xte, yte,
+                        solver=solver, reg_lambda=reg_lambda, reg_alpha=reg_alpha,
+                        max_iter=max_iter, tol=tol
+                    )
+                elif approach == "double":
+                    res = approach_double(
+                        Xtr, ytr, Xte, yte,
+                        solver=solver, reg_lambda=reg_lambda, reg_alpha=reg_alpha,
+                        max_iter=max_iter, tol=tol
+                    )
+                elif approach == "hybrid":
+                    res = approach_hybrid(
+                        Xtr, ytr, Xte, yte,
+                        solver=solver, reg_lambda=reg_lambda, reg_alpha=reg_alpha,
+                        max_iter_single=max_iter_single, max_iter_double=max_iter, tol=tol
+                    )
+                else:
+                    continue
+
+                row = {
+                    "approach": res["approach"],
+                    "penalty": penalty,
+                    "alpha": reg_alpha,
+                    "lambda": reg_lambda,
+                    "C": None if reg_lambda == 0 else 1.0 / reg_lambda,
+                    "solver": solver,
+                    "max_iter": max_iter,
+                    "tol": tol,
+                    "time_sec": res["time_sec"],
+                    "iters": res["iters"],
+                    "acc_test": res["acc"],
+                    "auc_test": res["auc"],
+                    "logloss_test": res["logloss"],
+                    "loss_internal": res["loss_internal"]
+                }
+                if approach == "hybrid":
+                    row["max_iter_single"] = max_iter_single
+                rows.append(row)
+
+        except Exception as e:
+            # record failures so you can audit incompatible settings
+            rows.append({
+                "approach": "ERROR",
+                "penalty": penalty, "alpha": alpha, "lambda": lam, "C": C,
+                "solver": solver, "max_iter": max_iter, "tol": tol,
+                "error": str(e)
+            })
+
+    df = pd.DataFrame(rows)
+    # Order by approach, then descending AUC, then ascending time
+    if not df.empty and "auc_test" in df:
+        df = df.sort_values(["approach","auc_test","time_sec"], ascending=[True, False, True]).reset_index(drop=True)
+    return df
+
+# -------------------------
+# Demo
+# -------------------------
+if __name__ == "__main__":
+    data = load_breast_cancer()
+    X = data.data.astype(np.float64)
+    y = data.target.astype(np.int32)
+
+    grid = {
+        "penalty": ["l2", "l1", "elasticnet"],
+        "alpha":   [None, 0.3, 0.7],     # only for elasticnet
+        "lambda":  [1e-3, 1e-2, 1e-1],   # comment this out and set "C": [...] to use C instead
+        "C":       [None],
+        "solver":  ["coord", "lbfgs"],   # lbfgs is skipped when alpha != 0
+        "max_iter": [3000, 10000],
+        "tol":      [1e-4, 1e-6],
+        "max_iter_single": [150, 300],
+        "approaches": ["single","double","hybrid"]
+    }
+
+    df = run_experiments(X, y, grid=grid)
+    with pd.option_context("display.max_columns", None, "display.width", 140):
+        print(df.groupby("approach").head(5))
+
