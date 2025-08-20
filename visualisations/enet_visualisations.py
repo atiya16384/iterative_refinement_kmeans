@@ -106,7 +106,7 @@ class ENetVisualizer:
 
 if __name__ == "__main__":
     # Load CSVs produced by ENET_main.py
-    results_dir = pathlib.Path("../Results")  # where ENET_main writes CSVs
+    results_dir = pathlib.Path("Results")  # where ENET_main writes CSVs
     df_A = pd.read_csv(results_dir / "enet_results_expA.csv")
     df_B = pd.read_csv(results_dir / "enet_results_expB.csv")
 
@@ -117,6 +117,10 @@ if __name__ == "__main__":
     vis.plot_cap_vs_r2(df_A)
     vis.plot_cap_vs_mse(df_A)
 
+    # Exp B
+    vis.plot_tol_vs_time(df_B)
+    vis.plot_tol_vs_r2(df_B)
+    vis.plot_tol_vs_mse(df_B)
     # Exp B
     vis.plot_tol_vs_time(df_B)
     vis.plot_tol_vs_r2(df_B)
