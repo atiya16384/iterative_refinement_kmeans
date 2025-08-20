@@ -24,41 +24,77 @@ def _iter_scalar(n_iter_attr):
     arr = np.asarray(n_iter_attr)
     return int(arr.max()) if arr.ndim else int(arr)
 
+# experiments/logreg_precision.py
+import time
+import numpy as np
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score
+
+def _iter_scalar(n_iter_attr) -> int:
+    """scikit can return int (binary) or array (multinomial); normalize to int."""
+    arr = np.asarray(n_iter_attr)
+    return int(arr.max()) if arr.ndim else int(arr)
+
+# --- Pure double precision run (baseline) ---
+def run_full_double(X, y, n_classes, max_iter, tol):
+    X64 = np.asarray(X, dtype=np.float64, order="C")
+    t0 = time.perf_counter()
+    clf = LogisticRegression(
+        solver="lbfgs", multi_class="auto",
+        max_iter=int(max_iter), tol=float(tol),
+        warm_start=False
+    )
+    clf.fit(X64, y)
+    elapsed = time.perf_counter() - t0
+
+    it_double = _iter_scalar(getattr(clf, "n_iter_", 0))
+    acc = float(accuracy_score(y, clf.predict(X64)))
+    mem_MB = X64.nbytes / 1e6
+
+    # Return tuple your experiments expect: (model, it_single, it_double, time, mem, acc)
+    return clf, 0, it_double, elapsed, mem_MB, acc
+
+# --- Hybrid: fp32 probe (capped) → fp64 fresh run (remaining budget) ---
 def run_hybrid(X, y, n_classes, max_iter_total, tol_single, tol_double, single_iter_cap):
-    X32 = np.asarray(X, dtype=np.float32)
-    X64 = np.asarray(X, dtype=np.float64)
+    X32 = np.asarray(X, dtype=np.float32, order="C")
+    X64 = np.asarray(X, dtype=np.float64, order="C")
 
-    cap = int(min(single_iter_cap, max_iter_total))
+    # cap can be None; clamp to [0, max_iter_total]
+    if single_iter_cap is None:
+        cap = int(max_iter_total)
+    else:
+        cap = int(max(0, min(int(single_iter_cap), int(max_iter_total))))
 
-    # --- Stage 1: fp32 (probe) ---
+    # --- Stage 1: fp32 probe (no warm_start; AOCL-safe) ---
     t0 = time.perf_counter()
     clf_fp32 = LogisticRegression(
         solver="lbfgs", multi_class="auto",
-        max_iter=cap, tol=tol_single
+        max_iter=cap, tol=float(tol_single),
+        warm_start=False
     )
     clf_fp32.fit(X32, y)
     t_single = time.perf_counter() - t0
+    it_single = _iter_scalar(getattr(clf_fp32, "n_iter_", 0))
 
-    # --- Stage 2: fp64 (refine from scratch, AOCL-accelerated) ---
-    remaining = max_iter_total - clf_fp32.n_iter_.max()
+    # --- Stage 2: fp64 from scratch with remaining budget ---
+    remaining = int(max(1, int(max_iter_total) - it_single))
     t1 = time.perf_counter()
     clf_fp64 = LogisticRegression(
         solver="lbfgs", multi_class="auto",
-        max_iter=remaining, tol=tol_double
+        max_iter=remaining, tol=float(tol_double),
+        warm_start=False
     )
     clf_fp64.fit(X64, y)
     t_double = time.perf_counter() - t1
+    it_double = _iter_scalar(getattr(clf_fp64, "n_iter_", 0))
 
-    # --- Final evaluation ---
-    y_pred = clf_fp64.predict(X64)
-    acc = accuracy_score(y, y_pred)
-    return {
-        "time_fp32": t_single,
-        "time_fp64": t_double,
-        "iters_fp32": int(np.max(clf_fp32.n_iter_)),
-        "iters_fp64": int(np.max(clf_fp64.n_iter_)),
-        "acc": acc,
-    }
+    # Evaluate
+    acc = float(accuracy_score(y, clf_fp64.predict(X64)))
+    mem_MB = max(X32.nbytes, X64.nbytes) / 1e6
+
+    # Return the 5-tuple your experiment code writes into CSV
+    return it_single, it_double, (t_single + t_double), mem_MB, acc
+
 
 # def adaptive_mixed_precision_lr(X, y, switch_tol=1e-3, max_iter=1000):
 #     """AOCL-compatible adaptive mixed precision logistic regression"""
