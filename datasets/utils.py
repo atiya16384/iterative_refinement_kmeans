@@ -76,7 +76,7 @@ enet_specs = [
 
 synth_specs = [
     # number of samples; number of features, number of clusters, random seeds
-    ("SYNTH_C_2_F_150_n1000k_logistic", 1000_000, 2,  2, 0),
+    ("SYNTH_C_2_F_50_n1000k_logistic", 1000_000, 5,  2, 0),
     # ("SYNTH_C_80_F_5_n1000_000k_kmeans", 10000_00, 5, 80, 1),
     # ("SYNTH_C_40_F_5_n1000_000k_kmeans", 10000_00, 5, 40, 1),
     # ("SYNTH_C_5_F_5_n1000_000k_kmeans", 10000_00, 5, 5, 1),

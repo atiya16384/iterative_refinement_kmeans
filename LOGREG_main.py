@@ -12,12 +12,12 @@ RESULTS_DIR.mkdir(exist_ok=True)
 # Config
 config = {
     "n_repeats": 3,
-    "cap_grid": [1, 2, 4, 6, 8, 10, 12 ,14, 16, 18, 20],
-    "tol_fixed_A": 1e-3,
-    "max_iter_A": 300,
-    "max_iter_B": 200,
-    "tol_double_B": 1e-3,
-    "tol_single_grid": [1e-2, 10e-3, 8e-3, 6e-3, 4e-3, 2e-3, 1e-3, 1e-4],
+    "cap_grid": [1, 2, 3,4,5,6,7,8,9,10],
+    "tol_fixed_A": 1e-1,
+    "max_iter_A": 10,
+    "max_iter_B": 1000,
+    "tol_double_B": 6e-3,
+    "tol_single_grid": [1e-2, 10e-3, 8e-3, 6e-3, 4e-3, 2e-3, 1e-3],
 }
 
 rows_A, rows_B = [], []

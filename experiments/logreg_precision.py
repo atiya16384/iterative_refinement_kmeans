@@ -16,7 +16,7 @@ def run_full_double(X, y, n_classes, max_iter, tol):
     X64 = np.asarray(X, dtype=np.float64)
     t0 = time.perf_counter()
     clf = linmod("logistic",
-        solver="lbfgs", 
+        solver="auto", 
         max_iter=int(max_iter), precision='double'
     )
     clf.fit(X64, y, tol=tol)
@@ -44,7 +44,7 @@ def run_hybrid(X, y, n_classes, max_iter_total, tol_single, tol_double, single_i
     # --- Stage 1: fp32 probe (no warm_start; AOCL-safe) ---
     t0 = time.perf_counter()
     clf_fp32 = linmod("logistic",
-        solver="lbfgs", 
+        solver="auto", 
         max_iter=cap, precision='single'
     )
     clf_fp32.fit(X32, y, tol=tol_single)
@@ -55,7 +55,7 @@ def run_hybrid(X, y, n_classes, max_iter_total, tol_single, tol_double, single_i
     remaining = int(max(1, int(max_iter_total) - it_single))
     t1 = time.perf_counter()
     clf_fp64 = linmod("logistic",
-        solver="lbfgs", 
+        solver="auto", 
         max_iter=remaining, precision='double'
     )
     clf_fp64.fit(X64, y, tol_double)
