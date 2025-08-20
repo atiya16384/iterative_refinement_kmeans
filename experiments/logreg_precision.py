@@ -2,12 +2,11 @@ import time
 import itertools
 import numpy as np
 import pandas as pd
-
+from aoclda.linear_model import linmod
 from sklearn.datasets import load_breast_cancer
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_auc_score, average_precision_score, log_loss
 
-from aoclda.linear_model import linmod
 
 # -------------------------
 # Helpers
@@ -60,8 +59,6 @@ def train_linmod(X, y, *, precision="single", reg_lambda=0.0, reg_alpha=0.0,
     )
     mdl.fit(X, y, reg_lambda=float(reg_lambda), reg_alpha=float(reg_alpha), tol=float(tol))
     return mdl
-
-
 
 def evaluate(model, X, y):
     # Build logits via [X | 1] @ coef, then sigmoid to get P(y=1)
@@ -205,7 +202,6 @@ def run_experiments(X, y,
                     "tol": tol,
                     "time_sec": res["time_sec"],
                     "iters": res["iters"],
-                    "acc_test": res["acc"],
                     "auc_test": res["auc"],
                     "logloss_test": res["logloss"],
                     "loss_internal": res["loss_internal"]
