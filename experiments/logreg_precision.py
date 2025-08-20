@@ -40,6 +40,41 @@ def _map_C_to_lambda(C=None, reg_lambda=None):
     return 1.0 / C
 
 # -------------------------
+# Synthetic datasets
+# -------------------------
+def make_shifted_gaussian(m=2000, n=100, delta=0.5, pos_frac=0.5, seed=0, dtype=np.float64):
+    """
+    Gaussian synthetic data:
+      X | y=1 ~ N(+delta, I)
+      X | y=0 ~ N(-delta, I)
+    """
+    rng = np.random.RandomState(seed)
+    m_pos = int(m * pos_frac)
+    m_neg = m - m_pos
+    X_pos = rng.normal(loc=+delta, scale=1.0, size=(m_pos, n))
+    X_neg = rng.normal(loc=-delta, scale=1.0, size=(m_neg, n))
+    X = np.vstack([X_pos, X_neg]).astype(dtype, copy=False)
+    y = np.hstack([np.ones(m_pos, dtype=np.int32), np.zeros(m_neg, dtype=np.int32)])
+    perm = rng.permutation(m)
+    return X[perm], y[perm]
+
+def make_uniform_binary(m=2000, n=100, shift=0.25, seed=0, dtype=np.float64):
+    """
+    Uniform synthetic data:
+      y=1 points ~ U(0.5+shift, 1.0+shift)
+      y=0 points ~ U(0.0-shift, 0.5-shift)
+    """
+    rng = np.random.RandomState(seed)
+    m_pos = m // 2
+    m_neg = m - m_pos
+    X_pos = rng.uniform(low=0.5+shift, high=1.0+shift, size=(m_pos, n))
+    X_neg = rng.uniform(low=0.0-shift, high=0.5-shift, size=(m_neg, n))
+    X = np.vstack([X_pos, X_neg]).astype(dtype, copy=False)
+    y = np.hstack([np.ones(m_pos, dtype=np.int32), np.zeros(m_neg, dtype=np.int32)])
+    perm = rng.permutation(m)
+    return X[perm], y[perm]
+
+# -------------------------
 # Train & evaluate (AOCL-DA)
 # -------------------------
 def train_linmod(X, y, *, precision="single", reg_lambda=0.0, reg_alpha=0.0,
@@ -229,16 +264,25 @@ def run_experiments(X, y,
 # Demo
 # -------------------------
 if __name__ == "__main__":
-    data = load_breast_cancer()
-    X = data.data.astype(np.float64)
-    y = data.target.astype(np.int32)
+    dataset = "gaussian"   # options: "gaussian", "uniform", "breast_cancer"
+
+    if dataset == "gaussian":
+        X, y = make_shifted_gaussian(m=5000, n=200, delta=0.5, seed=42)
+    elif dataset == "uniform":
+        X, y = make_uniform_binary(m=5000, n=200, shift=0.25, seed=42)
+    elif dataset == "breast_cancer":
+        data = load_breast_cancer()
+        X = data.data.astype(np.float64)
+        y = data.target.astype(np.int32)
+    else:
+        raise ValueError("Unknown dataset")
 
     grid = {
         "penalty": ["l2", "l1", "elasticnet"],
-        "alpha":   [None, 0.3, 0.7],     # only for elasticnet
-        "lambda":  [1e-3, 1e-2, 1e-1],   # comment this out and set "C": [...] to use C instead
+        "alpha":   [None, 0.3, 0.7],
+        "lambda":  [1e-3, 1e-2, 1e-1],
         "C":       [None],
-        "solver":  ["coord", "lbfgs"],   # lbfgs is skipped when alpha != 0
+        "solver":  ["coord", "lbfgs"],
         "max_iter": [3000, 10000],
         "tol":      [1e-4, 1e-6],
         "max_iter_single": [150, 300],
@@ -248,4 +292,3 @@ if __name__ == "__main__":
     df = run_experiments(X, y, grid=grid)
     with pd.option_context("display.max_columns", None, "display.width", 140):
         print(df.groupby("approach").head(5))
-
