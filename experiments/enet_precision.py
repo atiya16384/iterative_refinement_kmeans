@@ -108,29 +108,3 @@ def run_hybrid(
         random_state=random_state,
     )
     en32.fit(X32, y)
-    t_single = time.perf_counter() - t0
-    it_single = _iter_scalar(getattr(en32, "n_iter_", cap))
-
-    # ---- fp64 stage (fresh fit; no weight transfer)
-    remaining = max(1, int(max_iter_total) - it_single)
-    t1 = time.perf_counter()
-    en64 = ElasticNet(
-        alpha=alpha,
-        l1_ratio=l1_ratio,
-        max_iter=remaining,
-        tol=tol_double,
-        fit_intercept=True,
-        random_state=random_state,
-    )
-    en64.fit(X64, y)
-    t_double = time.perf_counter() - t1
-    it_double = _iter_scalar(getattr(en64, "n_iter_", remaining))
-
-    yhat64 = en64.predict(X64)
-    r2 = r2_score(y, yhat64)
-    mse = mean_squared_error(y, yhat64)
-
-    # peak memory approx: we keep both views during the run
-    mem_MB = max(X32.nbytes, X64.nbytes) / 1e6
-    return it_single, it_double, (t_single + t_double), mem_MB, r2, mse
-

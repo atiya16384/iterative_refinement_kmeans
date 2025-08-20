@@ -95,10 +95,8 @@ def run_hybrid(X, y, n_classes, max_iter_total, tol_single, tol_double, single_i
     Xtr32 = scaler.transform(Xtr).astype(np.float32, copy=False)
     Xtr64 = Xtr32.astype(np.float64, copy=False)   # exact same scaling/path
     Xte64 = scaler.transform(Xte).astype(np.float64, copy=False)
-
-
     t0=time.perf_counter()
-
+    
     
   
 
