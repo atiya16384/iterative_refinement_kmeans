@@ -6,7 +6,7 @@ from aoclda.linear_model import linmod
 from sklearn.datasets import load_breast_cancer
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_auc_score, average_precision_score, log_loss
-
+from sklearn.model_selection import StratifiedKFold
 
 # -------------------------
 # Helpers
@@ -42,6 +42,8 @@ def _map_C_to_lambda(C=None, reg_lambda=None):
 # -------------------------
 # Synthetic datasets
 # -------------------------
+
+
 def make_shifted_gaussian(m=2000, n=100, delta=0.5, pos_frac=0.5, seed=0, dtype=np.float64):
     """
     Gaussian synthetic data:
@@ -73,6 +75,35 @@ def make_uniform_binary(m=2000, n=100, shift=0.25, seed=0, dtype=np.float64):
     y = np.hstack([np.ones(m_pos, dtype=np.int32), np.zeros(m_neg, dtype=np.int32)])
     perm = rng.permutation(m)
     return X[perm], y[perm]
+
+# ==== utilities for warm-started chunked fitting ====
+def _fit_chunk(X, y, *, precision, solver, reg_lambda, reg_alpha, max_iter, tol, x0=None):
+    mdl = linmod(
+        mod="logistic",
+        solver=solver,
+        precision=precision,
+        intercept=True,
+        max_iter=max_iter,
+        scaling="standardize",
+    )
+    mdl.fit(X, y, reg_lambda=float(reg_lambda), reg_alpha=float(reg_alpha), x0=x0, tol=float(tol))
+    return mdl
+
+def _proba_from_coef(model, X):
+    X_aug = np.hstack([X, np.ones((X.shape[0], 1), dtype=X.dtype)])
+    z = X_aug @ model.coef.astype(X.dtype)
+    return 1.0 / (1.0 + np.exp(-z))
+
+def _score_model(model, X, y):
+    p = _proba_from_coef(model, X)
+    return {
+        "roc_auc": float(roc_auc_score(y, p)),
+        "pr_auc":  float(average_precision_score(y, p)),
+        "logloss": float(log_loss(y, p, eps=1e-12)),
+        "loss_internal": float(model.loss[0]),
+        "iters": model.n_iter,
+        "grad_norm": float(model.nrm_gradient_loss[0]) if hasattr(model, "nrm_gradient_loss") else np.nan,
+    }
 
 # -------------------------
 # Train & evaluate (AOCL-DA)
@@ -150,6 +181,123 @@ def approach_hybrid(Xtr, ytr, Xte, yte, *, solver="coord", reg_lambda=0.01, reg_
 
     metrics = evaluate(mdl_f64, Xte, yte)
     return {"approach": "hybrid(f32→f64)", "time_sec": t1 - t0, "iters": mdl_f64.n_iter, **metrics}
+
+def approach_multistage_ir(
+    Xtr, ytr, Xte, yte, *,
+    # schedule = list of (precision, chunk_iters)
+    schedule=(("single", 200), ("double", 800)),
+    solver="coord", reg_lambda=1e-2, reg_alpha=0.0,
+    tol=1e-6, max_chunks=10,
+    stop_delta=1e-7  # stop if ||coef_new - coef_old||_2 < stop_delta
+):
+    """
+    Example schedules:
+      [("single", 200), ("double", 800)]
+      [("single", 100), ("double", 200), ("single", 100), ("double", 200)]
+    """
+    t0 = time.perf_counter()
+    x0 = None
+    coef_prev = None
+    history = []
+    chunk_id = 0
+
+    for _ in range(max_chunks):
+        for prec, iters in schedule:
+            chunk_id += 1
+            mdl = _fit_chunk(
+                Xtr, ytr,
+                precision="single" if prec.startswith("single") else "double",
+                solver=solver, reg_lambda=reg_lambda, reg_alpha=reg_alpha,
+                max_iter=int(iters), tol=tol, x0=x0
+            )
+            # convergence check
+            coef = mdl.coef.copy()
+            if coef_prev is not None:
+                delta = float(np.linalg.norm(coef - coef_prev))
+                history.append(("chunk", chunk_id, prec, iters, delta, float(mdl.loss[0])))
+                if delta < stop_delta:
+                    t1 = time.perf_counter()
+                    metrics = _score_model(mdl, Xte, yte)
+                    return {"approach": "multistage-IR", "time_sec": t1 - t0, **metrics, "chunks": history}
+            else:
+                history.append(("chunk", chunk_id, prec, iters, np.nan, float(mdl.loss[0])))
+
+            coef_prev = coef
+            x0 = coef  # warm-start next chunk
+
+    # finished all chunks
+    t1 = time.perf_counter()
+    metrics = _score_model(mdl, Xte, yte)
+    return {"approach": "multistage-IR", "time_sec": t1 - t0, **metrics, "chunks": history}
+
+
+def approach_adaptive_precision(
+    Xtr, ytr, Xte, yte, *,
+    solver="coord", reg_lambda=1e-2, reg_alpha=0.0,
+    chunk_iters=100, tol=1e-6,
+    promote_patience=2,       # how many "weak-improvement" chunks before promoting precision
+    improve_thresh=1e-3,      # relative loss improvement threshold per chunk
+    max_chunks=50,
+    allow_demote=False        # set True if you want to switch back to single after good progress
+):
+    """
+    Start in single precision. If relative loss improvement per chunk < improve_thresh
+    for 'promote_patience' consecutive chunks, switch to double. Optionally demote back.
+    """
+    t0 = time.perf_counter()
+    prec = "single"
+    x0 = None
+    best_loss = np.inf
+    weak_streak = 0
+    history = []
+
+    for k in range(1, max_chunks + 1):
+        mdl = _fit_chunk(
+            Xtr, ytr, precision=prec, solver=solver,
+            reg_lambda=reg_lambda, reg_alpha=reg_alpha,
+            max_iter=int(chunk_iters), tol=tol, x0=x0
+        )
+        loss = float(mdl.loss[0])
+        rel_improve = (best_loss - loss) / max(abs(best_loss), 1e-12)
+        best_loss = min(best_loss, loss)
+
+        history.append(("chunk", k, prec, chunk_iters, loss, rel_improve, float(mdl.nrm_gradient_loss[0]) if hasattr(mdl,"nrm_gradient_loss") else np.nan))
+
+        if rel_improve < improve_thresh:
+            weak_streak += 1
+        else:
+            weak_streak = 0
+
+        # precision switching logic
+        if prec == "single" and weak_streak >= promote_patience:
+            prec = "double"; weak_streak = 0  # promote
+        elif allow_demote and prec == "double" and rel_improve >= 5 * improve_thresh:
+            prec = "single"  # (optional) demote if double suddenly makes big progress
+
+        # stopping by gradient norm or tiny movement
+        if hasattr(mdl, "nrm_gradient_loss") and float(mdl.nrm_gradient_loss[0]) < tol:
+            break
+
+        x0 = mdl.coef  # warm start
+
+    t1 = time.perf_counter()
+    metrics = _score_model(mdl, Xte, yte)
+    return {"approach": "adaptive-precision", "time_sec": t1 - t0, **metrics, "chunks": history}
+
+
+def kfold_eval(X, y, approach_fn, approach_kwargs, k=5, seed=42):
+    skf = StratifiedKFold(n_splits=k, shuffle=True, random_state=seed)
+    rows = []
+    for fold, (tr, va) in enumerate(skf.split(X, y), start=1):
+        Xtr, Xva = X[tr], X[va]
+        ytr, yva = y[tr], y[va]
+        res = approach_fn(Xtr, ytr, Xva, yva, **approach_kwargs)
+        rows.append({"fold": fold, **{k: v for k, v in res.items() if k != "chunks"}})
+    df = pd.DataFrame(rows)
+    summary = df.drop(columns=["fold"]).mean(numeric_only=True).to_dict()
+    summary.update({"approach": rows[0]["approach"], "kfold": k})
+    return df, summary
+
 
 # -------------------------
 # Grid runner
