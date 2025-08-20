@@ -304,30 +304,23 @@ def kfold_eval(X, y, approach_fn, approach_kwargs, k=5, seed=42):
 # -------------------------
 def run_experiments(X, y,
                     grid=None,
-                    test_size=0.25, random_state=42, stratify=True):
+                    test_size=0.25, random_state=42, stratify=True,
+                    save_path="results_all.csv"):
     """
-    grid keys (values are lists):
-      - penalty: ["l2","l1","elasticnet"]  (maps to reg_alpha)
-      - alpha:   [None, 0.25, 0.5, 0.75]   (only used when penalty='elasticnet')
-      - lambda:  [1e-3, 1e-2, 1e-1]        (AOCL reg_lambda); OR use 'C' instead
-      - C:       [0.1, 1.0, 10.0]          (ignored if lambda is present)
-      - solver:  ["coord","lbfgs"]         (coord works for logistic + L1/EN; lbfgs best for ridge-like)
-      - max_iter:     [2000, 10000]
-      - tol:          [1e-4, 1e-6]
-      - max_iter_single (hybrid warm start): [100, 300]
-      - approaches: ["single","double","hybrid"]  (which to run)
+    Run grid over penalty/solver/params and all approaches.
+    Approaches included: single, double, hybrid, multistage-IR, adaptive-precision
     """
     if grid is None:
         grid = {
             "penalty":   ["l2", "l1", "elasticnet"],
-            "alpha":     [None, 0.5],          # used when elasticnet
-            "lambda":    [1e-3, 1e-2, 1e-1],
-            "C":         [None],               # set non-None to use C mapping instead of lambda
-            "solver":    ["coord"],            # safest for logistic + L1/EN
-            "max_iter":  [10000],
-            "tol":       [1e-4, 1e-6],
-            "max_iter_single": [200],          # hybrid warm-start
-            "approaches": ["single","double","hybrid"]
+            "alpha":     [None, 0.5],
+            "lambda":    [1e-3, 1e-2],
+            "C":         [None],
+            "solver":    ["coord"],
+            "max_iter":  [3000],
+            "tol":       [1e-4],
+            "max_iter_single": [200],
+            "approaches": ["single","double","hybrid","multistage-ir","adaptive-precision"]
         }
 
     Xtr, Xte, ytr, yte = train_test_split(
@@ -347,30 +340,32 @@ def run_experiments(X, y,
             reg_alpha = _map_penalty_to_alpha(penalty, alpha)
             reg_lambda = _map_C_to_lambda(C=C, reg_lambda=lam)
 
-            # guard: if using 'lbfgs', prefer ridge-like (alpha ~ 0). For L1/EN, coord is recommended.
+            # lbfgs not valid with l1/en
             if solver == "lbfgs" and reg_alpha != 0.0:
-                # Skip incompatible combo (lbfgs not suitable for L1/EN in AOCL-DA docs)
                 continue
 
-            for approach in grid.get("approaches", ["single","double","hybrid"]):
+            for approach in grid.get("approaches", []):
                 if approach == "single":
-                    res = approach_single(
-                        Xtr, ytr, Xte, yte,
+                    res = approach_single(Xtr, ytr, Xte, yte,
                         solver=solver, reg_lambda=reg_lambda, reg_alpha=reg_alpha,
-                        max_iter=max_iter, tol=tol
-                    )
+                        max_iter=max_iter, tol=tol)
                 elif approach == "double":
-                    res = approach_double(
-                        Xtr, ytr, Xte, yte,
+                    res = approach_double(Xtr, ytr, Xte, yte,
                         solver=solver, reg_lambda=reg_lambda, reg_alpha=reg_alpha,
-                        max_iter=max_iter, tol=tol
-                    )
+                        max_iter=max_iter, tol=tol)
                 elif approach == "hybrid":
-                    res = approach_hybrid(
-                        Xtr, ytr, Xte, yte,
+                    res = approach_hybrid(Xtr, ytr, Xte, yte,
                         solver=solver, reg_lambda=reg_lambda, reg_alpha=reg_alpha,
-                        max_iter_single=max_iter_single, max_iter_double=max_iter, tol=tol
-                    )
+                        max_iter_single=max_iter_single, max_iter_double=max_iter, tol=tol)
+                elif approach == "multistage-ir":
+                    res = approach_multistage_ir(Xtr, ytr, Xte, yte,
+                        schedule=[("single", max_iter_single), ("double", max_iter)],
+                        solver=solver, reg_lambda=reg_lambda, reg_alpha=reg_alpha,
+                        tol=tol)
+                elif approach == "adaptive-precision":
+                    res = approach_adaptive_precision(Xtr, ytr, Xte, yte,
+                        solver=solver, reg_lambda=reg_lambda, reg_alpha=reg_alpha,
+                        chunk_iters=max_iter_single, tol=tol)
                 else:
                     continue
 
@@ -379,22 +374,19 @@ def run_experiments(X, y,
                     "penalty": penalty,
                     "alpha": reg_alpha,
                     "lambda": reg_lambda,
-                    "C": None if reg_lambda == 0 else 1.0 / reg_lambda,
                     "solver": solver,
                     "max_iter": max_iter,
                     "tol": tol,
                     "time_sec": res["time_sec"],
-                    "iters": res["iters"],
-                    "auc_test": res["auc"],
-                    "logloss_test": res["logloss"],
-                    "loss_internal": res["loss_internal"]
+                    "iters": res.get("iters", np.nan),
+                    "roc_auc": res.get("roc_auc", np.nan),
+                    "pr_auc": res.get("pr_auc", np.nan),
+                    "logloss": res.get("logloss", np.nan),
+                    "loss_internal": res.get("loss_internal", np.nan)
                 }
-                if approach == "hybrid":
-                    row["max_iter_single"] = max_iter_single
                 rows.append(row)
 
         except Exception as e:
-            # record failures so you can audit incompatible settings
             rows.append({
                 "approach": "ERROR",
                 "penalty": penalty, "alpha": alpha, "lambda": lam, "C": C,
@@ -403,9 +395,14 @@ def run_experiments(X, y,
             })
 
     df = pd.DataFrame(rows)
-    # Order by approach, then descending AUC, then ascending time
-    if not df.empty and "auc_test" in df:
-        df = df.sort_values(["approach","auc_test","time_sec"], ascending=[True, False, True]).reset_index(drop=True)
+
+    if not df.empty and "roc_auc" in df:
+        df = df.sort_values(["approach","roc_auc","time_sec"], ascending=[True, False, True]).reset_index(drop=True)
+
+    if save_path is not None:
+        df.to_csv(save_path, index=False)
+        print(f"Saved results to {save_path}")
+
     return df
 
 # -------------------------
