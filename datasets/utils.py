@@ -118,11 +118,6 @@ svm_columns_A = [ "DatasetName","DatasetSize","NumClasses","Tolerance","Cap", "i
 ]
 svm_columns_B = svm_columns_A  # same schema
 
-# Result schemas
-lr_columns_A = [  'DatasetName', 'DatasetSize', 'NumClasses', 'Mode', 'Cap', 'tolerance_single', 'iter_single', 'iter_double', 'Suite', 'Time', 'Memory_MB', 'Accuracy']
-
-lr_columns_B = [ 'DatasetName', 'DatasetSize', 'NumClasses','Mode', 'tolerance_single', 'iter_single', 'iter_double', 'Suite', 'Time', 'Memory_MB', 'Accuracy']
-
 # Optional column headers you can reuse when building DataFrames
 enet_columns_A = [
     "DatasetName", "DatasetSize", "NumFeatures",

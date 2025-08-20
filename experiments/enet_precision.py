@@ -3,13 +3,35 @@ import time
 import numpy as np
 from sklearn.linear_model import ElasticNet
 from sklearn.metrics import r2_score, mean_squared_error
+# ENET_main.py
+import pathlib
+import pandas as pd
+import numpy as np
 
+from datasets.utils import (
+    generate_synthetic_data_en, enet_specs
+)
+
+from datasets.utils import (
+    enet_columns_A, enet_columns_B
+)
+
+RESULTS_DIR = pathlib.Path("Results")
+RESULTS_DIR.mkdir(exist_ok=True)
+
+rows_A, rows_B = [], []
+
+# Synthetic datasets
+for tag, n, d, sparsity, noise, seed in enet_specs:
+    X, y = generate_synthetic_data_en(
+        n_samples=n, n_features=d, seed=seed,
+        sparsity=sparsity, noise=noise, rho=0.5
+    )
 
 def _iter_scalar(n_iter_attr) -> int:
     """sklearn returns an int or an array; make it a single int."""
     arr = np.asarray(n_iter_attr)
     return int(arr.max()) if arr.ndim else int(arr)
-
 
 # ----------------------------
 # Pure double-precision run

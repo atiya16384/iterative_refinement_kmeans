@@ -6,6 +6,25 @@ from aoclda.linear_model import linmod
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
+import pathlib
+import pandas as pd
+
+from datasets.utils import generate_synthetic_data, synth_specs, lr_columns_A, lr_columns_B
+from visualisations.LOGREG_visualisations import LogisticVisualizer
+
+RESULTS_DIR = pathlib.Path("Results")
+RESULTS_DIR.mkdir(exist_ok=True)
+
+# Config
+rows_A, rows_B = [], []
+
+# Run synthetic datasets
+for tag, n, d, k, seed in synth_specs:
+    X, y = generate_synthetic_data(n_samples=n, n_features=d, n_clusters=k, random_state=seed)
+    n_classes = len(set(y))
+
+
+
 
 # ---------------- helpers ----------------
 def _iter_scalar(n_iter_attr) -> int:
