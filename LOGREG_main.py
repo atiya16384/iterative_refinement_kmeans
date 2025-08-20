@@ -1,8 +1,6 @@
 # LOGREG_main.py
 import pathlib
 import pandas as pd
-from aoclda.sklearn import skpatch
-skpatch()
 
 from datasets.utils import generate_synthetic_data, synth_specs, lr_columns_A, lr_columns_B
 from experiments.logreg_experiments import run_experiment_A, run_experiment_B
@@ -14,12 +12,12 @@ RESULTS_DIR.mkdir(exist_ok=True)
 # Config
 config = {
     "n_repeats": 3,
-    "cap_grid": [1, 10, 25, 50, 100, 150, 200, 300],
-    "tol_fixed_A": 1e-2,
+    "cap_grid": [1, 2, 4, 6, 8, 10, 12 ,14, 16, 18, 20],
+    "tol_fixed_A": 1e-3,
     "max_iter_A": 300,
     "max_iter_B": 200,
-    "tol_double_B": 1e-11,
-    "tol_single_grid": [1e-4, 1e-5, 1e-6, 1e-7, 1e-8, 1e-10],
+    "tol_double_B": 1e-3,
+    "tol_single_grid": [1e-2, 10e-3, 8e-3, 6e-3, 4e-3, 2e-3, 1e-3, 1e-4],
 }
 
 rows_A, rows_B = [], []
