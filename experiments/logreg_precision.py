@@ -284,21 +284,6 @@ def approach_adaptive_precision(
     metrics = _score_model(mdl, Xte, yte)
     return {"approach": "adaptive-precision", "time_sec": t1 - t0, **metrics, "chunks": history}
 
-
-def kfold_eval(X, y, approach_fn, approach_kwargs, k=5, seed=42):
-    skf = StratifiedKFold(n_splits=k, shuffle=True, random_state=seed)
-    rows = []
-    for fold, (tr, va) in enumerate(skf.split(X, y), start=1):
-        Xtr, Xva = X[tr], X[va]
-        ytr, yva = y[tr], y[va]
-        res = approach_fn(Xtr, ytr, Xva, yva, **approach_kwargs)
-        rows.append({"fold": fold, **{k: v for k, v in res.items() if k != "chunks"}})
-    df = pd.DataFrame(rows)
-    summary = df.drop(columns=["fold"]).mean(numeric_only=True).to_dict()
-    summary.update({"approach": rows[0]["approach"], "kfold": k})
-    return df, summary
-
-
 # -------------------------
 # Grid runner
 # -------------------------
