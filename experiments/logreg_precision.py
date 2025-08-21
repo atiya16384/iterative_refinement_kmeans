@@ -3,14 +3,10 @@ import itertools
 import numpy as np
 import pandas as pd
 from aoclda.linear_model import linmod
-from sklearn.datasets import load_breast_cancer
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_auc_score, average_precision_score, log_loss
-from sklearn.model_selection import StratifiedKFold
 
-# -------------------------
 # Helpers
-# -------------------------
 def _map_penalty_to_alpha(penalty, alpha=None):
     """Translate a 'penalty' label to reg_alpha.
        If alpha is provided and penalty is 'elasticnet', we use alpha directly."""
@@ -39,11 +35,7 @@ def _map_C_to_lambda(C=None, reg_lambda=None):
         raise ValueError("C must be > 0")
     return 1.0 / C
 
-# -------------------------
 # Synthetic datasets
-# -------------------------
-
-
 def make_shifted_gaussian(m=2000, n=100, delta=0.5, pos_frac=0.5, seed=0, dtype=np.float64):
     """
     Gaussian synthetic data:
@@ -76,7 +68,7 @@ def make_uniform_binary(m=2000, n=100, shift=0.25, seed=0, dtype=np.float64):
     perm = rng.permutation(m)
     return X[perm], y[perm]
 
-# ==== utilities for warm-started chunked fitting ====
+# utilities for warm-started chunked fitting
 def _fit_chunk(X, y, *, precision, solver, reg_lambda, reg_alpha, max_iter, tol, x0=None):
     mdl = linmod(
         mod="logistic",
@@ -105,16 +97,14 @@ def _score_model(model, X, y):
         "grad_norm": float(model.nrm_gradient_loss[0]) if hasattr(model, "nrm_gradient_loss") else np.nan,
     }
 
-# -------------------------
 # Train & evaluate (AOCL-DA)
-# -------------------------
 def train_linmod(X, y, *, precision="single", reg_lambda=0.0, reg_alpha=0.0,
                  solver="coord", max_iter=10000, tol=1e-4, scaling="standardize"):
-    """
-    AOCL-DA logistic:
-    - Use scaling='standardize' so 'coord' is valid (variance=1).
-    - For ridge-like only, 'lbfgs' can be used; 'coord' works across penalties.
-    """
+
+    # AOCL-DA logistic:
+    # - Use scaling='standardize' so 'coord' is valid (variance=1).
+    # - For ridge-like only, 'lbfgs' can be used; 'coord' works across penalties.
+
     mdl = linmod(
         mod="logistic",
         solver=solver,
@@ -140,9 +130,7 @@ def evaluate(model, X, y):
     }
     return metrics
 
-# -------------------------
 # Your three approaches
-# -------------------------
 def approach_single(Xtr, ytr, Xte, yte, *, solver="coord", reg_lambda=0.01, reg_alpha=0.0,
                     max_iter=10000, tol=1e-4):
     t0 = time.perf_counter()
@@ -190,11 +178,10 @@ def approach_multistage_ir(
     tol=1e-6, max_chunks=10,
     stop_delta=1e-7  # stop if ||coef_new - coef_old||_2 < stop_delta
 ):
-    """
-    Example schedules:
-      [("single", 200), ("double", 800)]
-      [("single", 100), ("double", 200), ("single", 100), ("double", 200)]
-    """
+    #Example schedules:
+    #  [("single", 200), ("double", 800)]
+    #  [("single", 100), ("double", 200), ("single", 100), ("double", 200)]
+   
     t0 = time.perf_counter()
     x0 = None
     coef_prev = None
@@ -240,10 +227,10 @@ def approach_adaptive_precision(
     max_chunks=50,
     allow_demote=False        # set True if you want to switch back to single after good progress
 ):
-    """
-    Start in single precision. If relative loss improvement per chunk < improve_thresh
-    for 'promote_patience' consecutive chunks, switch to double. Optionally demote back.
-    """
+
+   # Start in single precision. If relative loss improvement per chunk < improve_thresh
+   # for 'promote_patience' consecutive chunks, switch to double. Optionally demote back.
+
     t0 = time.perf_counter()
     prec = "single"
     x0 = None
@@ -284,17 +271,16 @@ def approach_adaptive_precision(
     metrics = _score_model(mdl, Xte, yte)
     return {"approach": "adaptive-precision", "time_sec": t1 - t0, **metrics, "chunks": history}
 
-# -------------------------
+
 # Grid runner
-# -------------------------
 def run_experiments(X, y,
                     grid=None,
                     test_size=0.25, random_state=42, stratify=True,
                     save_path="results_all.csv"):
-    """
-    Run grid over penalty/solver/params and all approaches.
-    Approaches included: single, double, hybrid, multistage-IR, adaptive-precision
-    """
+
+    # Run grid over penalty/solver/params and all approaches.
+    # Approaches included: single, double, hybrid, multistage-IR, adaptive-precision
+
     if grid is None:
         grid = {
             "penalty":   ["l2", "l1", "elasticnet"],
@@ -390,9 +376,7 @@ def run_experiments(X, y,
 
     return df
 
-# -------------------------
 # Demo
-# -------------------------
 if __name__ == "__main__":
     dataset = "gaussian"   # options: "gaussian", "uniform", "breast_cancer"
 
@@ -400,10 +384,6 @@ if __name__ == "__main__":
         X, y = make_shifted_gaussian(m=5000, n=200, delta=0.5, seed=42)
     elif dataset == "uniform":
         X, y = make_uniform_binary(m=5000, n=200, shift=0.25, seed=42)
-    elif dataset == "breast_cancer":
-        data = load_breast_cancer()
-        X = data.data.astype(np.float64)
-        y = data.target.astype(np.int32)
     else:
         raise ValueError("Unknown dataset")
 
