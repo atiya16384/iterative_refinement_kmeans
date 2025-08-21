@@ -399,7 +399,7 @@ def run_experiments(X, y,
     df = df[df["approach"] != "ERROR"].copy()
 
     # === Take mean over repeats ===
-    group_cols = ["dataset", "penalty", "alpha", "lambda", "solver", "max_iter", "tol", "max_iter_single", "approach"]
+    group_cols = ["dataset", "mode", "penalty", "alpha", "lambda", "solver", "max_iter", "tol", "max_iter_single", "approach"]
     metric_cols = ["time_sec", "iters", "roc_auc", "pr_auc", "logloss"]
 
     df_mean = df.groupby(group_cols, as_index=False)[metric_cols].mean()
@@ -411,7 +411,7 @@ def run_experiments(X, y,
               f"max_iter={keys[4]}, tol={keys[5]}, max_iter_single={keys[6]}")
         with pd.option_context("display.max_rows", None, "display.width", 160):
             print(
-                sub[["dataset","penalty","lambda","solver","max_iter","tol","max_iter_single","approach",
+                sub[["dataset", "mode", "penalty","lambda","solver","max_iter","tol","max_iter_single","approach",
                      "time_sec","iters","roc_auc","pr_auc","logloss"]]
                 .round(4)
                 .to_string(index=False)
