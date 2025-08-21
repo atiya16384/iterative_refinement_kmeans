@@ -293,7 +293,7 @@ def run_experiments(X, y,
                     grid=None,
                     test_size=0.25, random_state=42, stratify=True,
                     save_path="../Results/results_all.csv",
-                    dataset_name="unknown",
+                    dataset="",
                     repeats=3):
 
     if grid is None:
@@ -358,7 +358,7 @@ def run_experiments(X, y,
                         continue
 
                     row = {
-                        "dataset": dataset_name,
+                        "dataset": dataset,
                         "repeat": rep,
                         "approach": res["approach"],
                         "penalty": penalty,
@@ -378,7 +378,7 @@ def run_experiments(X, y,
 
             except Exception as e:
                 rows.append({
-                    "dataset": dataset_name,
+                    "dataset": dataset,
                     "repeat": rep,
                     "approach": "ERROR",
                     "penalty": penalty, "alpha": alpha, "lambda": lam, "C": C,
@@ -399,44 +399,31 @@ def run_experiments(X, y,
     df = df[df["approach"] != "ERROR"].copy()
 
     # === Take mean over repeats ===
-    group_cols = ["dataset", "mode", "penalty", "alpha", "lambda", "solver", "max_iter", "tol", "max_iter_single", "approach"]
+    group_cols = ["dataset", "penalty", "alpha", "lambda", "solver", "max_iter", "tol", "max_iter_single", "approach"]
     metric_cols = ["time_sec", "iters", "roc_auc", "pr_auc", "logloss"]
 
     df_mean = df.groupby(group_cols, as_index=False)[metric_cols].mean()
 
-    
+    print(df_mean.groupby(["dataset",  "penalty", "alpha", "lambda", "solver", "max_iter", "tol", "max_iter_single", "approach"])
+                          [["time_sec", "iters", "roc_auc", "pr_auc", "logloss"]].mean())
 
-
-
-
-    # === Print comparison grouped by hyperparams ===
-    print("\n=== Mean Results over Repeats ===")
-    for keys, sub in df_mean.groupby(["dataset", "penalty", "lambda", "solver", "max_iter", "tol", "max_iter_single"]):
-        print(f"\nDataset={keys[0]}, penalty={keys[1]}, lambda={keys[2]}, solver={keys[3]}, "
-              f"max_iter={keys[4]}, tol={keys[5]}, max_iter_single={keys[6]}")
-        with pd.option_context("display.max_rows", None, "display.width", 160):
-            print(
-                sub[["dataset", "mode", "penalty","lambda","solver","max_iter","tol","max_iter_single","approach",
-                     "time_sec","iters","roc_auc","pr_auc","logloss"]]
-                .round(4)
-                .to_string(index=False)
-            )
 
     return df, df_mean
 
 
 # Demo
 if __name__ == "__main__":
-    dataset = "gaussian"   # options: "gaussian", "uniform", "breast_cancer"
+    dataset = "uniform"   # options: "gaussian", "uniform", "breast_cancer"
 
     if dataset == "gaussian":
         X, y = make_shifted_gaussian(m=5000, n=200, delta=0.5, seed=42)
     elif dataset == "uniform":
-        X, y = make_uniform_binary(m=1000_000, n=100, shift=0.25, seed=42)
+        X, y = make_uniform_binary(m=5000, n=200, shift=0.25, seed=42)
     else:
         raise ValueError("Unknown dataset")
 
     grid = {
+        "dataset": ["uniform", "guassian"],
         "penalty": ["l2"],
         "alpha":   [None],
         "lambda":  [1e-3, 1e-2, 1e-1],
@@ -445,9 +432,9 @@ if __name__ == "__main__":
         "max_iter": [3000, 10000],
         "tol":      [1e-4, 1e-6],
         "max_iter_single": [150, 300],
-        "approaches": ["single","double","hybrid", "multistage-ir","adaptive-precision" ]
+        "approaches": ["double","hybrid" ]
     }
 
-    df, df_mean = run_experiments(X, y, grid=grid, dataset_name = dataset)
+    df, df_mean = run_experiments(X, y, grid=grid)
     # with pd.option_context("display.max_columns", None, "display.width", 140):
     #     print(df.groupby("approach").head(5))
