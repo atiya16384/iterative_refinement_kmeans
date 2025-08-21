@@ -382,34 +382,27 @@ def run_experiments(X, y,
 
     df = pd.DataFrame(rows)
 
-    if not df.empty and "roc_auc" in df:
-        df = df.sort_values(["approach","roc_auc","time_sec"], ascending=[True, False, True]).reset_index(drop=True)
-
     if save_path is not None:
         df.to_csv(save_path, index=False)
         print(f"\nSaved results to {save_path}")
 
     if not df.empty:
-        # Pick summary columns
-        summary_cols = ["approach", "penalty", "alpha", "lambda", "solver",
-                        "max_iter", "tol", "time_sec", "iters",
-                        "roc_auc", "pr_auc", "logloss"]
+        summary_cols = ["penalty", "alpha", "lambda", "solver",
+                        "max_iter", "tol", "max_iter_single",
+                        "time_sec", "iters", "roc_auc", "pr_auc", "logloss"]
 
-        print("\n=== Top Results by Approach ===")
-        # Group by approach and show top-5 from each
-        grouped = df.groupby("approach").head(5)[summary_cols]
+        print("\n=== Results by Approach ===")
+        for appr in df["approach"].unique():
+            print(f"\n--- {appr} ---")
+            sub = df[df["approach"] == appr][summary_cols].copy()
+            sub = sub.round(4)
 
-        # Round numeric values for readability
-        grouped = grouped.copy()
-        for col in ["time_sec", "roc_auc", "pr_auc", "logloss"]:
-            grouped[col] = grouped[col].round(4)
+            with pd.option_context("display.max_rows", 10,
+                                   "display.max_columns", None,
+                                   "display.width", 140,
+                                   "display.colheader_justify", "center"):
+                print(sub.to_string(index=False))
 
-        # Print as a nice table using pandas
-        with pd.option_context("display.max_rows", None,
-                               "display.max_columns", None,
-                               "display.width", 140,
-                               "display.colheader_justify", "center"):
-            print(grouped.to_string(index=False))
 
     return df
 
