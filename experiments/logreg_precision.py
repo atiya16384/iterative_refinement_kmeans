@@ -70,6 +70,11 @@ def make_uniform_binary(m=2000, n=100, shift=0.25, seed=0, dtype=np.float64):
 
 # utilities for warm-started chunked fitting
 def _fit_chunk(X, y, *, precision, solver, reg_lambda, reg_alpha, max_iter, tol, x0=None):
+    dt = np.float32 if str(precision).startswith("single") else np.float64
+    X = X.astype(dt, copy=False)
+    y = y.astype(np.int32, copy= False)
+    x0= None if x0 is None else x0.astype(dt, copy=False)
+
     mdl = linmod(
         mod="logistic",
         solver=solver,
@@ -88,10 +93,11 @@ def _proba_from_coef(model, X):
 
 def _score_model(model, X, y):
     p = _proba_from_coef(model, X)
+    p = np.clip(p, 1e-12, 1-1e-12)
     return {
         "roc_auc": float(roc_auc_score(y, p)),
         "pr_auc":  float(average_precision_score(y, p)),
-        "logloss": float(log_loss(y, p, eps=1e-12)),
+        "logloss": float(log_loss(y, p)),
         "loss_internal": float(model.loss[0]),
         "iters": model.n_iter,
         "grad_norm": float(model.nrm_gradient_loss[0]) if hasattr(model, "nrm_gradient_loss") else np.nan,
@@ -101,6 +107,10 @@ def _score_model(model, X, y):
 def train_linmod(X, y, *, precision="single", reg_lambda=0.0, reg_alpha=0.0,
                  solver="coord", max_iter=10000, tol=1e-4, scaling="standardize"):
 
+
+    dt = np.float32 if str(precision).startswith("single") else np.float64
+    X= X.astype(dt, copy=False)
+    y= y.astype(np.int32, copy=False)
     # AOCL-DA logistic:
     # - Use scaling='standardize' so 'coord' is valid (variance=1).
     # - For ridge-like only, 'lbfgs' can be used; 'coord' works across penalties.
@@ -121,17 +131,18 @@ def evaluate(model, X, y):
     X_aug = np.hstack([X, np.ones((X.shape[0], 1), dtype=X.dtype)])
     z = X_aug @ model.coef.astype(X.dtype)
     p = 1.0 / (1.0 + np.exp(-z))
+    p = np.clip(p, 1e-12, 1-1e-12)
 
     metrics = {
         "roc_auc": float(roc_auc_score(y, p)),           # AUC (ROC)
         "pr_auc":  float(average_precision_score(y, p)), # AUC (PR)
-        "logloss": float(log_loss(y, p, eps=1e-12)),
+        "logloss": float(log_loss(y, p)),
         "loss_internal": float(model.loss[0]),
     }
     return metrics
 
-# Your three approaches
-def approach_single(Xtr, ytr, Xte, yte, *, solver="coord", reg_lambda=0.01, reg_alpha=0.0,
+# All approaches
+def approach_single(Xtr, ytr, Xte, yte, *, solver="lbfgs", reg_lambda=0.01, reg_alpha=0.0,
                     max_iter=10000, tol=1e-4):
     t0 = time.perf_counter()
     mdl = train_linmod(Xtr, ytr, precision="single", solver=solver,
@@ -141,7 +152,7 @@ def approach_single(Xtr, ytr, Xte, yte, *, solver="coord", reg_lambda=0.01, reg_
     metrics = evaluate(mdl, Xte, yte)
     return {"approach": "single(f32)", "time_sec": t1 - t0, "iters": mdl.n_iter, **metrics}
 
-def approach_double(Xtr, ytr, Xte, yte, *, solver="coord", reg_lambda=0.01, reg_alpha=0.0,
+def approach_double(Xtr, ytr, Xte, yte, *, solver="lbfgs", reg_lambda=0.01, reg_alpha=0.0,
                     max_iter=10000, tol=1e-4):
     t0 = time.perf_counter()
     mdl = train_linmod(Xtr, ytr, precision="double", solver=solver,
@@ -151,18 +162,22 @@ def approach_double(Xtr, ytr, Xte, yte, *, solver="coord", reg_lambda=0.01, reg_
     metrics = evaluate(mdl, Xte, yte)
     return {"approach": "double(f64)", "time_sec": t1 - t0, "iters": mdl.n_iter, **metrics}
 
-def approach_hybrid(Xtr, ytr, Xte, yte, *, solver="coord", reg_lambda=0.01, reg_alpha=0.0,
+def approach_hybrid(Xtr, ytr, Xte, yte, *, solver="lbfgs", reg_lambda=0.01, reg_alpha=0.0,
                     max_iter_single=200, max_iter_double=10000, tol=1e-4):
     # Stage A: fast f32 warm start
     t0 = time.perf_counter()
     mdl_f32 = train_linmod(Xtr, ytr, precision="single", solver=solver,
                            reg_lambda=reg_lambda, reg_alpha=reg_alpha,
                            max_iter=max_iter_single, tol=tol)
-    x0 = mdl_f32.coef
+    
+    x0 = mdl_f32.coef.astype(np.float64, copy=False)
 
     # Stage B: refine in f64 from warm start
     mdl_f64 = linmod(mod="logistic", solver=solver, precision="double",
                      intercept=True, max_iter=max_iter_double, scaling="standardize")
+    
+    Xd = Xtr.astype(np.float64, copy=False)
+    yd = ytr.astype(np.int32, copy=False)
     mdl_f64.fit(Xtr, ytr, reg_lambda=float(reg_lambda), reg_alpha=float(reg_alpha),
                 x0=x0, tol=float(tol))
     t1 = time.perf_counter()
@@ -174,7 +189,7 @@ def approach_multistage_ir(
     Xtr, ytr, Xte, yte, *,
     # schedule = list of (precision, chunk_iters)
     schedule=(("single", 200), ("double", 800)),
-    solver="coord", reg_lambda=1e-2, reg_alpha=0.0,
+    solver="lbfgs", reg_lambda=1e-2, reg_alpha=0.0,
     tol=1e-6, max_chunks=10,
     stop_delta=1e-7  # stop if ||coef_new - coef_old||_2 < stop_delta
 ):
@@ -220,7 +235,7 @@ def approach_multistage_ir(
 
 def approach_adaptive_precision(
     Xtr, ytr, Xte, yte, *,
-    solver="coord", reg_lambda=1e-2, reg_alpha=0.0,
+    solver="lbfgs", reg_lambda=1e-2, reg_alpha=0.0,
     chunk_iters=100, tol=1e-6,
     promote_patience=2,       # how many "weak-improvement" chunks before promoting precision
     improve_thresh=1e-3,      # relative loss improvement threshold per chunk
@@ -283,14 +298,14 @@ def run_experiments(X, y,
 
     if grid is None:
         grid = {
-            "penalty":   ["l2", "l1", "elasticnet"],
-            "alpha":     [None, 0.5],
-            "lambda":    [1e-3, 1e-2],
+            "penalty":   ["l2"],
+            "alpha":     [None],
+            "lambda":    [1e-3, 1e-2, 1e-1],
             "C":         [None],
-            "solver":    ["coord"],
-            "max_iter":  [3000],
-            "tol":       [1e-4],
-            "max_iter_single": [200],
+            "solver":    ["lbfgs"],
+            "max_iter":  [3000, 10000],
+            "tol":       [1e-4, 1e-6],
+            "max_iter_single": [150, 300],
             "approaches": ["single","double","hybrid","multistage-ir","adaptive-precision"]
         }
 
@@ -388,11 +403,11 @@ if __name__ == "__main__":
         raise ValueError("Unknown dataset")
 
     grid = {
-        "penalty": ["l2", "l1", "elasticnet"],
-        "alpha":   [None, 0.3, 0.7],
+        "penalty": ["l2"],
+        "alpha":   [None],
         "lambda":  [1e-3, 1e-2, 1e-1],
         "C":       [None],
-        "solver":  ["coord", "lbfgs"],
+        "solver":  ["lbfgs"],
         "max_iter": [3000, 10000],
         "tol":      [1e-4, 1e-6],
         "max_iter_single": [150, 300],

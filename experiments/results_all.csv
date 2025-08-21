@@ -1,289 +1,73 @@
-approach,penalty,alpha,lambda,C,solver,max_iter,tol,error
-ERROR,l2,,0.001,,coord,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,,0.001,,coord,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,,0.001,,coord,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,,0.001,,coord,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,,0.001,,coord,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,,0.001,,coord,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,,0.001,,coord,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,,0.001,,coord,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,,0.001,,lbfgs,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,,0.001,,lbfgs,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,,0.001,,lbfgs,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,,0.001,,lbfgs,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,,0.001,,lbfgs,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,,0.001,,lbfgs,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,,0.001,,lbfgs,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,,0.001,,lbfgs,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,,0.01,,coord,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,,0.01,,coord,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,,0.01,,coord,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,,0.01,,coord,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,,0.01,,coord,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,,0.01,,coord,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,,0.01,,coord,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,,0.01,,coord,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,,0.01,,lbfgs,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,,0.01,,lbfgs,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,,0.01,,lbfgs,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,,0.01,,lbfgs,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,,0.01,,lbfgs,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,,0.01,,lbfgs,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,,0.01,,lbfgs,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,,0.01,,lbfgs,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,,0.1,,coord,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,,0.1,,coord,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,,0.1,,coord,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,,0.1,,coord,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,,0.1,,coord,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,,0.1,,coord,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,,0.1,,coord,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,,0.1,,coord,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,,0.1,,lbfgs,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,,0.1,,lbfgs,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,,0.1,,lbfgs,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,,0.1,,lbfgs,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,,0.1,,lbfgs,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,,0.1,,lbfgs,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,,0.1,,lbfgs,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,,0.1,,lbfgs,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,0.3,0.001,,coord,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,0.3,0.001,,coord,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,0.3,0.001,,coord,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,0.3,0.001,,coord,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,0.3,0.001,,coord,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,0.3,0.001,,coord,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,0.3,0.001,,coord,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,0.3,0.001,,coord,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,0.3,0.001,,lbfgs,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,0.3,0.001,,lbfgs,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,0.3,0.001,,lbfgs,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,0.3,0.001,,lbfgs,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,0.3,0.001,,lbfgs,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,0.3,0.001,,lbfgs,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,0.3,0.001,,lbfgs,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,0.3,0.001,,lbfgs,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,0.3,0.01,,coord,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,0.3,0.01,,coord,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,0.3,0.01,,coord,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,0.3,0.01,,coord,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,0.3,0.01,,coord,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,0.3,0.01,,coord,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,0.3,0.01,,coord,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,0.3,0.01,,coord,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,0.3,0.01,,lbfgs,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,0.3,0.01,,lbfgs,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,0.3,0.01,,lbfgs,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,0.3,0.01,,lbfgs,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,0.3,0.01,,lbfgs,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,0.3,0.01,,lbfgs,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,0.3,0.01,,lbfgs,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,0.3,0.01,,lbfgs,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,0.3,0.1,,coord,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,0.3,0.1,,coord,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,0.3,0.1,,coord,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,0.3,0.1,,coord,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,0.3,0.1,,coord,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,0.3,0.1,,coord,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,0.3,0.1,,coord,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,0.3,0.1,,coord,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,0.3,0.1,,lbfgs,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,0.3,0.1,,lbfgs,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,0.3,0.1,,lbfgs,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,0.3,0.1,,lbfgs,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,0.3,0.1,,lbfgs,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,0.3,0.1,,lbfgs,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,0.3,0.1,,lbfgs,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,0.3,0.1,,lbfgs,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,0.7,0.001,,coord,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,0.7,0.001,,coord,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,0.7,0.001,,coord,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,0.7,0.001,,coord,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,0.7,0.001,,coord,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,0.7,0.001,,coord,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,0.7,0.001,,coord,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,0.7,0.001,,coord,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,0.7,0.001,,lbfgs,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,0.7,0.001,,lbfgs,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,0.7,0.001,,lbfgs,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,0.7,0.001,,lbfgs,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,0.7,0.001,,lbfgs,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,0.7,0.001,,lbfgs,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,0.7,0.001,,lbfgs,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,0.7,0.001,,lbfgs,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,0.7,0.01,,coord,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,0.7,0.01,,coord,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,0.7,0.01,,coord,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,0.7,0.01,,coord,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,0.7,0.01,,coord,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,0.7,0.01,,coord,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,0.7,0.01,,coord,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,0.7,0.01,,coord,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,0.7,0.01,,lbfgs,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,0.7,0.01,,lbfgs,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,0.7,0.01,,lbfgs,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,0.7,0.01,,lbfgs,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,0.7,0.01,,lbfgs,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,0.7,0.01,,lbfgs,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,0.7,0.01,,lbfgs,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,0.7,0.01,,lbfgs,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,0.7,0.1,,coord,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,0.7,0.1,,coord,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,0.7,0.1,,coord,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,0.7,0.1,,coord,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,0.7,0.1,,coord,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,0.7,0.1,,coord,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,0.7,0.1,,coord,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,0.7,0.1,,coord,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,0.7,0.1,,lbfgs,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,0.7,0.1,,lbfgs,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,0.7,0.1,,lbfgs,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,0.7,0.1,,lbfgs,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,0.7,0.1,,lbfgs,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,0.7,0.1,,lbfgs,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l2,0.7,0.1,,lbfgs,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l2,0.7,0.1,,lbfgs,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l1,,0.001,,coord,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l1,,0.001,,coord,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l1,,0.001,,coord,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l1,,0.001,,coord,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l1,,0.001,,coord,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l1,,0.001,,coord,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l1,,0.001,,coord,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l1,,0.001,,coord,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l1,,0.01,,coord,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l1,,0.01,,coord,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l1,,0.01,,coord,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l1,,0.01,,coord,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l1,,0.01,,coord,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l1,,0.01,,coord,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l1,,0.01,,coord,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l1,,0.01,,coord,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l1,,0.1,,coord,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l1,,0.1,,coord,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l1,,0.1,,coord,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l1,,0.1,,coord,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l1,,0.1,,coord,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l1,,0.1,,coord,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l1,,0.1,,coord,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l1,,0.1,,coord,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l1,0.3,0.001,,coord,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l1,0.3,0.001,,coord,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l1,0.3,0.001,,coord,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l1,0.3,0.001,,coord,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l1,0.3,0.001,,coord,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l1,0.3,0.001,,coord,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l1,0.3,0.001,,coord,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l1,0.3,0.001,,coord,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l1,0.3,0.01,,coord,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l1,0.3,0.01,,coord,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l1,0.3,0.01,,coord,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l1,0.3,0.01,,coord,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l1,0.3,0.01,,coord,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l1,0.3,0.01,,coord,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l1,0.3,0.01,,coord,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l1,0.3,0.01,,coord,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l1,0.3,0.1,,coord,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l1,0.3,0.1,,coord,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l1,0.3,0.1,,coord,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l1,0.3,0.1,,coord,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l1,0.3,0.1,,coord,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l1,0.3,0.1,,coord,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l1,0.3,0.1,,coord,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l1,0.3,0.1,,coord,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l1,0.7,0.001,,coord,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l1,0.7,0.001,,coord,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l1,0.7,0.001,,coord,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l1,0.7,0.001,,coord,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l1,0.7,0.001,,coord,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l1,0.7,0.001,,coord,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l1,0.7,0.001,,coord,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l1,0.7,0.001,,coord,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l1,0.7,0.01,,coord,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l1,0.7,0.01,,coord,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l1,0.7,0.01,,coord,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l1,0.7,0.01,,coord,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l1,0.7,0.01,,coord,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l1,0.7,0.01,,coord,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l1,0.7,0.01,,coord,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l1,0.7,0.01,,coord,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l1,0.7,0.1,,coord,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l1,0.7,0.1,,coord,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l1,0.7,0.1,,coord,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l1,0.7,0.1,,coord,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l1,0.7,0.1,,coord,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l1,0.7,0.1,,coord,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,l1,0.7,0.1,,coord,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,l1,0.7,0.1,,coord,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,,0.001,,coord,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,,0.001,,coord,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,,0.001,,coord,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,,0.001,,coord,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,,0.001,,coord,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,,0.001,,coord,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,,0.001,,coord,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,,0.001,,coord,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,,0.01,,coord,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,,0.01,,coord,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,,0.01,,coord,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,,0.01,,coord,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,,0.01,,coord,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,,0.01,,coord,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,,0.01,,coord,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,,0.01,,coord,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,,0.1,,coord,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,,0.1,,coord,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,,0.1,,coord,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,,0.1,,coord,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,,0.1,,coord,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,,0.1,,coord,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,,0.1,,coord,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,,0.1,,coord,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,0.3,0.001,,coord,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,0.3,0.001,,coord,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,0.3,0.001,,coord,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,0.3,0.001,,coord,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,0.3,0.001,,coord,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,0.3,0.001,,coord,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,0.3,0.001,,coord,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,0.3,0.001,,coord,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,0.3,0.01,,coord,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,0.3,0.01,,coord,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,0.3,0.01,,coord,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,0.3,0.01,,coord,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,0.3,0.01,,coord,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,0.3,0.01,,coord,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,0.3,0.01,,coord,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,0.3,0.01,,coord,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,0.3,0.1,,coord,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,0.3,0.1,,coord,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,0.3,0.1,,coord,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,0.3,0.1,,coord,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,0.3,0.1,,coord,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,0.3,0.1,,coord,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,0.3,0.1,,coord,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,0.3,0.1,,coord,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,0.7,0.001,,coord,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,0.7,0.001,,coord,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,0.7,0.001,,coord,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,0.7,0.001,,coord,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,0.7,0.001,,coord,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,0.7,0.001,,coord,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,0.7,0.001,,coord,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,0.7,0.001,,coord,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,0.7,0.01,,coord,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,0.7,0.01,,coord,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,0.7,0.01,,coord,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,0.7,0.01,,coord,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,0.7,0.01,,coord,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,0.7,0.01,,coord,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,0.7,0.01,,coord,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,0.7,0.01,,coord,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,0.7,0.1,,coord,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,0.7,0.1,,coord,3000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,0.7,0.1,,coord,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,0.7,0.1,,coord,3000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,0.7,0.1,,coord,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,0.7,0.1,,coord,10000,0.0001,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,0.7,0.1,,coord,10000,1e-06,The handle was initialized with a different precision type than double.
-ERROR,elasticnet,0.7,0.1,,coord,10000,1e-06,The handle was initialized with a different precision type than double.
+approach,penalty,alpha,lambda,solver,max_iter,tol,time_sec,iters,roc_auc,pr_auc,logloss,loss_internal
+double(f64),l2,0.0,0.1,lbfgs,3000,0.0001,0.025938979000784457,15,1.0,1.0,1.1026087055630533e-05,0.20967608932060294
+double(f64),l2,0.0,0.01,lbfgs,3000,0.0001,0.027352920034900308,17,1.0,1.0,1.540840401587927e-06,0.02993995657063142
+double(f64),l2,0.0,0.1,lbfgs,3000,0.0001,0.028096243040636182,15,1.0,1.0,1.1026087055630533e-05,0.20967608932060294
+double(f64),l2,0.0,0.001,lbfgs,3000,0.0001,0.02879037894308567,16,1.0,1.0,2.562005320604511e-07,0.004115609154790378
+double(f64),l2,0.0,0.001,lbfgs,10000,0.0001,0.028857084922492504,16,1.0,1.0,2.562005320604511e-07,0.004115609154790378
+double(f64),l2,0.0,0.01,lbfgs,10000,0.0001,0.03066687297541648,17,1.0,1.0,1.540840401587927e-06,0.02993995657063142
+double(f64),l2,0.0,0.01,lbfgs,10000,0.0001,0.031966430018655956,17,1.0,1.0,1.540840401587927e-06,0.02993995657063142
+double(f64),l2,0.0,0.01,lbfgs,10000,1e-06,0.032519252970814705,20,1.0,1.0,1.5635744548379731e-06,0.02993882863889531
+double(f64),l2,0.0,0.001,lbfgs,3000,1e-06,0.03277387993875891,22,1.0,1.0,2.346017226620846e-07,0.004102221294698203
+double(f64),l2,0.0,0.001,lbfgs,3000,1e-06,0.0335436750901863,22,1.0,1.0,2.346017226620846e-07,0.004102221294698203
+double(f64),l2,0.0,0.1,lbfgs,10000,0.0001,0.04429961508139968,15,1.0,1.0,1.1026087055630533e-05,0.20967608932060294
+double(f64),l2,0.0,0.001,lbfgs,10000,1e-06,0.0520688759861514,22,1.0,1.0,2.346017226620846e-07,0.004102221294698203
+double(f64),l2,0.0,0.001,lbfgs,3000,0.0001,0.05429133400321007,16,1.0,1.0,2.562005320604511e-07,0.004115609154790378
+double(f64),l2,0.0,0.1,lbfgs,10000,0.0001,0.05617759900633246,15,1.0,1.0,1.1026087055630533e-05,0.20967608932060294
+double(f64),l2,0.0,0.01,lbfgs,3000,0.0001,0.05627502303104848,17,1.0,1.0,1.540840401587927e-06,0.02993995657063142
+double(f64),l2,0.0,0.1,lbfgs,10000,1e-06,0.05804988706950098,18,1.0,1.0,1.102578926832023e-05,0.20967535798547957
+double(f64),l2,0.0,0.1,lbfgs,10000,1e-06,0.06090759008657187,18,1.0,1.0,1.102578926832023e-05,0.20967535798547957
+double(f64),l2,0.0,0.01,lbfgs,10000,1e-06,0.06194910709746182,20,1.0,1.0,1.5635744548379731e-06,0.02993882863889531
+double(f64),l2,0.0,0.01,lbfgs,3000,1e-06,0.06298798299394548,20,1.0,1.0,1.5635744548379731e-06,0.02993882863889531
+double(f64),l2,0.0,0.001,lbfgs,10000,1e-06,0.06912549096159637,22,1.0,1.0,2.346017226620846e-07,0.004102221294698203
+double(f64),l2,0.0,0.001,lbfgs,10000,0.0001,0.07304943597409874,16,1.0,1.0,2.562005320604511e-07,0.004115609154790378
+double(f64),l2,0.0,0.01,lbfgs,3000,1e-06,0.07595317694358528,20,1.0,1.0,1.5635744548379731e-06,0.02993882863889531
+double(f64),l2,0.0,0.1,lbfgs,3000,1e-06,0.0792672400129959,18,1.0,1.0,1.102578926832023e-05,0.20967535798547957
+double(f64),l2,0.0,0.1,lbfgs,3000,1e-06,0.082710443995893,18,1.0,1.0,1.102578926832023e-05,0.20967535798547957
+hybrid(f32→f64),l2,0.0,0.001,lbfgs,3000,0.0001,0.035889953025616705,1,1.0,1.0,1.6069747171035054e-07,0.004139581053107533
+hybrid(f32→f64),l2,0.0,0.1,lbfgs,3000,0.0001,0.03593018697574735,5,1.0,1.0,1.101852446202145e-05,0.20967548023990162
+hybrid(f32→f64),l2,0.0,0.01,lbfgs,3000,0.0001,0.036561518907547,5,1.0,1.0,1.569269861654361e-06,0.02994004835902006
+hybrid(f32→f64),l2,0.0,0.01,lbfgs,10000,0.0001,0.037066149059683084,5,1.0,1.0,1.569269861654361e-06,0.02994004835902006
+hybrid(f32→f64),l2,0.0,0.001,lbfgs,3000,0.0001,0.03777334000915289,1,1.0,1.0,1.6069747171035054e-07,0.004139581053107533
+hybrid(f32→f64),l2,0.0,0.01,lbfgs,10000,0.0001,0.0380196439800784,5,1.0,1.0,1.569269861654361e-06,0.02994004835902006
+hybrid(f32→f64),l2,0.0,0.001,lbfgs,3000,1e-06,0.040509085985831916,8,1.0,1.0,2.34947836943226e-07,0.004102217754476702
+hybrid(f32→f64),l2,0.0,0.001,lbfgs,10000,1e-06,0.04178838606458157,8,1.0,1.0,2.34947836943226e-07,0.004102217754476702
+hybrid(f32→f64),l2,0.0,0.1,lbfgs,10000,1e-06,0.047808304079808295,7,1.0,1.0,1.102628513003563e-05,0.20967535304430063
+hybrid(f32→f64),l2,0.0,0.001,lbfgs,10000,0.0001,0.05000285292044282,1,1.0,1.0,1.6069747171035054e-07,0.004139581053107533
+hybrid(f32→f64),l2,0.0,0.01,lbfgs,10000,1e-06,0.059435351053252816,8,1.0,1.0,1.561993593548436e-06,0.029938821311678958
+hybrid(f32→f64),l2,0.0,0.001,lbfgs,3000,1e-06,0.06779143598396331,8,1.0,1.0,2.34947836943226e-07,0.004102217754476702
+hybrid(f32→f64),l2,0.0,0.001,lbfgs,10000,0.0001,0.07064407400321215,1,1.0,1.0,1.6069747171035054e-07,0.004139581053107533
+hybrid(f32→f64),l2,0.0,0.1,lbfgs,10000,0.0001,0.07158457802142948,5,1.0,1.0,1.101852446202145e-05,0.20967548023990162
+hybrid(f32→f64),l2,0.0,0.1,lbfgs,3000,0.0001,0.07275744597427547,5,1.0,1.0,1.101852446202145e-05,0.20967548023990162
+hybrid(f32→f64),l2,0.0,0.1,lbfgs,3000,1e-06,0.07503354991786182,7,1.0,1.0,1.102628513003563e-05,0.20967535304430063
+hybrid(f32→f64),l2,0.0,0.01,lbfgs,3000,0.0001,0.07686472195200622,5,1.0,1.0,1.569269861654361e-06,0.02994004835902006
+hybrid(f32→f64),l2,0.0,0.1,lbfgs,10000,1e-06,0.0787911950610578,7,1.0,1.0,1.102628513003563e-05,0.20967535304430063
+hybrid(f32→f64),l2,0.0,0.01,lbfgs,10000,1e-06,0.07957743108272552,8,1.0,1.0,1.561993593548436e-06,0.029938821311678958
+hybrid(f32→f64),l2,0.0,0.01,lbfgs,3000,1e-06,0.07969087699893862,8,1.0,1.0,1.561993593548436e-06,0.029938821311678958
+hybrid(f32→f64),l2,0.0,0.01,lbfgs,3000,1e-06,0.07997224992141128,8,1.0,1.0,1.561993593548436e-06,0.029938821311678958
+hybrid(f32→f64),l2,0.0,0.001,lbfgs,10000,1e-06,0.0806572400033474,8,1.0,1.0,2.34947836943226e-07,0.004102217754476702
+hybrid(f32→f64),l2,0.0,0.1,lbfgs,10000,0.0001,0.08287850103806704,5,1.0,1.0,1.101852446202145e-05,0.20967548023990162
+hybrid(f32→f64),l2,0.0,0.1,lbfgs,3000,1e-06,0.08591595804318786,7,1.0,1.0,1.102628513003563e-05,0.20967535304430063
+single(f32),l2,0.0,0.1,lbfgs,3000,0.0001,0.017558207036927342,11,1.0,1.0,1.091695303864306e-05,0.2099001109600067
+single(f32),l2,0.0,0.01,lbfgs,3000,0.0001,0.01848800096195191,12,1.0,1.0,2.2234637415159825e-06,0.030508728697896004
+single(f32),l2,0.0,0.1,lbfgs,3000,0.0001,0.018540093093179166,11,1.0,1.0,1.091695303864306e-05,0.2099001109600067
+single(f32),l2,0.0,0.01,lbfgs,10000,0.0001,0.018746725982055068,12,1.0,1.0,2.2234637415159825e-06,0.030508728697896004
+single(f32),l2,0.0,0.01,lbfgs,10000,1e-06,0.018876305082812905,12,1.0,1.0,2.2234637415159825e-06,0.030508728697896004
+single(f32),l2,0.0,0.001,lbfgs,3000,0.0001,0.019323915941640735,13,1.0,1.0,8.36987871862713e-07,0.005196738988161087
+single(f32),l2,0.0,0.001,lbfgs,3000,1e-06,0.019670609035529196,13,1.0,1.0,8.36987871862713e-07,0.005196738988161087
+single(f32),l2,0.0,0.001,lbfgs,10000,0.0001,0.02021045400761068,13,1.0,1.0,8.36987871862713e-07,0.005196738988161087
+single(f32),l2,0.0,0.001,lbfgs,3000,0.0001,0.022791638039052486,13,1.0,1.0,8.36987871862713e-07,0.005196738988161087
+single(f32),l2,0.0,0.01,lbfgs,3000,0.0001,0.02735852892510593,12,1.0,1.0,2.2234637415159825e-06,0.030508728697896004
+single(f32),l2,0.0,0.01,lbfgs,10000,0.0001,0.02805569802876562,12,1.0,1.0,2.2234637415159825e-06,0.030508728697896004
+single(f32),l2,0.0,0.1,lbfgs,10000,1e-06,0.03618373197969049,11,1.0,1.0,1.091695303864306e-05,0.2099001109600067
+single(f32),l2,0.0,0.01,lbfgs,3000,1e-06,0.03666430397424847,12,1.0,1.0,2.2234637415159825e-06,0.030508728697896004
+single(f32),l2,0.0,0.1,lbfgs,10000,0.0001,0.0374730589101091,11,1.0,1.0,1.091695303864306e-05,0.2099001109600067
+single(f32),l2,0.0,0.001,lbfgs,10000,1e-06,0.03806675295345485,13,1.0,1.0,8.36987871862713e-07,0.005196738988161087
+single(f32),l2,0.0,0.01,lbfgs,10000,1e-06,0.039428333984687924,12,1.0,1.0,2.2234637415159825e-06,0.030508728697896004
+single(f32),l2,0.0,0.001,lbfgs,10000,1e-06,0.04045461490750313,13,1.0,1.0,8.36987871862713e-07,0.005196738988161087
+single(f32),l2,0.0,0.01,lbfgs,3000,1e-06,0.04075463197659701,12,1.0,1.0,2.2234637415159825e-06,0.030508728697896004
+single(f32),l2,0.0,0.001,lbfgs,3000,1e-06,0.04175727104302496,13,1.0,1.0,8.36987871862713e-07,0.005196738988161087
+single(f32),l2,0.0,0.1,lbfgs,10000,1e-06,0.04233986604958773,11,1.0,1.0,1.091695303864306e-05,0.2099001109600067
+single(f32),l2,0.0,0.001,lbfgs,10000,0.0001,0.043405417003668845,13,1.0,1.0,8.36987871862713e-07,0.005196738988161087
+single(f32),l2,0.0,0.1,lbfgs,3000,1e-06,0.04971806099638343,11,1.0,1.0,1.091695303864306e-05,0.2099001109600067
+single(f32),l2,0.0,0.1,lbfgs,10000,0.0001,0.049760809051804245,11,1.0,1.0,1.091695303864306e-05,0.2099001109600067
+single(f32),l2,0.0,0.1,lbfgs,3000,1e-06,0.060856221010908484,11,1.0,1.0,1.091695303864306e-05,0.2099001109600067
