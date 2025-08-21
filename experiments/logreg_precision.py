@@ -409,8 +409,13 @@ def run_experiments(X, y,
     for keys, sub in df_mean.groupby(["dataset", "penalty", "lambda", "solver", "max_iter", "tol", "max_iter_single"]):
         print(f"\nDataset={keys[0]}, penalty={keys[1]}, lambda={keys[2]}, solver={keys[3]}, "
               f"max_iter={keys[4]}, tol={keys[5]}, max_iter_single={keys[6]}")
-        with pd.option_context("display.max_rows", None, "display.width", 140):
-            print(sub[["approach"] + metric_cols].round(4).to_string(index=False))
+        with pd.option_context("display.max_rows", None, "display.width", 160):
+            print(
+                sub[["dataset","penalty","lambda","solver","max_iter","tol","max_iter_single","approach",
+                     "time_sec","iters","roc_auc","pr_auc","logloss"]]
+                .round(4)
+                .to_string(index=False)
+            )
 
     return df, df_mean
 
