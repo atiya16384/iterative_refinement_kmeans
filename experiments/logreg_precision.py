@@ -5,8 +5,6 @@ import pandas as pd
 from aoclda.linear_model import linmod
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_auc_score, average_precision_score, log_loss
-from tabulate import tabulate
-
 
 # Helpers
 def _map_penalty_to_alpha(penalty, alpha=None):
@@ -389,16 +387,29 @@ def run_experiments(X, y,
 
     if save_path is not None:
         df.to_csv(save_path, index=False)
-        print(f"Saved results to {save_path}")
+        print(f"\nSaved results to {save_path}")
 
-    # Pretty-print summary tables
     if not df.empty:
+        # Pick summary columns
         summary_cols = ["approach", "penalty", "alpha", "lambda", "solver",
                         "max_iter", "tol", "time_sec", "iters",
                         "roc_auc", "pr_auc", "logloss"]
+
         print("\n=== Top Results by Approach ===")
+        # Group by approach and show top-5 from each
         grouped = df.groupby("approach").head(5)[summary_cols]
-        print(tabulate(grouped, headers="keys", tablefmt="github", floatfmt=".4f"))
+
+        # Round numeric values for readability
+        grouped = grouped.copy()
+        for col in ["time_sec", "roc_auc", "pr_auc", "logloss"]:
+            grouped[col] = grouped[col].round(4)
+
+        # Print as a nice table using pandas
+        with pd.option_context("display.max_rows", None,
+                               "display.max_columns", None,
+                               "display.width", 140,
+                               "display.colheader_justify", "center"):
+            print(grouped.to_string(index=False))
 
     return df
 
