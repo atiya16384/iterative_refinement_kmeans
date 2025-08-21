@@ -3,10 +3,12 @@ import itertools
 import numpy as np
 import pandas as pd
 from aoclda.linear_model import linmod
+from sklearn.datasets import make_blobs
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_auc_score, average_precision_score, log_loss
 
 # Helpers
+#update the code so we know the number of single and double iterations printed out
 def _map_penalty_to_alpha(penalty, alpha=None):
     """Translate a 'penalty' label to reg_alpha.
        If alpha is provided and penalty is 'elasticnet', we use alpha directly."""
@@ -68,6 +70,12 @@ def make_uniform_binary(m=2000, n=100, shift=0.25, seed=0, dtype=np.float64):
     y = np.hstack([np.ones(m_pos, dtype=np.int32), np.zeros(m_neg, dtype=np.int32)])
     perm = rng.permutation(m)
     return X[perm], y[perm]
+
+def generate_synthetic_data(n_samples, n_features, n_clusters, random_state):
+    X, y_true = make_blobs(n_samples=n_samples, n_features=n_features, centers=n_clusters, random_state=random_state)
+    
+    return X.astype(np.float64), y_true
+
 
 # utilities for warm-started chunked fitting
 def _fit_chunk(X, y, *, precision, solver, reg_lambda, reg_alpha, max_iter, tol, x0=None):
@@ -418,20 +426,21 @@ if __name__ == "__main__":
     if dataset == "gaussian":
         X, y = make_shifted_gaussian(m=5000, n=200, delta=0.5, seed=42)
     elif dataset == "uniform":
-        X, y = make_uniform_binary(m=5000, n=200, shift=0.25, seed=42)
+        X, y = make_uniform_binary(m=1000_000, n=110, shift=0.25, seed=42)
     else:
         raise ValueError("Unknown dataset")
 
     grid = {
+
         "dataset": ["uniform", "guassian"],
         "penalty": ["l2"],
         "alpha":   [None],
-        "lambda":  [1e-3, 1e-2, 1e-1],
+        "lambda":  [1e-8, 1e-6],
         "C":       [None],
         "solver":  ["lbfgs"],
-        "max_iter": [3000, 10000],
-        "tol":      [1e-4, 1e-6],
-        "max_iter_single": [150, 300],
+        "max_iter": [10000],
+        "tol":      [1e-6, 1e-8],
+        "max_iter_single": [300, 500, 1000, 3000],
         "approaches": ["double","hybrid" ]
     }
 
