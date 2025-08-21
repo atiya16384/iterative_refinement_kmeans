@@ -292,141 +292,128 @@ def approach_adaptive_precision(
 def run_experiments(X, y,
                     grid=None,
                     test_size=0.25, random_state=42, stratify=True,
-                    save_path="results_all.csv"):
-
-    # Run grid over penalty/solver/params and all approaches.
-    # Approaches included: single, double, hybrid, multistage-IR, adaptive-precision
+                    save_path="results_all.csv",
+                    dataset_name="unknown",
+                    repeats=3):
 
     if grid is None:
         grid = {
-            "penalty":   ["l2"],
-            "alpha":     [None],
-            "lambda":    [1e-3, 1e-2, 1e-1],
-            "C":         [None],
-            "solver":    ["lbfgs"],
-            "max_iter":  [3000, 10000],
-            "tol":       [1e-4, 1e-6],
+            "penalty": ["l2"],
+            "alpha": [None],
+            "lambda": [1e-3, 1e-2, 1e-1],
+            "C": [None],
+            "solver": ["lbfgs"],
+            "max_iter": [3000, 10000],
+            "tol": [1e-4, 1e-6],
             "max_iter_single": [150, 300],
-            "approaches": ["single","double","hybrid","multistage-ir","adaptive-precision"]
+            "approaches": ["single", "double", "hybrid", "multistage-ir", "adaptive-precision"]
         }
-
-    Xtr, Xte, ytr, yte = train_test_split(
-        X, y, test_size=test_size, random_state=random_state,
-        stratify=y if stratify else None
-    )
 
     keys = ["penalty", "alpha", "lambda", "C", "solver", "max_iter", "tol", "max_iter_single"]
     combos = list(itertools.product(*[grid.get(k, [None]) for k in keys]))
 
-    rows = []
+    all_repeats = []
 
-    for vals in combos:
-        penalty, alpha, lam, C, solver, max_iter, tol, max_iter_single = vals
+    for rep in range(repeats):
+        Xtr, Xte, ytr, yte = train_test_split(
+            X, y, test_size=test_size, random_state=random_state + rep,
+            stratify=y if stratify else None
+        )
 
-        try:
-            reg_alpha = _map_penalty_to_alpha(penalty, alpha)
-            reg_lambda = _map_C_to_lambda(C=C, reg_lambda=lam)
+        rows = []
 
-            # lbfgs not valid with l1/en
-            if solver == "lbfgs" and reg_alpha != 0.0:
-                continue
+        for vals in combos:
+            penalty, alpha, lam, C, solver, max_iter, tol, max_iter_single = vals
+            try:
+                reg_alpha = _map_penalty_to_alpha(penalty, alpha)
+                reg_lambda = _map_C_to_lambda(C=C, reg_lambda=lam)
 
-            for approach in grid.get("approaches", []):
-                if approach == "single":
-                    res = approach_single(Xtr, ytr, Xte, yte,
-                        solver=solver, reg_lambda=reg_lambda, reg_alpha=reg_alpha,
-                        max_iter=max_iter, tol=tol)
-                elif approach == "double":
-                    res = approach_double(Xtr, ytr, Xte, yte,
-                        solver=solver, reg_lambda=reg_lambda, reg_alpha=reg_alpha,
-                        max_iter=max_iter, tol=tol)
-                elif approach == "hybrid":
-                    res = approach_hybrid(Xtr, ytr, Xte, yte,
-                        solver=solver, reg_lambda=reg_lambda, reg_alpha=reg_alpha,
-                        max_iter_single=max_iter_single, max_iter_double=max_iter, tol=tol)
-                elif approach == "multistage-ir":
-                    res = approach_multistage_ir(Xtr, ytr, Xte, yte,
-                        schedule=[("single", max_iter_single), ("double", max_iter)],
-                        solver=solver, reg_lambda=reg_lambda, reg_alpha=reg_alpha,
-                        tol=tol)
-                elif approach == "adaptive-precision":
-                    res = approach_adaptive_precision(Xtr, ytr, Xte, yte,
-                        solver=solver, reg_lambda=reg_lambda, reg_alpha=reg_alpha,
-                        chunk_iters=max_iter_single, tol=tol)
-                else:
+                # skip invalid solver/penalty combos
+                if solver == "lbfgs" and reg_alpha != 0.0:
                     continue
 
-                row = {
-                    "approach": res["approach"],
-                    "penalty": penalty,
-                    "alpha": reg_alpha,
-                    "lambda": reg_lambda,
-                    "solver": solver,
-                    "max_iter_single": max_iter_single,   # <-- ADD THIS
-                    "tol": tol,
-                    "time_sec": res["time_sec"],
-                    "iters": res.get("iters", np.nan),
-                    "roc_auc": res.get("roc_auc", np.nan),
-                    "pr_auc": res.get("pr_auc", np.nan),
-                    "logloss": res.get("logloss", np.nan),
-                    "loss_internal": res.get("loss_internal", np.nan)
-                }
-                rows.append(row)
+                for approach in grid.get("approaches", []):
+                    if approach == "single":
+                        res = approach_single(Xtr, ytr, Xte, yte,
+                                              solver=solver, reg_lambda=reg_lambda, reg_alpha=reg_alpha,
+                                              max_iter=max_iter, tol=tol)
+                    elif approach == "double":
+                        res = approach_double(Xtr, ytr, Xte, yte,
+                                              solver=solver, reg_lambda=reg_lambda, reg_alpha=reg_alpha,
+                                              max_iter=max_iter, tol=tol)
+                    elif approach == "hybrid":
+                        res = approach_hybrid(Xtr, ytr, Xte, yte,
+                                              solver=solver, reg_lambda=reg_lambda, reg_alpha=reg_alpha,
+                                              max_iter_single=max_iter_single, max_iter_double=max_iter, tol=tol)
+                    elif approach == "multistage-ir":
+                        res = approach_multistage_ir(Xtr, ytr, Xte, yte,
+                                                     schedule=[("single", max_iter_single), ("double", max_iter)],
+                                                     solver=solver, reg_lambda=reg_lambda, reg_alpha=reg_alpha,
+                                                     tol=tol)
+                    elif approach == "adaptive-precision":
+                        res = approach_adaptive_precision(Xtr, ytr, Xte, yte,
+                                                          solver=solver, reg_lambda=reg_lambda, reg_alpha=reg_alpha,
+                                                          chunk_iters=max_iter_single, tol=tol)
+                    else:
+                        continue
 
-        except Exception as e:
-            rows.append({
-                "approach": "ERROR",
-                "penalty": penalty, "alpha": alpha, "lambda": lam, "C": C,
-                "solver": solver, "max_iter": max_iter, "tol": tol,
-                "error": str(e)
-            })
+                    row = {
+                        "dataset": dataset_name,
+                        "repeat": rep,
+                        "approach": res["approach"],
+                        "penalty": penalty,
+                        "alpha": reg_alpha,
+                        "lambda": reg_lambda,
+                        "solver": solver,
+                        "max_iter": max_iter,
+                        "max_iter_single": max_iter_single,
+                        "tol": tol,
+                        "time_sec": res["time_sec"],
+                        "iters": res.get("iters", np.nan),
+                        "roc_auc": res.get("roc_auc", np.nan),
+                        "pr_auc": res.get("pr_auc", np.nan),
+                        "logloss": res.get("logloss", np.nan),
+                    }
+                    rows.append(row)
 
-    df = pd.DataFrame(rows)
+            except Exception as e:
+                rows.append({
+                    "dataset": dataset_name,
+                    "repeat": rep,
+                    "approach": "ERROR",
+                    "penalty": penalty, "alpha": alpha, "lambda": lam, "C": C,
+                    "solver": solver, "max_iter": max_iter, "tol": tol,
+                    "error": str(e)
+                })
 
+        all_repeats.extend(rows)
+
+    df = pd.DataFrame(all_repeats)
+
+    # Save raw results
     if save_path is not None:
         df.to_csv(save_path, index=False)
         print(f"\nSaved results to {save_path}")
 
-    if not df.empty:
-        # Drop any error rows if you kept the try/except appends
-        if "approach" in df.columns:
-            df = df[df["approach"] != "ERROR"].copy()
+    # Drop errors
+    df = df[df["approach"] != "ERROR"].copy()
 
-        # Rename approach -> mode and put it as the first column
-        if "approach" in df.columns:
-            df.insert(0, "mode", df.pop("approach"))
+    # === Take mean over repeats ===
+    group_cols = ["dataset", "penalty", "alpha", "lambda", "solver", "max_iter", "tol", "max_iter_single", "approach"]
+    metric_cols = ["time_sec", "iters", "roc_auc", "pr_auc", "logloss"]
 
-        # Pick the columns to show (include max_iter_single if you record it)
-        cols = ["mode", "penalty", "alpha", "lambda", "solver",
-                "max_iter", "tol"]
-        if "max_iter_single" in df.columns:
-            cols.append("max_iter_single")
-        cols += ["time_sec", "iters", "roc_auc", "pr_auc", "logloss"]
+    df_mean = df.groupby(group_cols, as_index=False)[metric_cols].mean()
 
-        # Keep only available columns
-        cols = [c for c in cols if c in df.columns]
+    # === Print comparison grouped by hyperparams ===
+    print("\n=== Mean Results over Repeats ===")
+    for keys, sub in df_mean.groupby(["dataset", "penalty", "lambda", "solver", "max_iter", "tol", "max_iter_single"]):
+        print(f"\nDataset={keys[0]}, penalty={keys[1]}, lambda={keys[2]}, solver={keys[3]}, "
+              f"max_iter={keys[4]}, tol={keys[5]}, max_iter_single={keys[6]}")
+        with pd.option_context("display.max_rows", None, "display.width", 140):
+            print(sub[["approach"] + metric_cols].round(4).to_string(index=False))
 
-        # Sort so same settings group together, then by mode and time
-        sort_keys = [c for c in ["penalty","alpha","lambda","solver","max_iter","tol","max_iter_single","mode","time_sec"]
-                     if c in cols]
-        df_view = df[cols].sort_values(sort_keys, ascending=[True]*len(sort_keys)).copy()
+    return df, df_mean
 
-        # Round numeric metrics for readability
-        for c in ["time_sec","roc_auc","pr_auc","logloss"]:
-            if c in df_view.columns:
-                df_view[c] = df_view[c].round(4)
-
-        print("\n=== All Results (one table; mode = approach) ===")
-        with pd.option_context("display.max_rows", None,
-                               "display.max_columns", None,
-                               "display.width", 160,
-                               "display.colheader_justify", "center"):
-            print(df_view.to_string(index=False))
-
-
-
-
-    return df
 
 # Demo
 if __name__ == "__main__":
