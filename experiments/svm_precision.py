@@ -1,8 +1,6 @@
 import numpy as np
 from aoclda.svm import SVC
 from sklearn.datasets import make_classification
-
-import time
 import pandas as pd
 
 

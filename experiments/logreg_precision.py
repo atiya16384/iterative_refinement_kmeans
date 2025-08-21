@@ -159,7 +159,7 @@ def approach_single(Xtr, ytr, Xte, yte, *, solver="lbfgs", reg_lambda=0.01, reg_
                        max_iter=max_iter, tol=tol)
     t1 = time.perf_counter()
     metrics = evaluate(mdl, Xte, yte)
-    return {"approach": "single(f32)", "time_sec": t1 - t0, "iters": mdl.n_iter, **metrics}
+    return {"approach": "single(f32)", "time_sec": t1 - t0, "iters_single": mdl.n_iter, **metrics}
 
 def approach_double(Xtr, ytr, Xte, yte, *, solver="lbfgs", reg_lambda=0.01, reg_alpha=0.0,
                     max_iter=10000, tol=1e-4):
@@ -169,7 +169,7 @@ def approach_double(Xtr, ytr, Xte, yte, *, solver="lbfgs", reg_lambda=0.01, reg_
                        max_iter=max_iter, tol=tol)
     t1 = time.perf_counter()
     metrics = evaluate(mdl, Xte, yte)
-    return {"approach": "double(f64)", "time_sec": t1 - t0, "iters": mdl.n_iter, **metrics}
+    return {"approach": "double(f64)", "time_sec": t1 - t0, "iters_single" : 0, "iters_double": mdl.n_iter, **metrics}
 
 def approach_hybrid(Xtr, ytr, Xte, yte, *, solver="lbfgs", reg_lambda=0.01, reg_alpha=0.0,
                     max_iter_single=200, max_iter_double=10000, tol=1e-4):
@@ -191,7 +191,7 @@ def approach_hybrid(Xtr, ytr, Xte, yte, *, solver="lbfgs", reg_lambda=0.01, reg_
     t1 = time.perf_counter()
 
     metrics = evaluate(mdl_f64, Xte, yte)
-    return {"approach": "hybrid(f32→f64)", "time_sec": t1 - t0, "iters": mdl_f64.n_iter, **metrics}
+    return {"approach": "hybrid(f32→f64)", "time_sec": t1 - t0, "iters_single": mdl_f32.n_iter, "iters_double": mdl_f64.n_iter, **metrics}
 
 
 def approach_multistage_ir(
@@ -377,7 +377,8 @@ def run_experiments(X, y,
                         "max_iter_single": max_iter_single,
                         "tol": tol,
                         "time_sec": res["time_sec"],
-                        "iters": res.get("iters", np.nan),
+                        "iters_single": res.get("iters_single", np.nan),
+                        "iters_double": res.get("iters_double", np.nan),
                         "roc_auc": res.get("roc_auc", np.nan),
                         "pr_auc": res.get("pr_auc", np.nan),
                         "logloss": res.get("logloss", np.nan),
@@ -408,12 +409,12 @@ def run_experiments(X, y,
 
     # === Take mean over repeats ===
     group_cols = ["dataset", "penalty", "alpha", "lambda", "solver", "max_iter", "tol", "max_iter_single", "approach"]
-    metric_cols = ["time_sec", "iters", "roc_auc", "pr_auc", "logloss"]
+    metric_cols = ["time_sec", "iters_single", "iters_double", "roc_auc", "pr_auc", "logloss"]
 
     df_mean = df.groupby(group_cols, as_index=False)[metric_cols].mean()
 
     print(df_mean.groupby(["dataset",  "penalty", "alpha", "lambda", "solver", "max_iter", "tol", "max_iter_single", "approach"])
-                          [["time_sec", "iters", "roc_auc", "pr_auc", "logloss"]].mean())
+                          [["time_sec", "iters_single", "iters_double", "roc_auc", "pr_auc", "logloss"]].mean())
 
 
     return df, df_mean
@@ -426,7 +427,7 @@ if __name__ == "__main__":
     if dataset == "gaussian":
         X, y = make_shifted_gaussian(m=5000, n=200, delta=0.5, seed=42)
     elif dataset == "uniform":
-        X, y = make_uniform_binary(m=1000_000, n=110, shift=0.25, seed=42)
+        X, y = make_uniform_binary(m=1000_000, n=200, shift=0.25, seed=42)
     else:
         raise ValueError("Unknown dataset")
 
@@ -435,13 +436,13 @@ if __name__ == "__main__":
         "dataset": ["uniform", "guassian"],
         "penalty": ["l2"],
         "alpha":   [None],
-        "lambda":  [1e-8, 1e-6],
+        "lambda":  [1e-2, 1e-3, 1e-4, 1e-6, 1e-8],
         "C":       [None],
         "solver":  ["lbfgs"],
         "max_iter": [10000],
-        "tol":      [1e-6, 1e-8],
-        "max_iter_single": [300, 500, 1000, 3000],
-        "approaches": ["double","hybrid" ]
+        "tol":      [1e-2, 1e-4, 1e-6, 1e-8],
+        "max_iter_single": [10, 100, 150, 200, 250, 300],
+        "approaches": ["double","hybrid"]
     }
 
     df, df_mean = run_experiments(X, y, grid=grid)
