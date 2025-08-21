@@ -433,7 +433,7 @@ if __name__ == "__main__":
         "max_iter": [3000, 10000],
         "tol":      [1e-4, 1e-6],
         "max_iter_single": [150, 300],
-        "approaches": ["single","double","hybrid"]
+        "approaches": ["single","double","hybrid", "multistage-ir2","adaptive-precision" ]
     }
 
     df = run_experiments(X, y, grid=grid)
