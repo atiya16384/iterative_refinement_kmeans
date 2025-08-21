@@ -166,20 +166,24 @@ def approach_hybrid(Xtr, ytr, Xte, yte, *, solver="lbfgs", reg_lambda=0.01, reg_
                     max_iter_single=200, max_iter_double=10000, tol=1e-4):
     # Stage A: fast f32 warm start
     t0 = time.perf_counter()
-                        
+    mdl_f32 = train_linmod(Xtr, ytr, precision="single", solver=solver,
+                           reg_lambda=reg_lambda, reg_alpha=reg_alpha,
+                           max_iter=max_iter_single, tol=tol)
+    x0 = mdl_f32.coef.astype(np.float64, copy=False)
+
     # Stage B: refine in f64 from warm start
     mdl_f64 = linmod(mod="logistic", solver=solver, precision="double",
                      intercept=True, max_iter=max_iter_double, scaling="standardize")
-    x0 = mdl_f32.coef.astype(np.float64, copy=False)
-    
+
     Xd = Xtr.astype(np.float64, copy=False)
     yd = ytr.astype(np.int32, copy=False)
-    mdl_f64.fit(Xtr, ytr, reg_lambda=float(reg_lambda), reg_alpha=float(reg_alpha),
+    mdl_f64.fit(Xd, yd, reg_lambda=float(reg_lambda), reg_alpha=float(reg_alpha),  # <-- use Xd, yd
                 x0=x0, tol=float(tol))
     t1 = time.perf_counter()
 
     metrics = evaluate(mdl_f64, Xte, yte)
     return {"approach": "hybrid(f32→f64)", "time_sec": t1 - t0, "iters": mdl_f64.n_iter, **metrics}
+
 
 def approach_multistage_ir(
     Xtr, ytr, Xte, yte, *,
