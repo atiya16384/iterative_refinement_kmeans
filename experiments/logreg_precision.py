@@ -36,6 +36,7 @@ def _map_C_to_lambda(C=None, reg_lambda=None):
     return 1.0 / C
 
 # Synthetic datasets
+# m => number of rows, n=> columns
 def make_shifted_gaussian(m=2000, n=100, delta=0.5, pos_frac=0.5, seed=0, dtype=np.float64):
     """
     Gaussian synthetic data:
@@ -426,9 +427,9 @@ if __name__ == "__main__":
         "max_iter": [3000, 10000],
         "tol":      [1e-4, 1e-6],
         "max_iter_single": [150, 300],
-        "approaches": ["single","double","hybrid", "multistage-ir2","adaptive-precision" ]
+        "approaches": ["single","double","hybrid", "multistage-ir","adaptive-precision" ]
     }
 
     df = run_experiments(X, y, grid=grid)
-    with pd.option_context("display.max_columns", None, "display.width", 140):
-        print(df.groupby("approach").head(5))
+    # with pd.option_context("display.max_columns", None, "display.width", 140):
+    #     print(df.groupby("approach").head(5))
