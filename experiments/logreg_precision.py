@@ -292,7 +292,7 @@ def approach_adaptive_precision(
 def run_experiments(X, y,
                     grid=None,
                     test_size=0.25, random_state=42, stratify=True,
-                    save_path="results_all.csv",
+                    save_path="../Results/results_all.csv",
                     dataset_name="unknown",
                     repeats=3):
 

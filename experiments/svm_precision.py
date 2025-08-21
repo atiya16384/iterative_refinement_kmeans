@@ -8,7 +8,7 @@ import pathlib, pandas as pd
 from visualisations.SVM_visualisations import SVMVisualizer; 
 from datasets.utils import generate_synthetic_data, synth_specs
 
-RESULTS_DIR = pathlib.Path("Results")
+RESULTS_DIR = pathlib.Path("../Results")
 RESULTS_DIR.mkdir(exist_ok=True)
 
 def print_summary(path, group_by):
