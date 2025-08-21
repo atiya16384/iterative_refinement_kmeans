@@ -166,10 +166,9 @@ def approach_hybrid(Xtr, ytr, Xte, yte, *, solver="lbfgs", reg_lambda=0.01, reg_
                     max_iter_single=200, max_iter_double=10000, tol=1e-4):
     # Stage A: fast f32 warm start
     t0 = time.perf_counter()
-    mdl_f32 = train_linmod(Xtr, ytr, precision="single", solver=solver,
-                           reg_lambda=reg_lambda, reg_alpha=reg_alpha,
-                           max_iter=max_iter_single, tol=tol)
-    
+    Xd = Xtr.astype(np.float64, copy=False)
+    yd = ytr.astype(np.int32, copy=False)
+                        
     x0 = mdl_f32.coef.astype(np.float64, copy=False)
 
     # Stage B: refine in f64 from warm start
