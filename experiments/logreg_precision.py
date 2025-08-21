@@ -166,14 +166,11 @@ def approach_hybrid(Xtr, ytr, Xte, yte, *, solver="lbfgs", reg_lambda=0.01, reg_
                     max_iter_single=200, max_iter_double=10000, tol=1e-4):
     # Stage A: fast f32 warm start
     t0 = time.perf_counter()
-    Xd = Xtr.astype(np.float64, copy=False)
-    yd = ytr.astype(np.int32, copy=False)
                         
-    x0 = mdl_f32.coef.astype(np.float64, copy=False)
-
     # Stage B: refine in f64 from warm start
     mdl_f64 = linmod(mod="logistic", solver=solver, precision="double",
                      intercept=True, max_iter=max_iter_double, scaling="standardize")
+    x0 = mdl_f32.coef.astype(np.float64, copy=False)
     
     Xd = Xtr.astype(np.float64, copy=False)
     yd = ytr.astype(np.int32, copy=False)
@@ -360,7 +357,7 @@ def run_experiments(X, y,
                     "alpha": reg_alpha,
                     "lambda": reg_lambda,
                     "solver": solver,
-                    "max_iter": max_iter,
+                    "max_iter_single": max_iter_single,   # <-- ADD THIS
                     "tol": tol,
                     "time_sec": res["time_sec"],
                     "iters": res.get("iters", np.nan),
@@ -386,21 +383,21 @@ def run_experiments(X, y,
         print(f"\nSaved results to {save_path}")
 
     if not df.empty:
-        summary_cols = ["penalty", "alpha", "lambda", "solver",
-                        "max_iter", "tol", "max_iter_single",
-                        "time_sec", "iters", "roc_auc", "pr_auc", "logloss"]
-
+        wanted = ["penalty", "alpha", "lambda", "solver", "max_iter", "tol",
+                  "max_iter_single", "time_sec", "iters", "roc_auc", "pr_auc", "logloss"]
+        # keep only columns that exist to avoid KeyError
+        summary_cols = [c for c in wanted if c in df.columns]
+    
         print("\n=== Results by Approach ===")
-        for appr in df["approach"].unique():
+        for appr in (c for c in df["approach"].unique() if c != "ERROR"):
             print(f"\n--- {appr} ---")
-            sub = df[df["approach"] == appr][summary_cols].copy()
-            sub = sub.round(4)
-
+            sub = df[df["approach"] == appr][summary_cols].copy().round(4)
             with pd.option_context("display.max_rows", 10,
                                    "display.max_columns", None,
                                    "display.width", 140,
                                    "display.colheader_justify", "center"):
                 print(sub.to_string(index=False))
+
 
 
     return df
