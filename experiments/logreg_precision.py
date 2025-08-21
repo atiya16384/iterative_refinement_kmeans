@@ -388,20 +388,41 @@ def run_experiments(X, y,
         print(f"\nSaved results to {save_path}")
 
     if not df.empty:
-        wanted = ["penalty", "alpha", "lambda", "solver", "max_iter", "tol",
-                  "max_iter_single", "time_sec", "iters", "roc_auc", "pr_auc", "logloss"]
-        # keep only columns that exist to avoid KeyError
-        summary_cols = [c for c in wanted if c in df.columns]
-    
-        print("\n=== Results by Approach ===")
-        for appr in (c for c in df["approach"].unique() if c != "ERROR"):
-            print(f"\n--- {appr} ---")
-            sub = df[df["approach"] == appr][summary_cols].copy().round(4)
-            with pd.option_context("display.max_rows", 10,
-                                   "display.max_columns", None,
-                                   "display.width", 140,
-                                   "display.colheader_justify", "center"):
-                print(sub.to_string(index=False))
+        # Drop any error rows if you kept the try/except appends
+        if "approach" in df.columns:
+            df = df[df["approach"] != "ERROR"].copy()
+
+        # Rename approach -> mode and put it as the first column
+        if "approach" in df.columns:
+            df.insert(0, "mode", df.pop("approach"))
+
+        # Pick the columns to show (include max_iter_single if you record it)
+        cols = ["mode", "penalty", "alpha", "lambda", "solver",
+                "max_iter", "tol"]
+        if "max_iter_single" in df.columns:
+            cols.append("max_iter_single")
+        cols += ["time_sec", "iters", "roc_auc", "pr_auc", "logloss"]
+
+        # Keep only available columns
+        cols = [c for c in cols if c in df.columns]
+
+        # Sort so same settings group together, then by mode and time
+        sort_keys = [c for c in ["penalty","alpha","lambda","solver","max_iter","tol","max_iter_single","mode","time_sec"]
+                     if c in cols]
+        df_view = df[cols].sort_values(sort_keys, ascending=[True]*len(sort_keys)).copy()
+
+        # Round numeric metrics for readability
+        for c in ["time_sec","roc_auc","pr_auc","logloss"]:
+            if c in df_view.columns:
+                df_view[c] = df_view[c].round(4)
+
+        print("\n=== All Results (one table; mode = approach) ===")
+        with pd.option_context("display.max_rows", None,
+                               "display.max_columns", None,
+                               "display.width", 160,
+                               "display.colheader_justify", "center"):
+            print(df_view.to_string(index=False))
+
 
 
 
