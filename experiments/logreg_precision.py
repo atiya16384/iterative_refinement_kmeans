@@ -54,11 +54,11 @@ def make_shifted_gaussian(m=2000, n=100, delta=0.5, pos_frac=0.5, seed=0, dtype=
     return X[perm], y[perm]
 
 def make_uniform_binary(m=2000, n=100, shift=0.25, seed=0, dtype=np.float64):
-    """
-    Uniform synthetic data:
-      y=1 points ~ U(0.5+shift, 1.0+shift)
-      y=0 points ~ U(0.0-shift, 0.5-shift)
-    """
+
+    # Uniform synthetic data:
+    #  y=1 points ~ U(0.5+shift, 1.0+shift)
+     # y=0 points ~ U(0.0-shift, 0.5-shift)
+
     rng = np.random.RandomState(seed)
     m_pos = m // 2
     m_neg = m - m_pos
@@ -438,6 +438,6 @@ if __name__ == "__main__":
         "approaches": ["single","double","hybrid", "multistage-ir","adaptive-precision" ]
     }
 
-    df = run_experiments(X, y, grid=grid)
+    df, df_mean = run_experiments(X, y, grid=grid, dataset_name = dataset)
     # with pd.option_context("display.max_columns", None, "display.width", 140):
     #     print(df.groupby("approach").head(5))
