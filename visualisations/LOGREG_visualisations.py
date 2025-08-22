@@ -1,11 +1,17 @@
 # logistic_visualisations.py
 # -------------------------------------------------------------------
 # Visualizations for results produced by log_precision.py (run_experiments).
-# Generates absolute and relative-to-baseline plots for multiple metric/param pairs.
+# Plots only: hybrid(f32→f64), multistage-IR, adaptive-precision
+# Baselines: single(f32), double(f64) for relative plots.
 #
 # Run:
 #   python3 logistic_visualisations.py
 #
+# Outputs (per solver):
+#   ./Figures/solver=<SOLVER>/absolute/<fmt>/*.png
+#   ./Figures/solver=<SOLVER>/relative_single_baseline/<fmt>/*.png
+#   ./Figures/solver=<SOLVER>/relative_double_baseline/<fmt>/*.png
+# -------------------------------------------------------------------
 
 import os
 import itertools
@@ -21,7 +27,7 @@ import matplotlib.pyplot as plt
 # -----------------------------
 
 CSV_PATH = "../Results/results_all.csv"
-OUTDIR = "./Figures"
+OUTDIR = "../Results/Figures"
 FORMATS = ["png"]        # e.g., ["png", "pdf", "svg"]
 SHOW = False             # True pops windows; False saves quietly
 MAKE_ABSOLUTE = True
@@ -41,12 +47,11 @@ METRICS = ["logloss", "time_sec", "roc_auc", "pr_auc"]
 MARKERS = ["o", "s", "D", "^", "v", "P", "X", "*", "<", ">"]
 LINESTYLES = ["-", "--", "-.", ":", (0, (3, 1, 1, 1)), (0, (5, 1))]
 
-# Slicing dimensions (a “slice” keeps these fixed while sweeping a single x param)
-BASE_GROUP_COLS = ["dataset", "penalty", "alpha"]   # <— solver handled at top-level folder, so omit here
+# Base identifiers for a dataset slice. We keep solver at the folder level.
+BASE_GROUP_COLS = ["dataset", "penalty", "alpha"]
 
 # Optional extra in titles/filenames if present
 OPTIONAL_META = ["C"]
-
 
 # -----------------------------
 # Helpers
@@ -58,7 +63,6 @@ def _is_nan(x) -> bool:
     except Exception:
         return False
 
-
 def _safe_unique_sorted(series: pd.Series):
     vals = [v for v in series.dropna().unique().tolist()]
     try:
@@ -66,29 +70,21 @@ def _safe_unique_sorted(series: pd.Series):
     except Exception:
         return vals
 
-
 def _shorten(val):
     """Compact pretty-print for titles/filenames, robust to NaN/mixed types."""
     if _is_nan(val):
         return "NA"
-    # numerics
     if isinstance(val, (int, np.integer)):
         return str(int(val))
     if isinstance(val, (float, np.floating)):
-        try:
-            # treat floats very close to integers as ints for prettier labels
-            if np.isfinite(val) and abs(val - round(val)) < 1e-12:
-                return str(int(round(val)))
-        except Exception:
-            pass
         if not np.isfinite(val):
             return "NA"
+        if abs(val - round(val)) < 1e-12:
+            return str(int(round(val)))
         if (abs(val) < 1e-3) or (abs(val) >= 1e3):
             return f"{val:.2e}"
         return f"{val:.4g}"
-    # everything else
     return str(val)
-
 
 def _title_from_slice(slice_dict: Dict) -> str:
     parts = []
@@ -97,7 +93,6 @@ def _title_from_slice(slice_dict: Dict) -> str:
             parts.append(f"{k}={_shorten(slice_dict[k])}")
     return " | ".join(parts) if parts else "All Experiments"
 
-
 def _fname_from_slice(slice_dict: Dict) -> str:
     parts = []
     for k in BASE_GROUP_COLS + OPTIONAL_META:
@@ -105,7 +100,6 @@ def _fname_from_slice(slice_dict: Dict) -> str:
             v = str(_shorten(slice_dict[k])).replace(" ", "").replace("→", "to").replace("/", "_")
             parts.append(f"{k}-{v}")
     return "__".join(parts) if parts else "All"
-
 
 def _ensure_outdirs(base_outdir: str, rel_tag: str, formats: List[str]) -> Dict[str, str]:
     out_abs = os.path.join(base_outdir, "absolute")
@@ -117,6 +111,9 @@ def _ensure_outdirs(base_outdir: str, rel_tag: str, formats: List[str]) -> Dict[
             os.makedirs(os.path.join(d, fmt), exist_ok=True)
     return {"abs": out_abs, "rel": out_rel}
 
+# -----------------------------
+# Data load & aggregation
+# -----------------------------
 
 def load_results(csv_path: str) -> pd.DataFrame:
     df = pd.read_csv(csv_path)
@@ -124,105 +121,138 @@ def load_results(csv_path: str) -> pd.DataFrame:
         "dataset", "approach", "penalty", "alpha", "lambda", "solver",
         "max_iter", "max_iter_single", "tol",
         "time_sec", "iters_single", "iters_double",
-        "roc_auc", "pr_auc", "logloss"
+        "roc_auc", "pr_auc", "logloss", "repeat"
     }
     missing = [c for c in expected_cols if c not in df.columns]
     if missing:
+        # repeat may not exist in the saved CSV; that’s fine
+        missing = [m for m in missing if m != "repeat"]
+    if missing:
         warnings.warn(f"Missing expected columns: {missing}. Proceeding anyway.")
 
-    # Coerce param columns to numeric to avoid merge/type issues
+    # Coerce param columns to numeric
     for c in ["lambda", "tol", "max_iter", "max_iter_single"]:
         if c in df.columns:
             df[c] = pd.to_numeric(df[c], errors="coerce")
+
+    # Average across repeats so we plot the MEAN curve
+    has_repeat = "repeat" in df.columns
+    group_keys = [
+        "dataset", "penalty", "alpha", "solver", "approach",
+        "lambda", "tol", "max_iter", "max_iter_single"
+    ]
+    group_keys = [k for k in group_keys if k in df.columns]
+
+    agg = {}
+    for m in METRICS + ["iters_single", "iters_double"]:
+        if m in df.columns:
+            agg[m] = ["mean", "std"]
+    if agg:
+        g = df.groupby(group_keys, dropna=False).agg(agg)
+        g.columns = ["__".join(col).strip() for col in g.columns.values]
+        g = g.reset_index()
+        # flatten to ..._mean columns; keep std as ..._std (for possible error bars)
+        for m in list(agg.keys()):
+            mean_col = f"{m}__mean"
+            std_col  = f"{m}__std"
+            if mean_col in g.columns:
+                g[m] = g[mean_col]
+                g.drop(columns=[mean_col], inplace=True)
+            if std_col not in g.columns:
+                g[std_col] = np.nan
+        df = g
 
     # Categorical ordering for consistent legends (include baselines so merges work)
     cat_order = PLOT_APPROACHES + list(BASELINES)
     df["approach"] = pd.Categorical(df["approach"], categories=cat_order, ordered=True)
     return df
 
+# -----------------------------
+# Slicing helpers so other params are FIXED when we sweep one x
+# -----------------------------
+
+def _iter_param_slices(df: pd.DataFrame, x_param: str):
+    """Yield (slice_info, sub_df) where sub_df varies in x_param only;
+       all other PARAMS are held constant."""
+    other_params = [p for p in PARAMS if p in df.columns and p != x_param]
+    slice_cols = [c for c in BASE_GROUP_COLS if c in df.columns] + other_params + [x_param, "approach"]
+    # group by everything BUT x_param and approach to build a slice with fixed others
+    group_cols = [c for c in slice_cols if c not in [x_param, "approach"]]
+    if not group_cols:
+        yield ({}, df)
+        return
+    for keys, sdf in df.groupby(group_cols, dropna=False):
+        if len(group_cols) == 1:
+            keys = (keys,)
+        slice_dict = {col: keys[i] for i, col in enumerate(group_cols) if col in BASE_GROUP_COLS or col in OPTIONAL_META}
+        yield (slice_dict, sdf)
+
+# -----------------------------
+# Baseline math
+# -----------------------------
 
 def compute_relative_to_baseline(
     df: pd.DataFrame,
     baseline_approach: str,
     x_param: str,
-    STRICT_MATCH_OTHER_PARAMS: bool = True,
+    strict: bool = True,
 ) -> pd.DataFrame:
     """
-    For each slice and x_param value, divide metric columns by the baseline’s
-    metric from the SAME slice and SAME x_param. To ensure a valid many-to-one
-    merge, we aggregate the baseline to be unique per join key.
-
-    If STRICT_MATCH_OTHER_PARAMS is True (default), the join keys include the
-    OTHER hyper-params (PARAMS except x_param). This compares rows against the
-    baseline with the exact same settings for those params.
-
-    If False, we average the baseline over those other params (i.e., baseline
-    per slice + x only).
+    For each (slice with fixed other params) + x, divide metric columns by the baseline metric.
+    If strict=True, the join keys include the *other params*, guaranteeing an exact match.
+    If that yields no rows (no exact baseline), we fall back to a relaxed join that
+    averages the baseline across the other params.
     """
-    # Slice identifiers that define the “experiment slice”
-    keep_cols = [c for c in (BASE_GROUP_COLS + OPTIONAL_META) if c in df.columns]
-
-    # Param columns present in the frame
-    param_cols_present = [p for p in PARAMS if p in df.columns]
-    other_params = [p for p in param_cols_present if p != x_param]
-
-    if STRICT_MATCH_OTHER_PARAMS:
+    # Identify join keys
+    keep_cols = [c for c in BASE_GROUP_COLS if c in df.columns]
+    other_params = [p for p in PARAMS if p in df.columns and p != x_param]
+    if strict:
         join_cols = keep_cols + [x_param] + other_params
     else:
         join_cols = keep_cols + [x_param]
 
-    # Baseline subset
+    # Build baseline table (unique per join key)
+    metric_cols = [m for m in METRICS if m in df.columns]
     bdf = df[df["approach"] == baseline_approach].copy()
     if bdf.empty:
         return pd.DataFrame(columns=df.columns)
-
-    # Metrics to ratio
-    metric_cols = [m for m in METRICS if m in df.columns]
-
-    # Keep only what we need for the baseline table
     bcols = [c for c in join_cols if c in bdf.columns] + metric_cols
-    bdf = bdf[bcols].copy()
-
-    # Aggregate baseline to make join keys unique (handles repeats/dupes)
-    # Use mean; you can switch to median/min/max as needed.
     bdf = (
-        bdf.groupby(join_cols, dropna=False, as_index=False)[metric_cols]
-           .mean()
-           .rename(columns={m: f"{m}_baseline" for m in metric_cols})
+        bdf[bcols]
+        .groupby(join_cols, dropna=False, as_index=False)[metric_cols]
+        .mean()
+        .rename(columns={m: f"{m}_baseline" for m in metric_cols})
     )
 
-    # Build the left side with matching join keys only
+    # Left side (only approaches we care about + baseline columns needed for division)
     lcols = [c for c in join_cols if c in df.columns] + ["approach"] + metric_cols
     ldf = df[lcols].copy()
 
-    # Now it's guaranteed many-to-one on the right
-    merged = pd.merge(ldf, bdf, on=join_cols, how="inner", validate="many_to_one")
+    merged = pd.merge(ldf, bdf, on=join_cols, how="inner")
 
-    # Compute ratios safely
+    # If strict produced nothing but we have data, try relaxed
+    if merged.empty and strict and len(other_params) > 0:
+        return compute_relative_to_baseline(df, baseline_approach, x_param, strict=False)
+
+    # Compute ratios
     for m in metric_cols:
         base = f"{m}_baseline"
         rel = f"{m}_rel"
         merged[rel] = np.where(merged[base].astype(float) == 0.0, np.nan,
                                merged[m].astype(float) / merged[base].astype(float))
-
     return merged
 
+# -----------------------------
+# Plotters
+# -----------------------------
 
-def _iter_slices(df: pd.DataFrame):
-    group_cols = [c for c in BASE_GROUP_COLS if c in df.columns]
-    opt_cols = [c for c in OPTIONAL_META if c in df.columns]
-    all_cols = group_cols + opt_cols
-
-    if not all_cols:
-        yield ({}, df)
-        return
-
-    for keys, sdf in df.groupby(all_cols, dropna=False):
-        if len(all_cols) == 1:
-            keys = (keys,)
-        slice_dict = {col: keys[i] for i, col in enumerate(all_cols)}
-        yield (slice_dict, sdf)
-
+def _maybe_log_y_for_time(y_values: np.ndarray) -> bool:
+    """Use log scale for 'time_sec' only if the spread is huge (>50×)."""
+    y_values = y_values[np.isfinite(y_values)]
+    if y_values.size == 0:
+        return False
+    mn, mx = np.nanmin(y_values), np.nanmax(y_values)
+    return (mx > 0) and (mn > 0) and (mx / max(mn, 1e-12) > 50.0)
 
 def _plot_xy_lines(
     sdf: pd.DataFrame,
@@ -234,13 +264,14 @@ def _plot_xy_lines(
     relative: bool,
     formats: List[str],
     show: bool,
-    ylog: bool = False,
     baseline_label: str = None
 ):
     fig, ax = plt.subplots(figsize=(8.2, 5.2))
 
     y_col = f"{y_metric}_rel" if relative else y_metric
-    y_label = f"{y_metric} / {baseline_label}" if relative else y_metric
+    y_label = (f"{y_metric} / {baseline_label}") if relative else (
+        f"{y_metric} (seconds)" if y_metric == "time_sec" else y_metric
+    )
 
     present = sdf["approach"].astype(str).unique().tolist()
     approaches = [a for a in PLOT_APPROACHES if a in present]
@@ -252,11 +283,7 @@ def _plot_xy_lines(
         adf = sdf[sdf["approach"] == approach].copy()
         if adf.empty:
             continue
-        try:
-            adf = adf.sort_values(by=x_param, key=lambda s: s.astype(float))
-        except Exception:
-            adf = adf.sort_values(by=x_param)
-
+        adf = adf.sort_values(by=x_param)
         ax.plot(
             adf[x_param], adf[y_col],
             marker=next(mk_cycle),
@@ -279,6 +306,10 @@ def _plot_xy_lines(
             ax.set_xscale("log")
         except Exception:
             pass
+
+    # Time in seconds: use linear unless spread is huge
+    yvals = sdf[y_col].values.astype(float)
+    ylog = (y_metric == "time_sec") and _maybe_log_y_for_time(yvals)
     if ylog:
         try:
             ax.set_yscale("log")
@@ -297,6 +328,9 @@ def _plot_xy_lines(
     else:
         plt.close(fig)
 
+# -----------------------------
+# Orchestration
+# -----------------------------
 
 def make_plots_for_df(
     df: pd.DataFrame,
@@ -307,78 +341,98 @@ def make_plots_for_df(
     formats: List[str] = tuple(FORMATS),
     show: bool = SHOW,
 ):
-    # Ensure output dirs
-    baseline_tags = {
-        baselines[0]: "single_baseline",
-        baselines[1]: "double_baseline",
-    }
+    baseline_tags = {baselines[0]: "single_baseline", baselines[1]: "double_baseline"}
+
     if make_absolute:
         os.makedirs(os.path.join(outdir, "absolute"), exist_ok=True)
         for fmt in formats:
             os.makedirs(os.path.join(outdir, "absolute", fmt), exist_ok=True)
-
     if make_relative:
-        for b, tag in baseline_tags.items():
+        for _, tag in baseline_tags.items():
             _ensure_outdirs(outdir, tag, formats)
 
-    # Iterate over slices and plot
-    for slice_dict, sdf in _iter_slices(df):
-        title_prefix = _title_from_slice(slice_dict)
-        fname_prefix = _fname_from_slice(slice_dict)
+    # For each x_param, we iterate slices where OTHER params are fixed
+    for x_param in [p for p in PARAMS if p in df.columns]:
+        for slice_dict, sdf in _iter_param_slices(df, x_param):
+            # titles/filenames reflect dataset/penalty/alpha (others fixed anyway)
+            title_prefix = _title_from_slice(slice_dict)
+            fname_prefix = _fname_from_slice(slice_dict)
 
-        # ABSOLUTE (only the three requested approaches)
-        if make_absolute:
-            plot_df = sdf[sdf["approach"].astype(str).isin(PLOT_APPROACHES)].copy()
-            for x_param in PARAMS:
-                if x_param not in plot_df.columns:
-                    continue
-                if plot_df[x_param].nunique(dropna=True) <= 1:
-                    continue
-                for y_metric in METRICS:
-                    if y_metric not in plot_df.columns:
-                        continue
-                    ylog = (y_metric == "time_sec")
-                    _plot_xy_lines(
-                        sdf=plot_df, x_param=x_param, y_metric=y_metric,
-                        out_dir=os.path.join(outdir, "absolute"),
-                        fname_prefix=fname_prefix,
-                        title_prefix=title_prefix,
-                        relative=False,
-                        formats=formats,
-                        show=show,
-                        ylog=ylog,
-                        baseline_label=None
-                    )
-
-        # RELATIVE (two sets: single and double baselines)
-        if make_relative:
-            for baseline in baselines:
-                for xp in [p for p in PARAMS if p in sdf.columns]:
-                    rel_df_all = compute_relative_to_baseline(sdf, baseline_approach=baseline, x_param=xp)
-                    if rel_df_all.empty or rel_df_all[xp].nunique(dropna=True) <= 1:
-                        continue
-                    # only plot the three approaches; keep baseline rows out of plots
-                    rel_df = rel_df_all[rel_df_all["approach"].astype(str).isin(PLOT_APPROACHES)].copy()
-                    if rel_df.empty:
-                        continue
+            # Absolute: just the three approaches
+            if make_absolute:
+                plot_df = sdf[sdf["approach"].astype(str).isin(PLOT_APPROACHES)].copy()
+                if plot_df[x_param].nunique(dropna=True) > 1:
                     for y_metric in METRICS:
-                        if f"{y_metric}_rel" not in rel_df.columns:
+                        if y_metric not in plot_df.columns:
                             continue
-                        ylog = (y_metric == "time_sec")
                         _plot_xy_lines(
-                            sdf=rel_df,
-                            x_param=xp,
-                            y_metric=y_metric,
-                            out_dir=os.path.join(outdir, f"relative_{'single_baseline' if baseline == baselines[0] else 'double_baseline'}"),
+                            sdf=plot_df, x_param=x_param, y_metric=y_metric,
+                            out_dir=os.path.join(outdir, "absolute"),
                             fname_prefix=fname_prefix,
                             title_prefix=title_prefix,
-                            relative=True,
+                            relative=False,
                             formats=formats,
                             show=show,
-                            ylog=ylog,
-                            baseline_label=baseline
+                            baseline_label=None
                         )
 
+            # Relative: per-baseline
+            if make_relative:
+                for baseline in baselines:
+                    rel_all = compute_relative_to_baseline(sdf, baseline_approach=baseline, x_param=x_param, strict=True)
+                    if rel_all.empty or rel_all[x_param].nunique(dropna=True) <= 1:
+                        continue
+                    rel_df = rel_all[rel_all["approach"].astype(str).isin(PLOT_APPROACHES)].copy()
+                    if rel_df.empty:
+                        continue
+                    _plot_xy_lines(
+                        sdf=rel_df,
+                        x_param=x_param,
+                        y_metric="logloss",
+                        out_dir=os.path.join(outdir, f"relative_{baseline_tags[baseline]}"),
+                        fname_prefix=fname_prefix,
+                        title_prefix=title_prefix,
+                        relative=True,
+                        formats=formats,
+                        show=show,
+                        baseline_label=baseline
+                    )
+                    _plot_xy_lines(
+                        sdf=rel_df,
+                        x_param=x_param,
+                        y_metric="time_sec",
+                        out_dir=os.path.join(outdir, f"relative_{baseline_tags[baseline]}"),
+                        fname_prefix=fname_prefix,
+                        title_prefix=title_prefix,
+                        relative=True,
+                        formats=formats,
+                        show=show,
+                        baseline_label=baseline
+                    )
+                    _plot_xy_lines(
+                        sdf=rel_df,
+                        x_param=x_param,
+                        y_metric="roc_auc",
+                        out_dir=os.path.join(outdir, f"relative_{baseline_tags[baseline]}"),
+                        fname_prefix=fname_prefix,
+                        title_prefix=title_prefix,
+                        relative=True,
+                        formats=formats,
+                        show=show,
+                        baseline_label=baseline
+                    )
+                    _plot_xy_lines(
+                        sdf=rel_df,
+                        x_param=x_param,
+                        y_metric="pr_auc",
+                        out_dir=os.path.join(outdir, f"relative_{baseline_tags[baseline]}"),
+                        fname_prefix=fname_prefix,
+                        title_prefix=title_prefix,
+                        relative=True,
+                        formats=formats,
+                        show=show,
+                        baseline_label=baseline
+                    )
 
 # -----------------------------
 # Run directly (per-solver folders)
@@ -387,7 +441,7 @@ if __name__ == "__main__":
     os.makedirs(OUTDIR, exist_ok=True)
     df_all = load_results(CSV_PATH)
 
-    # If solver column exists, produce a separate figure set per solver
+    # Split per solver into separate folders
     if "solver" in df_all.columns:
         solvers = [s for s in df_all["solver"].dropna().unique().tolist()]
         if not solvers:
@@ -415,5 +469,6 @@ if __name__ == "__main__":
             formats=FORMATS,
             show=SHOW,
         )
-        print(f" Figures saved under {outdir_solver}")
+        print(f"✅ Figures saved under {outdir_solver}")
+
 
