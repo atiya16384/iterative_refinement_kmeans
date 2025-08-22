@@ -130,35 +130,81 @@ def load_results(csv_path: str) -> pd.DataFrame:
     if missing:
         warnings.warn(f"Missing expected columns: {missing}. Proceeding anyway.")
 
-    # Categorical ordering for consistent legends (include baselines so merges work fine)
+    # Coerce param columns to numeric to avoid merge/type issues
+    for c in ["lambda", "tol", "max_iter", "max_iter_single"]:
+        if c in df.columns:
+            df[c] = pd.to_numeric(df[c], errors="coerce")
+
+    # Categorical ordering for consistent legends (include baselines so merges work)
     cat_order = PLOT_APPROACHES + list(BASELINES)
     df["approach"] = pd.Categorical(df["approach"], categories=cat_order, ordered=True)
     return df
 
 
-def compute_relative_to_baseline(df: pd.DataFrame, baseline_approach: str, x_param: str) -> pd.DataFrame:
+def compute_relative_to_baseline(
+    df: pd.DataFrame,
+    baseline_approach: str,
+    x_param: str,
+    STRICT_MATCH_OTHER_PARAMS: bool = True,
+) -> pd.DataFrame:
     """
-    For each slice and x_param value, divide metric columns by the baseline’s metric
-    from the SAME slice and SAME x_param. Adds <metric>_rel. Drops rows without baseline.
-    """
-    keep_cols = [c for c in (BASE_GROUP_COLS + OPTIONAL_META) if c in df.columns]
-    on_cols = keep_cols + [x_param]
+    For each slice and x_param value, divide metric columns by the baseline’s
+    metric from the SAME slice and SAME x_param. To ensure a valid many-to-one
+    merge, we aggregate the baseline to be unique per join key.
 
+    If STRICT_MATCH_OTHER_PARAMS is True (default), the join keys include the
+    OTHER hyper-params (PARAMS except x_param). This compares rows against the
+    baseline with the exact same settings for those params.
+
+    If False, we average the baseline over those other params (i.e., baseline
+    per slice + x only).
+    """
+    # Slice identifiers that define the “experiment slice”
+    keep_cols = [c for c in (BASE_GROUP_COLS + OPTIONAL_META) if c in df.columns]
+
+    # Param columns present in the frame
+    param_cols_present = [p for p in PARAMS if p in df.columns]
+    other_params = [p for p in param_cols_present if p != x_param]
+
+    if STRICT_MATCH_OTHER_PARAMS:
+        join_cols = keep_cols + [x_param] + other_params
+    else:
+        join_cols = keep_cols + [x_param]
+
+    # Baseline subset
     bdf = df[df["approach"] == baseline_approach].copy()
     if bdf.empty:
         return pd.DataFrame(columns=df.columns)
 
+    # Metrics to ratio
     metric_cols = [m for m in METRICS if m in df.columns]
-    bcols = on_cols + metric_cols
-    bdf = bdf[bcols].rename(columns={m: f"{m}_baseline" for m in metric_cols})
 
-    merged = pd.merge(df, bdf, on=on_cols, how="inner", validate="many_to_one")
+    # Keep only what we need for the baseline table
+    bcols = [c for c in join_cols if c in bdf.columns] + metric_cols
+    bdf = bdf[bcols].copy()
 
+    # Aggregate baseline to make join keys unique (handles repeats/dupes)
+    # Use mean; you can switch to median/min/max as needed.
+    bdf = (
+        bdf.groupby(join_cols, dropna=False, as_index=False)[metric_cols]
+           .mean()
+           .rename(columns={m: f"{m}_baseline" for m in metric_cols})
+    )
+
+    # Build the left side with matching join keys only
+    lcols = [c for c in join_cols if c in df.columns] + ["approach"] + metric_cols
+    ldf = df[lcols].copy()
+
+    # Now it's guaranteed many-to-one on the right
+    merged = pd.merge(ldf, bdf, on=join_cols, how="inner", validate="many_to_one")
+
+    # Compute ratios safely
     for m in metric_cols:
         base = f"{m}_baseline"
         rel = f"{m}_rel"
         merged[rel] = np.where(merged[base].astype(float) == 0.0, np.nan,
                                merged[m].astype(float) / merged[base].astype(float))
+
     return merged
 
 
