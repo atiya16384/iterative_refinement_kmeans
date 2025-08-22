@@ -2,6 +2,7 @@
 # Run: python3 logistic_visualisations.py
 
 import pathlib
+
 from typing import List, Tuple
 
 import numpy as np
@@ -10,7 +11,7 @@ import matplotlib.pyplot as plt
 
 # ----------------- CONFIG -----------------
 CSV_PATH = "../Results/results_all.csv"
-OUTDIR   = "./Figures"
+OUTDIR   = "../Results/Figures"
 
 VARIANTS  = ["hybrid(f32→f64)", "multistage-IR", "adaptive-precision"]
 BASELINES = ("single(f32)", "double(f64)")
