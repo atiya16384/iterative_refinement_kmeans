@@ -1,4 +1,11 @@
-
+# logistic_visualisations.py
+# ------------------------------------------------------------
+# De-zigzag visualisations for AOCL-DA logistic runs.
+# Key changes:
+#  - Canonicalize x (lambda/tol/etc.) in log10-space to avoid float key drift
+#  - Aggregate to EXACTLY one point per x_bin per approach
+#  - Relative curves use per-x_bin means (variant / baseline)
+#
 # Run: python3 logistic_visualisations.py
 # ------------------------------------------------------------
 
@@ -11,7 +18,7 @@ from typing import List, Tuple
 
 # ---------- CONFIG ----------
 CSV_PATH = "../Results/results_all.csv"
-OUTDIR   = "./Figures"
+OUTDIR   = "../Results/Figures"
 FORMATS  = ["png"]
 
 PLOT_APPROACHES = ["hybrid(f32→f64)", "multistage-IR", "adaptive-precision"]
@@ -20,7 +27,7 @@ BASELINES = ("single(f32)", "double(f64)")
 PARAMS  = ["lambda", "tol", "max_iter", "max_iter_single"]
 METRICS = ["logloss", "time_sec", "roc_auc", "pr_auc"]
 
-SLICE_KEYS = ["dataset", "penalty", "alpha", "solver"]  # we split by solver into folders
+SLICE_KEYS = ["dataset", "penalty", "alpha", "solver"]  # split by solver into folders
 # ----------------------------
 
 
@@ -37,10 +44,33 @@ def _style_axes(ax, x_param: str, y_label: str, title: str, relative: bool):
     if relative:
         ax.axhline(1.0, ls=":", c="gray", lw=1.4, label="baseline")
     sf = ScalarFormatter(useMathText=False)
-    sf.set_scientific(False); sf.set_useOffset(False)
+    sf.set_scientific(False)
+    sf.set_useOffset(False)
     ax.yaxis.set_major_formatter(sf)
     ax.grid(True, ls="--", alpha=0.35)
     ax.legend(loc="best", frameon=True, fontsize=9)
+
+
+def _canonicalize_x(x: pd.Series, x_param: str) -> pd.Series:
+    """
+    Snap x-values to a stable bucket key.
+    - For lambda/tol (log-like grids), round in log10 space (to 10 decimal places).
+    - For integer-like params (max_iter, max_iter_single), cast to int.
+    - Else, round to 12 significant digits in linear space.
+    Returns a float 'x_bin' you can safely groupby/merge on.
+    """
+    x = _safe_num(x)
+    if x_param in {"lambda", "tol"}:
+        with np.errstate(divide="ignore"):
+            lx = np.log10(x.replace(0, np.nan))
+        # Round log10 to avoid 1e-6 vs 9.999999e-07 drift
+        lx_round = np.round(lx, 10)
+        out = 10.0 ** lx_round
+        return out.fillna(0.0)
+    elif x_param in {"max_iter", "max_iter_single"}:
+        return x.fillna(0).astype(np.int64).astype(float)
+    else:
+        return np.round(x, 12)
 
 
 class LogisticVisualizer:
@@ -59,7 +89,7 @@ class LogisticVisualizer:
             if c in df.columns:
                 df[c] = _safe_num(df[c])
 
-        # keep plot approaches + baselines (we need baselines only for ratios)
+        # keep plot approaches + baselines
         keep = set(PLOT_APPROACHES) | set(BASELINES)
         df = df[df["approach"].isin(keep)].copy()
 
@@ -95,40 +125,57 @@ class LogisticVisualizer:
             out.append((str(s), sdf, root))
         return out
 
-    # --------- aggregate ONE point per x (absolute) ---------
+    # --------- aggregate ONE point per x_bin (absolute) ---------
     @staticmethod
     def _abs_curve_per_x(sdf: pd.DataFrame, x_param: str, metric: str, approach: str) -> pd.DataFrame:
-        sub = sdf[sdf["approach"] == approach]
+        sub = sdf[sdf["approach"] == approach].copy()
         if sub.empty or x_param not in sub.columns:
             return pd.DataFrame(columns=[x_param, metric, "n"])
-        # mean across ALL other knobs at each x
-        g = (sub.groupby(x_param, dropna=False)[metric]
-                 .agg(["mean", "std", "count"])
-                 .reset_index()
-                 .rename(columns={"mean": metric, "std": f"{metric}_std", "count": "n"}))
-        return g.sort_values(x_param)
 
-    # --------- aggregate ONE point per x (relative) ---------
+        # snap x to canonical bin
+        sub["x_bin"] = _canonicalize_x(sub[x_param], x_param)
+
+        # Now strictly 1 row per x_bin (mean across everything else)
+        g = (sub.groupby("x_bin", dropna=False)[metric]
+                .agg(["mean", "std", "count"])
+                .reset_index()
+                .rename(columns={"mean": metric, "std": f"{metric}_std", "count": "n"}))
+
+        # Debug safety: make sure no duplicates per x_bin
+        # (if you ever print this and see >1, something's off upstream)
+        assert g["x_bin"].is_unique, "internal: multiple agg rows per x_bin"
+
+        # for plotting, we want the x back as a float in original space
+        g[x_param] = g["x_bin"].astype(float)
+        g = g.sort_values(x_param)
+        return g[[x_param, metric, f"{metric}_std", "n"]]
+
+    # --------- aggregate ONE point per x_bin (relative) ---------
     @staticmethod
     def _rel_curve_per_x(sdf: pd.DataFrame, x_param: str, metric: str,
                          approach: str, baseline: str) -> pd.DataFrame:
         var = LogisticVisualizer._abs_curve_per_x(sdf, x_param, metric, approach)
         bas = LogisticVisualizer._abs_curve_per_x(sdf, x_param, metric, baseline)
-        if var.empty or bas.empty: 
+        if var.empty or bas.empty:
             return pd.DataFrame(columns=[x_param, f"{metric}_rel", "n"])
+
+        # Merge on x after binning → perfect alignment
         m = pd.merge(
-            var[[x_param, metric, "n"]].rename(columns={metric: "var", "n": "n_var"}),
+            var[[x_param, metric, "n"]],
             bas[[x_param, metric, "n"]].rename(columns={metric: "base", "n": "n_base"}),
-            on=x_param, how="inner"
+            on=x_param, how="inner",
         )
         if m.empty:
             return pd.DataFrame(columns=[x_param, f"{metric}_rel", "n"])
-        m[f"{metric}_rel"] = m["var"] / m["base"]
-        m["n"] = np.minimum(m["n_var"], m["n_base"])
-        return m[[x_param, f"{metric}_rel", "n"]].sort_values(x_param)
+
+        m[f"{metric}_rel"] = m[metric] / m["base"]
+        m["n"] = np.minimum(m["n"], m["n_base"])
+        m = m.sort_values(x_param)
+        return m[[x_param, f"{metric}_rel", "n"]]
 
     # --------- plotters ---------
-    def _plot_abs(self, sdf: pd.DataFrame, x_param: str, metric: str, save_dir: pathlib.Path, title_prefix: str):
+    def _plot_abs(self, sdf: pd.DataFrame, x_param: str, metric: str,
+                  save_dir: pathlib.Path, title_prefix: str):
         fig, ax = plt.subplots(figsize=(7.6, 5.0))
         y_label = f"{metric} (seconds)" if metric == "time_sec" else metric
         drew = False
@@ -180,14 +227,20 @@ class LogisticVisualizer:
 
             # slice by dataset/penalty/alpha (solver already split)
             slice_cols = [c for c in SLICE_KEYS if c in df_solver.columns]
-            groups = df_solver.groupby([c for c in slice_cols if c != "solver"], dropna=False) if slice_cols else [({}, df_solver)]
+            groups = (
+                df_solver.groupby([c for c in slice_cols if c != "solver"], dropna=False)
+                if slice_cols else [({}, df_solver)]
+            )
 
             for keys, sdf in groups:
                 if isinstance(keys, tuple):
-                    sdict = {([c for c in slice_cols if c != "solver"][i]): keys[i] for i in range(len([c for c in slice_cols if c != "solver"]))}
+                    sdict = {([c for c in slice_cols if c != "solver"][i]): keys[i]
+                             for i in range(len([c for c in slice_cols if c != "solver"]))}
                 else:
                     sdict = {}
-                title_prefix = " | ".join([f"{k}={sdict[k]}" for k in ["dataset", "penalty", "alpha"] if k in sdict]) or "All Experiments"
+                title_prefix = " | ".join(
+                    [f"{k}={sdict[k]}" for k in ["dataset", "penalty", "alpha"] if k in sdict]
+                ) or "All Experiments"
 
                 for xp in [p for p in PARAMS if p in sdf.columns]:
                     if sdf[xp].nunique(dropna=True) <= 1:
@@ -204,4 +257,5 @@ class LogisticVisualizer:
 if __name__ == "__main__":
     viz = LogisticVisualizer(CSV_PATH, OUTDIR)
     viz.make_all()
-    print(f"✅ Figures saved to {OUTDIR} (per solver).")
+    print(f" Figures saved to {OUTDIR} (per solver).")
+
