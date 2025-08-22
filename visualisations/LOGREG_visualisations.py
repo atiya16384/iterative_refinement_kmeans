@@ -1,9 +1,11 @@
 # logistic_visualisations.py
+# -------------------------------------------------------------------
 # Visualizations for results produced by log_precision.py (run_experiments).
 # Generates absolute and relative-to-baseline plots for multiple metric/param pairs.
 #
 # Run:
 #   python3 logistic_visualisations.py
+#
 
 import os
 import itertools
@@ -18,7 +20,6 @@ import matplotlib.pyplot as plt
 # Config you may tweak
 # -----------------------------
 
-# Where your run_experiments CSV lives and where to write figures
 CSV_PATH = "../Results/results_all.csv"
 OUTDIR = "./Figures"
 FORMATS = ["png"]        # e.g., ["png", "pdf", "svg"]
@@ -41,7 +42,7 @@ MARKERS = ["o", "s", "D", "^", "v", "P", "X", "*", "<", ">"]
 LINESTYLES = ["-", "--", "-.", ":", (0, (3, 1, 1, 1)), (0, (5, 1))]
 
 # Slicing dimensions (a “slice” keeps these fixed while sweeping a single x param)
-BASE_GROUP_COLS = ["dataset", "penalty", "alpha", "solver"]
+BASE_GROUP_COLS = ["dataset", "penalty", "alpha"]   # <— solver handled at top-level folder, so omit here
 
 # Optional extra in titles/filenames if present
 OPTIONAL_META = ["C"]
@@ -50,6 +51,13 @@ OPTIONAL_META = ["C"]
 # -----------------------------
 # Helpers
 # -----------------------------
+
+def _is_nan(x) -> bool:
+    try:
+        return pd.isna(x)
+    except Exception:
+        return False
+
 
 def _safe_unique_sorted(series: pd.Series):
     vals = [v for v in series.dropna().unique().tolist()]
@@ -60,19 +68,32 @@ def _safe_unique_sorted(series: pd.Series):
 
 
 def _shorten(val):
-    if isinstance(val, float):
-        if val == int(val):
-            return str(int(val))
+    """Compact pretty-print for titles/filenames, robust to NaN/mixed types."""
+    if _is_nan(val):
+        return "NA"
+    # numerics
+    if isinstance(val, (int, np.integer)):
+        return str(int(val))
+    if isinstance(val, (float, np.floating)):
+        try:
+            # treat floats very close to integers as ints for prettier labels
+            if np.isfinite(val) and abs(val - round(val)) < 1e-12:
+                return str(int(round(val)))
+        except Exception:
+            pass
+        if not np.isfinite(val):
+            return "NA"
         if (abs(val) < 1e-3) or (abs(val) >= 1e3):
             return f"{val:.2e}"
         return f"{val:.4g}"
+    # everything else
     return str(val)
 
 
 def _title_from_slice(slice_dict: Dict) -> str:
     parts = []
     for k in BASE_GROUP_COLS + OPTIONAL_META:
-        if k in slice_dict:
+        if k in slice_dict and not _is_nan(slice_dict[k]):
             parts.append(f"{k}={_shorten(slice_dict[k])}")
     return " | ".join(parts) if parts else "All Experiments"
 
@@ -80,8 +101,8 @@ def _title_from_slice(slice_dict: Dict) -> str:
 def _fname_from_slice(slice_dict: Dict) -> str:
     parts = []
     for k in BASE_GROUP_COLS + OPTIONAL_META:
-        if k in slice_dict:
-            v = str(slice_dict[k]).replace(" ", "").replace("→", "to").replace("/", "_")
+        if k in slice_dict and not _is_nan(slice_dict[k]):
+            v = str(_shorten(slice_dict[k])).replace(" ", "").replace("→", "to").replace("/", "_")
             parts.append(f"{k}-{v}")
     return "__".join(parts) if parts else "All"
 
@@ -175,7 +196,6 @@ def _plot_xy_lines(
     y_col = f"{y_metric}_rel" if relative else y_metric
     y_label = f"{y_metric} / {baseline_label}" if relative else y_metric
 
-    # choose approaches to plot (ONLY the three requested)
     present = sdf["approach"].astype(str).unique().tolist()
     approaches = [a for a in PLOT_APPROACHES if a in present]
 
@@ -232,8 +252,8 @@ def _plot_xy_lines(
         plt.close(fig)
 
 
-def make_plots_for_csv(
-    csv_path: str,
+def make_plots_for_df(
+    df: pd.DataFrame,
     outdir: str,
     make_absolute: bool = True,
     make_relative: bool = True,
@@ -241,8 +261,6 @@ def make_plots_for_csv(
     formats: List[str] = tuple(FORMATS),
     show: bool = SHOW,
 ):
-    df = load_results(csv_path)
-
     # Ensure output dirs
     baseline_tags = {
         baselines[0]: "single_baseline",
@@ -317,19 +335,39 @@ def make_plots_for_csv(
 
 
 # -----------------------------
-# Run directly
+# Run directly (per-solver folders)
 # -----------------------------
 if __name__ == "__main__":
     os.makedirs(OUTDIR, exist_ok=True)
-    make_plots_for_csv(
-        csv_path=CSV_PATH,
-        outdir=OUTDIR,
-        make_absolute=MAKE_ABSOLUTE,
-        make_relative=MAKE_RELATIVE,
-        baselines=BASELINES,
-        formats=FORMATS,
-        show=SHOW,
-    )
-    print(f"Figures saved under {OUTDIR}")
+    df_all = load_results(CSV_PATH)
 
+    # If solver column exists, produce a separate figure set per solver
+    if "solver" in df_all.columns:
+        solvers = [s for s in df_all["solver"].dropna().unique().tolist()]
+        if not solvers:
+            solvers = [None]
+    else:
+        solvers = [None]
+
+    for solver in solvers:
+        if solver is None:
+            df_solver = df_all.copy()
+            outdir_solver = os.path.join(OUTDIR, "solver=unspecified")
+        else:
+            df_solver = df_all[df_all["solver"] == solver].copy()
+            if df_solver.empty:
+                continue
+            outdir_solver = os.path.join(OUTDIR, f"solver={str(solver)}")
+
+        os.makedirs(outdir_solver, exist_ok=True)
+        make_plots_for_df(
+            df=df_solver,
+            outdir=outdir_solver,
+            make_absolute=MAKE_ABSOLUTE,
+            make_relative=MAKE_RELATIVE,
+            baselines=BASELINES,
+            formats=FORMATS,
+            show=SHOW,
+        )
+        print(f" Figures saved under {outdir_solver}")
 
