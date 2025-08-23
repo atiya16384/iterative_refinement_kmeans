@@ -304,6 +304,9 @@ def run_experiments(X, y,
                     dataset="",
                     repeats=3):
 
+
+    # for 'mse' and 'coord', we have alpha [0.0, 0.25, 0.5, 0.75, 1.0], and use "l1", "l2"
+    # for 'mse' and 'sparse_cg', this only supports l2 ridge and alpha is none
     if grid is None:
         grid = {
             "dataset": ["uniform", "gaussian"],
@@ -421,7 +424,8 @@ def run_experiments(X, y,
 
 # Demo
 if __name__ == "__main__":
-    dataset = "uniform"   # options: "gaussian", "uniform", "breast_cancer"
+    dataset = "uniform"   # options: "gaussian"
+
 
     if dataset == "gaussian":
         X, y = make_shifted_gaussian(m=5000, n=200, delta=0.5, seed=42)
@@ -430,18 +434,19 @@ if __name__ == "__main__":
     else:
         raise ValueError("Unknown dataset")
 
+    # for 'mse' and 'coord', we have alpha [0.0, 0.25, 0.5, 0.75, 1.0], and use "l1", "l2"
+    # for 'mse' and 'sparse_cg', this only supports l2 ridge and alpha is none
     grid = {
-
         "dataset": ["uniform", "guassian"],
         "penalty": ["l2"],
-        "alpha":   [None],
+        "alpha":   [0.0, 0.25, 0.5, 0.75, 1.0],
         "lambda":  [1e-2, 1e-3, 1e-4, 1e-6, 1e-8],
         "C":       [None],
-        "solver":  ["coord", "sparse_cg"],
+        "solver":  ["coord"],
         "max_iter": [1000, 3000],
         "tol":      [1e-2, 1e-4, 1e-6, 1e-8],
         "max_iter_single": [100, 200, 350, 500, 1000],
-        "approaches": ["single", "double", "hybrid"]
+        "approaches": ["single", "double", "hybrid", "multistage-ir", "adaptive-precision"]
     }
 
     df, df_mean = run_experiments(X, y, grid=grid)

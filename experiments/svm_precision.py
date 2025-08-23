@@ -4,6 +4,10 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import make_pipeline
 from sklearn.svm import SVC
 from sklearn.metrics import roc_auc_score, accuracy_score
+import time
+import pandas as pd
+from sklearn.model_selection import train_test_split
+
 
 # ----- helpers -----
 def _svc(kernel="rbf", C=1.0, gamma="scale", tol=1e-3, max_iter=-1,
@@ -194,9 +198,6 @@ def make_circles_like(m=4000, noise=0.15, factor=0.45, seed=0):
 # =========================
 # Experiment runner for SVC
 # =========================
-import time
-import pandas as pd
-from sklearn.model_selection import train_test_split
 
 def run_svc_experiments(
     X, y, *, dataset_name="unknown",
