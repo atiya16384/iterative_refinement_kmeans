@@ -310,48 +310,91 @@ def run_svc_experiments(
     df = pd.DataFrame(rows)
 
     # --- Pretty printing ---
-    if not df.empty:
-        # select a readable column order
-        front = ["dataset", "mode", "repeat", "kernel", "C", "gamma",
-                 "tol_single", "tol_double", "max_iter_single", "max_iter_double",
-                 "buffer_frac", "tol_schedule", "final_tol", "min_rel_drop"]
-        metrics = ["time_sec", "roc_auc", "accuracy", "n_sv",
-                   "time_stageA", "time_stageB", "n_sv_stageA", "n_used_stageB",
-                   "n_passes", "working_set_final", "error"]
-        cols = [c for c in front + metrics if c in df.columns]
+         if not df.empty:
+             # helpful global display tweaks for console
+             pd.set_option("display.max_rows", 200)
+             pd.set_option("display.max_columns", 50)
+             pd.set_option("display.width", 140)  # widen a bit
+             pd.set_option("display.colheader_justify", "center")
+         
+             # shorten tuple columns and long strings
+             def _shorten(x):
+                 if isinstance(x, tuple):
+                     # e.g., (0.02, 0.005, 0.001) -> "2e-2→1e-3"
+                     try:
+                         return f"{x[0]:.0e}→{x[-1]:.0e}"
+                     except Exception:
+                         return str(x)
+                 return x
+         
+             if "tol_schedule" in df.columns:
+                 df["tol_schedule"] = df["tol_schedule"].map(_shorten)
+         
+             # common columns describing the setting
+             setting_cols = [c for c in [
+                 "dataset","kernel","C","gamma","tol_single","tol_double",
+                 "max_iter_single","max_iter_double","buffer_frac",
+                 "tol_schedule","final_tol","min_rel_drop"
+             ] if c in df.columns]
+         
+             # order metrics and show per-mode relevant ones only
+             cols_by_mode = {
+                 "single(fast)": ["time_sec","roc_auc","accuracy","n_sv"],
+                 "double(precise)": ["time_sec","roc_auc","accuracy","n_sv"],
+                 "hybrid(SV-refit)": ["time_sec","roc_auc","accuracy","n_sv",
+                                      "time_stageA","time_stageB","n_sv_stageA","n_used_stageB"],
+                 "adaptive-hybrid(SV-shrink)": ["time_sec","roc_auc","accuracy","n_sv",
+                                                "n_passes","working_set_final"]
+             }
+         
+             # group by hyper-parameter setting (excluding mode/repeat)
+             print("\n=== Per-setting results (grouped by hyperparameters) ===")
+             group_keys = [k for k in setting_cols if k in df.columns]
+             for g, sub in df.groupby(group_keys, dropna=False):
+                 header = ", ".join(f"{k}={v}" for k, v in zip(group_keys, (g if isinstance(g, tuple) else (g,))))
+                 print(f"\n{header}")
+         
+                 # one compact table per mode
+                 for mode_name, sub_mode in sub.groupby("mode", dropna=False):
+                     keep_cols = ["mode","repeat"] + [c for c in cols_by_mode.get(mode_name, []) if c in sub_mode.columns]
+                     if not keep_cols:  # fallback if mode not matched
+                         keep_cols = ["mode","repeat","time_sec","roc_auc","accuracy","n_sv"]
+                         keep_cols = [c for c in keep_cols if c in sub_mode.columns]
+         
+                     view = (sub_mode[keep_cols]
+                             .sort_values(["mode","repeat"])
+                             .copy())
+         
+                     for c in ["time_sec","roc_auc","accuracy"]:
+                         if c in view.columns:
+                             view[c] = view[c].astype(float).round(4)
+         
+                     # hide all-NaN columns and replace remaining NaN with em dash
+                     view = view.dropna(axis=1, how="all").fillna("—")
+         
+                     print(f"\n[{mode_name}]")
+                     print(view.to_string(index=False))
+         
+             # === Mean ± Std summary and speedups ===
+             agg_keys = group_keys + ["mode"]
+             num_cols = [c for c in ["time_sec","roc_auc","accuracy","n_sv"] if c in df.columns]
+             df_mean = (df.groupby(agg_keys)[num_cols]
+                          .agg(["mean","std"])
+                          .reset_index())
+             df_mean.columns = ["_".join([c for c in tup if c]).rstrip("_")
+                                for tup in df_mean.columns.to_flat_index()]
+         
+             print("\n=== Mean ± Std over repeats (per hyperparams & mode) ===")
+             # compact rounding for display
+             for c in df_mean.columns:
+                 if c.endswith(("mean","std")):
+                     try:
+                         df_mean[c] = df_mean[c].astype(float).round(4)
+                     except Exception:
+                         pass
+             print(df_mean.to_string(index=False))
 
-        # one table per hyperparam setting (excluding repeats/mode)
-        print("\n=== Per-setting results (all repeats, grouped by hyperparameters) ===")
-        group_keys = [k for k in ["dataset","kernel","C","gamma","tol_single","tol_double",
-                                  "max_iter_single","max_iter_double","buffer_frac",
-                                  "tol_schedule","final_tol","min_rel_drop"] if k in df.columns]
-        for g, sub in df.groupby(group_keys, dropna=False):
-            hdr = ", ".join(f"{k}={v}" for k, v in zip(group_keys, g))
-            print(f"\n{hdr}")
-            view = sub[cols].copy()
-            for c in ["time_sec","roc_auc","accuracy"]:
-                if c in view.columns: view[c] = view[c].astype(float).round(4)
-            with pd.option_context("display.max_rows", None, "display.width", 160,
-                                   "display.colheader_justify", "center"):
-                print(view.sort_values(["mode","repeat"]).to_string(index=False))
-
-        # mean/std over repeats per (hyperparams, mode)
-        agg_keys = group_keys + ["mode"]
-        num_cols = [c for c in ["time_sec","roc_auc","accuracy","n_sv"] if c in df.columns]
-        df_mean = (df.groupby(agg_keys)[num_cols]
-                     .agg(["mean","std"])
-                     .reset_index())
-        # flatten columns
-        df_mean.columns = ["_".join([c for c in tup if c]).rstrip("_") for tup in df_mean.columns.to_flat_index()]
-
-        # pretty print summary
-        print("\n=== Mean ± Std over repeats (per hyperparams & mode) ===")
-        with pd.option_context("display.max_rows", None, "display.width", 160,
-                               "display.colheader_justify", "center"):
-            print(df_mean.to_string(index=False))
-
-        return df, df_mean
-
+    return df, df_mean
     return df, pd.DataFrame()
 
 
