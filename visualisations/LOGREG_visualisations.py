@@ -1,11 +1,4 @@
-# logistic_visualisations.py
-# ------------------------------------------------------------
-# Relative-only plots for AOCL-DA logistic runs.
-# - Averages repeats first
-# - For each solver/baseline/approach: one plot per (metric, x)
-# - One line per DATASET; lines connect points from the SAME slice
-# - time_sec plotted as SPEEDUP (= baseline/variant), so ↑ is better
-#
+
 # Run: python3 logistic_visualisations.py
 # ------------------------------------------------------------
 

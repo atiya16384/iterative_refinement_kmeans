@@ -85,7 +85,7 @@ def _fit_chunk(X, y, *, precision, solver, reg_lambda, reg_alpha, max_iter, tol,
     x0= None if x0 is None else x0.astype(dt, copy=False)
 
     mdl = linmod(
-        mod="logistic",
+        mod="mse",
         solver=solver,
         precision=precision,
         intercept=True,
@@ -114,7 +114,7 @@ def _score_model(model, X, y):
 
 # Train & evaluate (AOCL-DA)
 def train_linmod(X, y, *, precision="single", reg_lambda=0.0, reg_alpha=0.0,
-                 solver="coord", max_iter=10000, tol=1e-4, scaling="standardize"):
+                 solver="lbfgs", max_iter=10000, tol=1e-4, scaling="standardize"):
 
 
     dt = np.float32 if str(precision).startswith("single") else np.float64
@@ -125,7 +125,7 @@ def train_linmod(X, y, *, precision="single", reg_lambda=0.0, reg_alpha=0.0,
     # - For ridge-like only, 'lbfgs' can be used; 'coord' works across penalties.
 
     mdl = linmod(
-        mod="logistic",
+        mod="mse",
         solver=solver,
         precision=precision,
         intercept=True,
@@ -181,7 +181,7 @@ def approach_hybrid(Xtr, ytr, Xte, yte, *, solver="lbfgs", reg_lambda=0.01, reg_
     x0 = mdl_f32.coef.astype(np.float64, copy=False)
 
     # Stage B: refine in f64 from warm start
-    mdl_f64 = linmod(mod="logistic", solver=solver, precision="double",
+    mdl_f64 = linmod(mod="mse", solver=solver, precision="double",
                      intercept=True, max_iter=max_iter_double, scaling="standardize")
 
     Xd = Xtr.astype(np.float64, copy=False)
@@ -306,14 +306,15 @@ def run_experiments(X, y,
 
     if grid is None:
         grid = {
+            "dataset": ["uniform", "gaussian"],
             "penalty": ["l2"],
-            "alpha": [None],
-            "lambda": [1e-3, 1e-2, 1e-1],
-            "C": [None],
-            "solver": ["lbfgs"],
+            "alpha": [0.0, 0.25, 0.5, 0.75, 1.0],
+            "lambda": [1e-10, 1e-8, 1e-5, 1e-3, 1e-2, 1e-1],
+            "C": [0.01, 0.1, 1.0, 10.0, 100.0],
+            "solver": ["coord", "sparse_cg"],
             "max_iter": [3000, 10000],
-            "tol": [1e-4, 1e-6],
-            "max_iter_single": [150, 300],
+            "tol": [1e-2, 1e-4, 1e-6, 1e-8],
+            "max_iter_single": [150, 300, 500, 1000],
             "approaches": ["single", "double", "hybrid", "multistage-ir", "adaptive-precision"]
         }
 
@@ -416,9 +417,7 @@ def run_experiments(X, y,
     print(df_mean.groupby(["dataset",  "penalty", "alpha", "lambda", "solver", "max_iter", "tol", "max_iter_single", "approach"])
                           [["time_sec", "iters_single", "iters_double", "roc_auc", "pr_auc", "logloss"]].mean())
 
-
     return df, df_mean
-
 
 # Demo
 if __name__ == "__main__":
@@ -427,7 +426,7 @@ if __name__ == "__main__":
     if dataset == "gaussian":
         X, y = make_shifted_gaussian(m=5000, n=200, delta=0.5, seed=42)
     elif dataset == "uniform":
-        X, y = make_uniform_binary(m=1000_000, n=200, shift=0.25, seed=42)
+        X, y = make_uniform_binary(m=1000_000, n=120, shift=0.25, seed=42)
     else:
         raise ValueError("Unknown dataset")
 
@@ -438,11 +437,11 @@ if __name__ == "__main__":
         "alpha":   [None],
         "lambda":  [1e-2, 1e-3, 1e-4, 1e-6, 1e-8],
         "C":       [None],
-        "solver":  ["l"],
-        "max_iter": [10000],
+        "solver":  ["coord", "sparse_cg"],
+        "max_iter": [1000, 3000],
         "tol":      [1e-2, 1e-4, 1e-6, 1e-8],
-        "max_iter_single": [10, 100, 150, 200, 250, 300],
-        "approaches": ["double","hybrid"]
+        "max_iter_single": [100, 200, 350, 500, 1000],
+        "approaches": ["single", "double", "hybrid"]
     }
 
     df, df_mean = run_experiments(X, y, grid=grid)
