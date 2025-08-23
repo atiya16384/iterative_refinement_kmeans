@@ -310,89 +310,70 @@ def run_svc_experiments(
     df = pd.DataFrame(rows)
 
     # --- Pretty printing ---
-         if not df.empty:
-             # helpful global display tweaks for console
-             pd.set_option("display.max_rows", 200)
-             pd.set_option("display.max_columns", 50)
-             pd.set_option("display.width", 140)  # widen a bit
-             pd.set_option("display.colheader_justify", "center")
+         if "mode" in df.columns and "approach" not in df.columns:
+                  df["approach"] = df["mode"]
          
-             # shorten tuple columns and long strings
-             def _shorten(x):
-                 if isinstance(x, tuple):
-                     # e.g., (0.02, 0.005, 0.001) -> "2e-2→1e-3"
-                     try:
-                         return f"{x[0]:.0e}→{x[-1]:.0e}"
-                     except Exception:
-                         return str(x)
-                 return x
+         # 1) Drop errors
+         if "error" in df.columns:
+             df = df[df["error"].isna()].copy()
          
-             if "tol_schedule" in df.columns:
-                 df["tol_schedule"] = df["tol_schedule"].map(_shorten)
+         # 2) Select grouping keys (hyper-params + approach)
+         group_cols = [c for c in [
+             "dataset", "kernel", "C", "gamma",
+             "tol_single", "tol_double",
+             "max_iter_single", "max_iter_double",
+             "buffer_frac", "tol_schedule", "final_tol", "min_rel_drop",
+             "approach"  # == mode
+         ] if c in df.columns]
          
-             # common columns describing the setting
-             setting_cols = [c for c in [
-                 "dataset","kernel","C","gamma","tol_single","tol_double",
-                 "max_iter_single","max_iter_double","buffer_frac",
-                 "tol_schedule","final_tol","min_rel_drop"
-             ] if c in df.columns]
+         # 3) Metrics to average across repeats
+         metric_cols = [c for c in [
+             "time_sec", "roc_auc", "accuracy", "n_sv",
+             "time_stageA", "time_stageB", "n_sv_stageA", "n_used_stageB",
+             "n_passes", "working_set_final"
+         ] if c in df.columns]
          
-             # order metrics and show per-mode relevant ones only
-             cols_by_mode = {
-                 "single(fast)": ["time_sec","roc_auc","accuracy","n_sv"],
-                 "double(precise)": ["time_sec","roc_auc","accuracy","n_sv"],
-                 "hybrid(SV-refit)": ["time_sec","roc_auc","accuracy","n_sv",
-                                      "time_stageA","time_stageB","n_sv_stageA","n_used_stageB"],
-                 "adaptive-hybrid(SV-shrink)": ["time_sec","roc_auc","accuracy","n_sv",
-                                                "n_passes","working_set_final"]
-             }
+         # 4) Mean over repeats
+         # Note: if you want both mean & std like before, you can .agg(["mean","std"]) and flatten columns.
+         df_mean = (df
+                    .groupby(group_cols, as_index=False)[metric_cols]
+                    .mean())
          
-             # group by hyper-parameter setting (excluding mode/repeat)
-             print("\n=== Per-setting results (grouped by hyperparameters) ===")
-             group_keys = [k for k in setting_cols if k in df.columns]
-             for g, sub in df.groupby(group_keys, dropna=False):
-                 header = ", ".join(f"{k}={v}" for k, v in zip(group_keys, (g if isinstance(g, tuple) else (g,))))
-                 print(f"\n{header}")
+         # 5) (Optional) compute speedups vs single(fast)
+         # pivot to get time per approach side-by-side, then divide by single
+         if "time_sec" in df_mean.columns:
+             time_piv = df_mean.pivot_table(
+                 index=[c for c in group_cols if c != "approach"],
+                 columns="approach",
+                 values="time_sec",
+                 aggfunc="mean"
+             )
          
-                 # one compact table per mode
-                 for mode_name, sub_mode in sub.groupby("mode", dropna=False):
-                     keep_cols = ["mode","repeat"] + [c for c in cols_by_mode.get(mode_name, []) if c in sub_mode.columns]
-                     if not keep_cols:  # fallback if mode not matched
-                         keep_cols = ["mode","repeat","time_sec","roc_auc","accuracy","n_sv"]
-                         keep_cols = [c for c in keep_cols if c in sub_mode.columns]
+             # compute ratios: approach_time / single_time
+             for other in ["double(precise)", "hybrid(SV-refit)", "adaptive-hybrid(SV-shrink)"]:
+                 if other in time_piv.columns and "single(fast)" in time_piv.columns:
+                     time_piv[f"speedup_{other}_over_single"] = (
+                         time_piv[other] / time_piv["single(fast)"]
+                     )
          
-                     view = (sub_mode[keep_cols]
-                             .sort_values(["mode","repeat"])
-                             .copy())
+             # merge speedups back (optional; comment out if you just want the pivot printed)
+             speed_cols = [c for c in time_piv.columns if str(c).startswith("speedup_")]
+             if speed_cols:
+                 df_speed = time_piv.reset_index()[[ *time_piv.index.names, *speed_cols ]]
+             else:
+                 df_speed = pd.DataFrame()
+         else:
+             df_speed = pd.DataFrame()
          
-                     for c in ["time_sec","roc_auc","accuracy"]:
-                         if c in view.columns:
-                             view[c] = view[c].astype(float).round(4)
+         # 6) Pretty console prints (compact)
+         with pd.option_context("display.max_rows", 200, "display.width", 140,
+                                "display.colheader_justify", "center"):
+             print("\n=== Mean over repeats (per hyperparams × approach) ===")
+             print(df_mean.round(4).to_string(index=False))
          
-                     # hide all-NaN columns and replace remaining NaN with em dash
-                     view = view.dropna(axis=1, how="all").fillna("—")
-         
-                     print(f"\n[{mode_name}]")
-                     print(view.to_string(index=False))
-         
-             # === Mean ± Std summary and speedups ===
-             agg_keys = group_keys + ["mode"]
-             num_cols = [c for c in ["time_sec","roc_auc","accuracy","n_sv"] if c in df.columns]
-             df_mean = (df.groupby(agg_keys)[num_cols]
-                          .agg(["mean","std"])
-                          .reset_index())
-             df_mean.columns = ["_".join([c for c in tup if c]).rstrip("_")
-                                for tup in df_mean.columns.to_flat_index()]
-         
-             print("\n=== Mean ± Std over repeats (per hyperparams & mode) ===")
-             # compact rounding for display
-             for c in df_mean.columns:
-                 if c.endswith(("mean","std")):
-                     try:
-                         df_mean[c] = df_mean[c].astype(float).round(4)
-                     except Exception:
-                         pass
-             print(df_mean.to_string(index=False))
+             if not df_speed.empty:
+                 print("\n=== Speedups (time ratio vs single(fast); lower is better) ===")
+                 print(df_speed.round(3).to_string(index=False))
 
     return df, df_mean
     return df, pd.DataFrame()
