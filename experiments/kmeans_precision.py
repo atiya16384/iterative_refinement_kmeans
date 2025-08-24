@@ -153,8 +153,6 @@ def run_hybrid(
 def _mem_megabytes(*arrays) -> float:
     return sum(getattr(a, "nbytes", 0) for a in arrays) / (2**20)
 
-
-# =============================================================================
 # Experiment D — Adaptive Hybrid (global switch)
 # Idea:
 #   1) Run a short "burst" in single precision (float32) using sklearn.KMeans.
@@ -162,9 +160,7 @@ def _mem_megabytes(*arrays) -> float:
 #      label stability). If progress is weak OR the burst finishes early, switch.
 #   3) Finish remaining iterations in double precision (float64) using sklearn.KMeans.
 #
-# Why this is AOCL-friendly:
-#   - We only use sklearn.KMeans; AOCL patches it when skpatch() has been applied.
-# =============================================================================
+
 def run_expD_adaptive_sklearn(
     X,
     initial_centers,
@@ -272,7 +268,6 @@ def run_expD_adaptive_sklearn(
     }
 
 
-# =============================================================================
 # Experiment E — Mini-batch Hybrid K-Means
 # Idea:
 #   1) Stage 1: MiniBatchKMeans on float32 to move quickly with small memory.
@@ -338,7 +333,6 @@ def run_expE_minibatch_then_full(
     }
 
 
-# =============================================================================
 # Experiment F — Mixed Precision Per-Cluster
 # Idea:
 #   1) Phase 1: A light, numpy-based Lloyd loop in float32 that lets you optionally
@@ -349,7 +343,6 @@ def run_expE_minibatch_then_full(
 #   - Per-cluster freezing is not exposed in sklearn APIs, so Phase 1 is a tiny
 #     numpy loop. Phase 2 uses sklearn.KMeans, so AOCL still accelerates the
 #     heavy refinement stage.
-# =============================================================================
 def run_expF_percluster_mixed(
     X,
     initial_centers,
@@ -435,4 +428,3 @@ def run_expF_percluster_mixed(
         "inertia": float(km.inertia_),
         "frozen_mask": frozen,  # which clusters ended Phase 1 frozen
     }
-

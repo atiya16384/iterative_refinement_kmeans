@@ -28,7 +28,7 @@ PLOTS_DIR= pathlib.Path("ClusterPlots")
 PLOTS_DIR.mkdir(exist_ok = True)
 
 # for the cluster size we are varying this for all datasets
-n_clusters_list = [80]
+n_clusters_list = [80, 160, 240]
 
 config = {
     "n_repeats": 3,
@@ -37,8 +37,8 @@ config = {
     "max_iter_A": 300,
 
     "max_iter_B": 1000,
-    "tol_double_B": 1e-5,
-    "tol_single_grid": [1e-1, 1e-2, 1e-3, 1e-4],
+    "tol_double_B": 1e-7,
+    "tol_single_grid": [1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6],
 
     "max_iter_C": 300,
     "tol_fixed_C": 1e-16,
