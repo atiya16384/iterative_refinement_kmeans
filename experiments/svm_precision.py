@@ -58,7 +58,7 @@ def svc_double(Xtr, ytr, Xte, yte, *,
                tol=1e-5, max_iter=-1, random_state=0):
     cap = io.StringIO()
     t0 = time.perf_counter()
-    clf = _svc(kernel, C, gamma, tol, max_iter, random_state=random_state)
+    clf = _svc(kernel, C, gamma, tol, max_iter, random_state=random_state, verbose=True)
     with contextlib.redirect_stdout(cap):
         clf.fit(Xtr, ytr)
     t1 = time.perf_counter()
@@ -80,7 +80,7 @@ def svc_hybrid(Xtr, ytr, Xte, yte, *,
     # Stage A
     capA = io.StringIO()
     t0 = time.perf_counter()
-    loose = _svc(kernel, C, gamma, tol_single, max_iter_single, random_state=random_state)
+    loose = _svc(kernel, C, gamma, tol_single, max_iter_single, random_state=random_state, verbose = True)
     with contextlib.redirect_stdout(capA):    
         loose.fit(Xtr, ytr)
 
@@ -106,7 +106,7 @@ def svc_hybrid(Xtr, ytr, Xte, yte, *,
 
     capB = io.StringIO()
     # Stage B
-    tight = _svc(kernel, C, gamma, tol_double, max_iter_double, random_state=random_state)
+    tight = _svc(kernel, C, gamma, tol_double, max_iter_double, random_state=random_state, verbose= True)
     with contextlib.redirect_stdout(capB):
         tight.fit(X_sv, y_sv)
     itersB = _parse_iters_from_libsvm_stdout(capB.getvalue())
@@ -148,7 +148,7 @@ def svc_adaptive_hybrid(Xtr, ytr, Xte, yte, *,
 
     for k, tol in enumerate(tol_schedule, 1):
         cap = io.StringIO()
-        clf = _svc(kernel, C, gamma, tol, max_iter, random_state=random_state)
+        clf = _svc(kernel, C, gamma, tol, max_iter, random_state=random_state, verbose = True)
         with contextlib.redirect_stdout(cap):
             clf.fit(Xtr[idx], ytr[idx])
         iters = _parse_iters_from_libsvm_stdout(cap.getvalue())
@@ -169,7 +169,7 @@ def svc_adaptive_hybrid(Xtr, ytr, Xte, yte, *,
 
     # final precise fit on the shrunken set
     capF = io.StringIO()
-    clf_final = _svc(kernel, C, gamma, final_tol, max_iter, random_state=random_state)
+    clf_final = _svc(kernel, C, gamma, final_tol, max_iter, random_state=random_state, verbose = True)
     with contextlib.redirect_stdout(capF):
         clf_final.fit(Xtr[idx], ytr[idx])
 
