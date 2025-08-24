@@ -1,25 +1,25 @@
-dataset,repeat,mode,kernel,C,gamma,tol_single,tol_double,buffer_frac,tol_schedule,final_tol,min_rel_drop,error
-gauss,1,single,rbf,1.0,scale,0.001,1e-05,0.05,"(0.02, 0.005, 0.001)",1e-05,0.05,_svc() got an unexpected keyword argument 'verbose'
-gauss,1,double,rbf,1.0,scale,0.001,1e-05,0.05,"(0.02, 0.005, 0.001)",1e-05,0.05,_svc() got an unexpected keyword argument 'verbose'
-gauss,1,hybrid,rbf,1.0,scale,0.001,1e-05,0.05,"(0.02, 0.005, 0.001)",1e-05,0.05,_svc() got an unexpected keyword argument 'verbose'
-gauss,1,adaptive,rbf,1.0,scale,0.001,1e-05,0.05,"(0.02, 0.005, 0.001)",1e-05,0.05,_svc() got an unexpected keyword argument 'verbose'
-gauss,2,single,rbf,1.0,scale,0.001,1e-05,0.05,"(0.02, 0.005, 0.001)",1e-05,0.05,_svc() got an unexpected keyword argument 'verbose'
-gauss,2,double,rbf,1.0,scale,0.001,1e-05,0.05,"(0.02, 0.005, 0.001)",1e-05,0.05,_svc() got an unexpected keyword argument 'verbose'
-gauss,2,hybrid,rbf,1.0,scale,0.001,1e-05,0.05,"(0.02, 0.005, 0.001)",1e-05,0.05,_svc() got an unexpected keyword argument 'verbose'
-gauss,2,adaptive,rbf,1.0,scale,0.001,1e-05,0.05,"(0.02, 0.005, 0.001)",1e-05,0.05,_svc() got an unexpected keyword argument 'verbose'
-gauss,3,single,rbf,1.0,scale,0.001,1e-05,0.05,"(0.02, 0.005, 0.001)",1e-05,0.05,_svc() got an unexpected keyword argument 'verbose'
-gauss,3,double,rbf,1.0,scale,0.001,1e-05,0.05,"(0.02, 0.005, 0.001)",1e-05,0.05,_svc() got an unexpected keyword argument 'verbose'
-gauss,3,hybrid,rbf,1.0,scale,0.001,1e-05,0.05,"(0.02, 0.005, 0.001)",1e-05,0.05,_svc() got an unexpected keyword argument 'verbose'
-gauss,3,adaptive,rbf,1.0,scale,0.001,1e-05,0.05,"(0.02, 0.005, 0.001)",1e-05,0.05,_svc() got an unexpected keyword argument 'verbose'
-gauss,1,single,rbf,4.0,scale,0.001,1e-05,0.05,"(0.02, 0.005, 0.001)",1e-05,0.05,_svc() got an unexpected keyword argument 'verbose'
-gauss,1,double,rbf,4.0,scale,0.001,1e-05,0.05,"(0.02, 0.005, 0.001)",1e-05,0.05,_svc() got an unexpected keyword argument 'verbose'
-gauss,1,hybrid,rbf,4.0,scale,0.001,1e-05,0.05,"(0.02, 0.005, 0.001)",1e-05,0.05,_svc() got an unexpected keyword argument 'verbose'
-gauss,1,adaptive,rbf,4.0,scale,0.001,1e-05,0.05,"(0.02, 0.005, 0.001)",1e-05,0.05,_svc() got an unexpected keyword argument 'verbose'
-gauss,2,single,rbf,4.0,scale,0.001,1e-05,0.05,"(0.02, 0.005, 0.001)",1e-05,0.05,_svc() got an unexpected keyword argument 'verbose'
-gauss,2,double,rbf,4.0,scale,0.001,1e-05,0.05,"(0.02, 0.005, 0.001)",1e-05,0.05,_svc() got an unexpected keyword argument 'verbose'
-gauss,2,hybrid,rbf,4.0,scale,0.001,1e-05,0.05,"(0.02, 0.005, 0.001)",1e-05,0.05,_svc() got an unexpected keyword argument 'verbose'
-gauss,2,adaptive,rbf,4.0,scale,0.001,1e-05,0.05,"(0.02, 0.005, 0.001)",1e-05,0.05,_svc() got an unexpected keyword argument 'verbose'
-gauss,3,single,rbf,4.0,scale,0.001,1e-05,0.05,"(0.02, 0.005, 0.001)",1e-05,0.05,_svc() got an unexpected keyword argument 'verbose'
-gauss,3,double,rbf,4.0,scale,0.001,1e-05,0.05,"(0.02, 0.005, 0.001)",1e-05,0.05,_svc() got an unexpected keyword argument 'verbose'
-gauss,3,hybrid,rbf,4.0,scale,0.001,1e-05,0.05,"(0.02, 0.005, 0.001)",1e-05,0.05,_svc() got an unexpected keyword argument 'verbose'
-gauss,3,adaptive,rbf,4.0,scale,0.001,1e-05,0.05,"(0.02, 0.005, 0.001)",1e-05,0.05,_svc() got an unexpected keyword argument 'verbose'
+dataset,repeat,approach,mode,kernel,C,gamma,tol_single,tol_double,buffer_frac,tol_schedule,final_tol,min_rel_drop,time_sec,n_sv,roc_auc,accuracy,time_stageA,time_stageB,n_sv_stageA,n_used_stageB,n_passes,working_set_final
+gauss,1,single(fast),single(fast),rbf,1.0,scale,0.001,1e-05,0.05,"(0.02, 0.005, 0.001)",1e-05,0.05,0.05168183002388105,142,1.0,1.0,,,,,,
+gauss,1,double(precise),double(precise),rbf,1.0,scale,0.001,1e-05,0.05,"(0.02, 0.005, 0.001)",1e-05,0.05,0.0581867879955098,143,1.0,1.0,,,,,,
+gauss,1,hybrid(SV-refit),hybrid(SV-refit),rbf,1.0,scale,0.001,1e-05,0.05,"(0.02, 0.005, 0.001)",1e-05,0.05,0.06849848001729697,138,1.0,1.0,0.06031313497805968,0.00818534503923729,142.0,359.0,,
+gauss,1,adaptive-hybrid(SV-shrink),adaptive-hybrid(SV-shrink),rbf,1.0,scale,0.001,1e-05,0.05,"(0.02, 0.005, 0.001)",1e-05,0.05,0.05556382198119536,124,1.0,1.0,,,,,7.0,124.0
+gauss,2,single(fast),single(fast),rbf,1.0,scale,0.001,1e-05,0.05,"(0.02, 0.005, 0.001)",1e-05,0.05,0.04616174602415413,142,1.0,1.0,,,,,,
+gauss,2,double(precise),double(precise),rbf,1.0,scale,0.001,1e-05,0.05,"(0.02, 0.005, 0.001)",1e-05,0.05,0.053458367998246104,143,1.0,1.0,,,,,,
+gauss,2,hybrid(SV-refit),hybrid(SV-refit),rbf,1.0,scale,0.001,1e-05,0.05,"(0.02, 0.005, 0.001)",1e-05,0.05,0.0542214959859848,137,1.0,1.0,0.04734984500100836,0.006871650984976441,142.0,359.0,,
+gauss,2,adaptive-hybrid(SV-shrink),adaptive-hybrid(SV-shrink),rbf,1.0,scale,0.001,1e-05,0.05,"(0.02, 0.005, 0.001)",1e-05,0.05,0.0526562140439637,124,1.0,1.0,,,,,7.0,124.0
+gauss,3,single(fast),single(fast),rbf,1.0,scale,0.001,1e-05,0.05,"(0.02, 0.005, 0.001)",1e-05,0.05,0.04370958200888708,142,1.0,1.0,,,,,,
+gauss,3,double(precise),double(precise),rbf,1.0,scale,0.001,1e-05,0.05,"(0.02, 0.005, 0.001)",1e-05,0.05,0.05227385798934847,143,1.0,1.0,,,,,,
+gauss,3,hybrid(SV-refit),hybrid(SV-refit),rbf,1.0,scale,0.001,1e-05,0.05,"(0.02, 0.005, 0.001)",1e-05,0.05,0.05224487400846556,137,1.0,1.0,0.045797112048603594,0.006447761959861964,142.0,359.0,,
+gauss,3,adaptive-hybrid(SV-shrink),adaptive-hybrid(SV-shrink),rbf,1.0,scale,0.001,1e-05,0.05,"(0.02, 0.005, 0.001)",1e-05,0.05,0.05272881098790094,124,1.0,1.0,,,,,7.0,124.0
+gauss,1,single(fast),single(fast),rbf,4.0,scale,0.001,1e-05,0.05,"(0.02, 0.005, 0.001)",1e-05,0.05,0.045212238968815655,135,1.0,1.0,,,,,,
+gauss,1,double(precise),double(precise),rbf,4.0,scale,0.001,1e-05,0.05,"(0.02, 0.005, 0.001)",1e-05,0.05,0.04978692502481863,136,1.0,1.0,,,,,,
+gauss,1,hybrid(SV-refit),hybrid(SV-refit),rbf,4.0,scale,0.001,1e-05,0.05,"(0.02, 0.005, 0.001)",1e-05,0.05,0.05418513901531696,129,1.0,1.0,0.048008754034526646,0.006176384980790317,135.0,353.0,,
+gauss,1,adaptive-hybrid(SV-shrink),adaptive-hybrid(SV-shrink),rbf,4.0,scale,0.001,1e-05,0.05,"(0.02, 0.005, 0.001)",1e-05,0.05,0.05015496100531891,120,1.0,1.0,,,,,5.0,120.0
+gauss,2,single(fast),single(fast),rbf,4.0,scale,0.001,1e-05,0.05,"(0.02, 0.005, 0.001)",1e-05,0.05,0.04765801096800715,135,1.0,1.0,,,,,,
+gauss,2,double(precise),double(precise),rbf,4.0,scale,0.001,1e-05,0.05,"(0.02, 0.005, 0.001)",1e-05,0.05,0.05313493200810626,136,1.0,1.0,,,,,,
+gauss,2,hybrid(SV-refit),hybrid(SV-refit),rbf,4.0,scale,0.001,1e-05,0.05,"(0.02, 0.005, 0.001)",1e-05,0.05,0.05215450195828453,132,1.0,1.0,0.045887989981565624,0.006266511976718903,135.0,353.0,,
+gauss,2,adaptive-hybrid(SV-shrink),adaptive-hybrid(SV-shrink),rbf,4.0,scale,0.001,1e-05,0.05,"(0.02, 0.005, 0.001)",1e-05,0.05,0.051993956963997334,120,1.0,1.0,,,,,5.0,120.0
+gauss,3,single(fast),single(fast),rbf,4.0,scale,0.001,1e-05,0.05,"(0.02, 0.005, 0.001)",1e-05,0.05,0.044711815018672496,135,1.0,1.0,,,,,,
+gauss,3,double(precise),double(precise),rbf,4.0,scale,0.001,1e-05,0.05,"(0.02, 0.005, 0.001)",1e-05,0.05,0.04995679599232972,136,1.0,1.0,,,,,,
+gauss,3,hybrid(SV-refit),hybrid(SV-refit),rbf,4.0,scale,0.001,1e-05,0.05,"(0.02, 0.005, 0.001)",1e-05,0.05,0.05497291998472065,129,1.0,1.0,0.04608114098664373,0.008891778998076916,135.0,353.0,,
+gauss,3,adaptive-hybrid(SV-shrink),adaptive-hybrid(SV-shrink),rbf,4.0,scale,0.001,1e-05,0.05,"(0.02, 0.005, 0.001)",1e-05,0.05,0.04730063199531287,120,1.0,1.0,,,,,5.0,120.0

@@ -1,0 +1,9 @@
+dataset,kernel,C,gamma,approach,time_sec,n_sv,roc_auc,accuracy
+gauss,rbf,1.0,scale,adaptive-hybrid(SV-shrink),0.05364961567102,124.0,1.0,1.0
+gauss,rbf,1.0,scale,double(precise),0.05463967132770146,143.0,1.0,1.0
+gauss,rbf,1.0,scale,hybrid(SV-refit),0.058321616670582443,137.33333333333334,1.0,1.0
+gauss,rbf,1.0,scale,single(fast),0.04718438601897409,142.0,1.0,1.0
+gauss,rbf,4.0,scale,adaptive-hybrid(SV-shrink),0.049816516654876374,120.0,1.0,1.0
+gauss,rbf,4.0,scale,double(precise),0.0509595510084182,136.0,1.0,1.0
+gauss,rbf,4.0,scale,hybrid(SV-refit),0.053770853652774044,130.0,1.0,1.0
+gauss,rbf,4.0,scale,single(fast),0.04586068831849843,135.0,1.0,1.0
