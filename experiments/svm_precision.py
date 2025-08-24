@@ -7,7 +7,7 @@ from sklearn.metrics import roc_auc_score, accuracy_score
 import time
 import pandas as pd
 from sklearn.model_selection import train_test_split
-
+import io, re, contextlib
 
 # ----- helpers -----
 def _svc(kernel="rbf", C=1.0, gamma="scale", tol=1e-3, max_iter=-1,
@@ -32,28 +32,40 @@ def _eval_svc(model, X, y):
     acc = float(accuracy_score(y, (s > 0).astype(int)))
     return {"roc_auc": auc, "accuracy": acc}
 
+def _parse_iters_from_libsvm_stdout(s:str):
+    m = re.search(r"#iter\s*=\s*(\d+)", s)
+                  
+    return int(m.group(1)) if m else None
+
+
 # ----- single / double -----
 def svc_single(Xtr, ytr, Xte, yte, *,
                kernel="rbf", C=1.0, gamma="scale",
                tol=1e-3, max_iter=-1, random_state=0):
+    cap = io.StringIO()
     t0 = time.perf_counter()
-    clf = _svc(kernel, C, gamma, tol, max_iter, random_state=random_state)
-    clf.fit(Xtr, ytr)
+    clf = _svc(kernel, C, gamma, tol, max_iter, random_state=random_state, verbose=True)
+    with contextlib.redirect_stdout(cap):
+        clf.fit(Xtr, ytr)
     t1 = time.perf_counter()
+    iters = _parse_iters_from_libsvm_stdout(cap.getvalue())
     m = _eval_svc(clf, Xte, yte)
     n_sv = int(np.sum(clf[-1].n_support_))
-    return {"mode": "single(fast)", "time_sec": t1 - t0, "n_sv": n_sv, **m, "model": clf}
+    return {"mode": "single(fast)", "time_sec": t1 - t0, "n_sv": n_sv, "iters": iters, **m, "model": clf}
 
 def svc_double(Xtr, ytr, Xte, yte, *,
                kernel="rbf", C=1.0, gamma="scale",
                tol=1e-5, max_iter=-1, random_state=0):
+    cap = io.StringIO()
     t0 = time.perf_counter()
     clf = _svc(kernel, C, gamma, tol, max_iter, random_state=random_state)
-    clf.fit(Xtr, ytr)
+    with contextlib.redirect_stdout(cap):
+        clf.fit(Xtr, ytr)
     t1 = time.perf_counter()
+    iters = _parse_iters_from_libsvm_stdout(cap.getvalue())
     m = _eval_svc(clf, Xte, yte)
     n_sv = int(np.sum(clf[-1].n_support_))
-    return {"mode": "double(precise)", "time_sec": t1 - t0, "n_sv": n_sv, **m, "model": clf}
+    return {"mode": "double(precise)", "time_sec": t1 - t0, "n_sv": n_sv, "iters": iters, **m, "model": clf}
 
 # ----- hybrid (SV-refit) -----
 def svc_hybrid(Xtr, ytr, Xte, yte, *,
@@ -66,9 +78,13 @@ def svc_hybrid(Xtr, ytr, Xte, yte, *,
     Stage B: tight SVC ONLY on those SVs (+ optional random buffer).
     """
     # Stage A
+    capA = io.StringIO()
     t0 = time.perf_counter()
     loose = _svc(kernel, C, gamma, tol_single, max_iter_single, random_state=random_state)
-    loose.fit(Xtr, ytr)
+    with contextlib.redirect_stdout(capA):    
+        loose.fit(Xtr, ytr)
+
+    itersA = _parse_iters_from_libsvm_stdout(capA.getvalue())
     tA = time.perf_counter()
 
     # collect SVs (indices are w.r.t. post-scaling inputs inside the pipe)
@@ -88,9 +104,12 @@ def svc_hybrid(Xtr, ytr, Xte, yte, *,
             X_sv = np.vstack([X_sv, Xtr[extra]])
             y_sv = np.hstack([y_sv, ytr[extra]])
 
+    capB = io.StringIO()
     # Stage B
     tight = _svc(kernel, C, gamma, tol_double, max_iter_double, random_state=random_state)
-    tight.fit(X_sv, y_sv)
+    with contextlib.redirect_stdout(capB):
+        tight.fit(X_sv, y_sv)
+    itersB = _parse_iters_from_libsvm_stdout(capB.getvalue())
     tB = time.perf_counter()
 
     m = _eval_svc(tight, Xte, yte)
@@ -105,6 +124,8 @@ def svc_hybrid(Xtr, ytr, Xte, yte, *,
         "n_used_stageB": int(len(X_sv)),
         "n_sv": n_sv_tight,
         **m,
+        "itersA": itersA,
+        "itersB": itersB,
         "model": tight
     }
 
@@ -126,8 +147,12 @@ def svc_adaptive_hybrid(Xtr, ytr, Xte, yte, *,
     history = []
 
     for k, tol in enumerate(tol_schedule, 1):
+        cap = io.StringIO()
         clf = _svc(kernel, C, gamma, tol, max_iter, random_state=random_state)
-        clf.fit(Xtr[idx], ytr[idx])
+        with contextlib.redirect_stdout(cap):
+            clf.fit(Xtr[idx], ytr[idx])
+        iters = _parse_iters_from_libsvm_stdout(cap.getvalue())
+        history.append((tol, len(idx), n_sv, iters ))
         n_sv = int(np.sum(clf[-1].n_support_))
         sv_local = clf[-1].support_
         idx_new = idx[sv_local]
@@ -143,8 +168,12 @@ def svc_adaptive_hybrid(Xtr, ytr, Xte, yte, *,
             break
 
     # final precise fit on the shrunken set
+    capF = io.StringIO()
     clf_final = _svc(kernel, C, gamma, final_tol, max_iter, random_state=random_state)
-    clf_final.fit(Xtr[idx], ytr[idx])
+    with contextlib.redirect_stdout(capF):
+        clf_final.fit(Xtr[idx], ytr[idx])
+
+    itersF = _parse_iters_from_libsvm_stdout(capF.getvalue())    
     t1 = time.perf_counter()
 
     m = _eval_svc(clf_final, Xte, yte)
@@ -158,6 +187,7 @@ def svc_adaptive_hybrid(Xtr, ytr, Xte, yte, *,
         "n_sv": n_sv_final,
         "history": history,  # list of (tol, |working_set|, n_sv_on_pass)
         **m,
+        "final_iters": itersF,
         "model": clf_final
     }
 
@@ -307,77 +337,74 @@ def run_svc_experiments(
                         "error": str(e)
                     })
 
-    df = pd.DataFrame(rows)
+    df  = pd.DataFrame(rows)
 
-    # --- Pretty printing ---
-         if "mode" in df.columns and "approach" not in df.columns:
-                  df["approach"] = df["mode"]
-         
-         # 1) Drop errors
-         if "error" in df.columns:
-             df = df[df["error"].isna()].copy()
-         
-         # 2) Select grouping keys (hyper-params + approach)
-         group_cols = [c for c in [
-             "dataset", "kernel", "C", "gamma",
-             "tol_single", "tol_double",
-             "max_iter_single", "max_iter_double",
-             "buffer_frac", "tol_schedule", "final_tol", "min_rel_drop",
-             "approach"  # == mode
-         ] if c in df.columns]
-         
-         # 3) Metrics to average across repeats
-         metric_cols = [c for c in [
-             "time_sec", "roc_auc", "accuracy", "n_sv",
-             "time_stageA", "time_stageB", "n_sv_stageA", "n_used_stageB",
-             "n_passes", "working_set_final"
-         ] if c in df.columns]
-         
-         # 4) Mean over repeats
-         # Note: if you want both mean & std like before, you can .agg(["mean","std"]) and flatten columns.
-         df_mean = (df
-                    .groupby(group_cols, as_index=False)[metric_cols]
-                    .mean())
-         
-         # 5) (Optional) compute speedups vs single(fast)
-         # pivot to get time per approach side-by-side, then divide by single
-         if "time_sec" in df_mean.columns:
-             time_piv = df_mean.pivot_table(
-                 index=[c for c in group_cols if c != "approach"],
-                 columns="approach",
-                 values="time_sec",
-                 aggfunc="mean"
-             )
-         
-             # compute ratios: approach_time / single_time
-             for other in ["double(precise)", "hybrid(SV-refit)", "adaptive-hybrid(SV-shrink)"]:
-                 if other in time_piv.columns and "single(fast)" in time_piv.columns:
-                     time_piv[f"speedup_{other}_over_single"] = (
-                         time_piv[other] / time_piv["single(fast)"]
-                     )
-         
-             # merge speedups back (optional; comment out if you just want the pivot printed)
-             speed_cols = [c for c in time_piv.columns if str(c).startswith("speedup_")]
-             if speed_cols:
-                 df_speed = time_piv.reset_index()[[ *time_piv.index.names, *speed_cols ]]
-             else:
-                 df_speed = pd.DataFrame()
-         else:
-             df_speed = pd.DataFrame()
-         
-         # 6) Pretty console prints (compact)
-         with pd.option_context("display.max_rows", 200, "display.width", 140,
-                                "display.colheader_justify", "center"):
-             print("\n=== Mean over repeats (per hyperparams × approach) ===")
-             print(df_mean.round(4).to_string(index=False))
-         
-             if not df_speed.empty:
-                 print("\n=== Speedups (time ratio vs single(fast); lower is better) ===")
-                 print(df_speed.round(3).to_string(index=False))
+        # --- Pretty printing ---
+    if "mode" in df.columns and "approach" not in df.columns:
+                    df["approach"] = df["mode"]
+            
+            # 1) Drop errors
+    if "error" in df.columns:
+                df = df[df["error"].isna()].copy()
+            
+            # 2) Select grouping keys (hyper-params + approach)
+    group_cols = [c for c in [
+                "dataset", "kernel", "C", "gamma",
+                "tol_single", "tol_double",
+                "max_iter_single", "max_iter_double",
+                "buffer_frac", "tol_schedule", "final_tol", "min_rel_drop",
+                "approach"  # == mode
+            ] if c in df.columns]
+            
+            # 3) Metrics to average across repeats
+    metric_cols = [c for c in [
+                "time_sec", "roc_auc", "accuracy", "n_sv",
+                "time_stageA", "time_stageB", "n_sv_stageA", "n_used_stageB",
+                "n_passes", "working_set_final"
+            ] if c in df.columns]
+            
+            # 4) Mean over repeats
+            # Note: if you want both mean & std like before, you can .agg(["mean","std"]) and flatten columns.
+        
+    df_mean = (df.groupby(group_cols, as_index=False)[metric_cols].mean())
+            
+            # 5) (Optional) compute speedups vs single(fast)
+            # pivot to get time per approach side-by-side, then divide by single
+    if "time_sec" in df_mean.columns:
+            time_piv = df_mean.pivot_table(
+                    index=[c for c in group_cols if c != "approach"],
+                    columns="approach",
+                    values="time_sec",
+                    aggfunc="mean"
+                )
+            
+                # compute ratios: approach_time / single_time
+            for other in ["double(precise)", "hybrid(SV-refit)", "adaptive-hybrid(SV-shrink)"]:
+                if other in time_piv.columns and "single(fast)" in time_piv.columns:
+                        time_piv[f"speedup_{other}_over_single"] = (
+                            time_piv[other] / time_piv["single(fast)"]
+                    )
+            
+            # merge speedups back (optional; comment out if you just want the pivot printed)
+                speed_cols = [c for c in time_piv.columns if str(c).startswith("speedup_")]
+                if speed_cols:
+                    df_speed = time_piv.reset_index()[[ *time_piv.index.names, *speed_cols ]]
+                else:
+                    df_speed = pd.DataFrame()
+            else:
+                df_speed = pd.DataFrame()
+            
+            # 6) Pretty console prints (compact)
+            with pd.option_context("display.max_rows", 200, "display.width", 140,
+                                    "display.colheader_justify", "center"):
+                print("\n=== Mean over repeats (per hyperparams × approach) ===")
+                print(df_mean.round(4).to_string(index=False))
+            
+                if not df_speed.empty:
+                    print("\n=== Speedups (time ratio vs single(fast); lower is better) ===")
+                    print(df_speed.round(3).to_string(index=False))
 
     return df, df_mean
-    return df, pd.DataFrame()
-
 
 
 # 1) Nonlinear dataset (RBF-friendly)
