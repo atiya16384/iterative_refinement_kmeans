@@ -52,7 +52,7 @@ def svc_single(Xtr, ytr, Xte, yte, *,
     iters = _parse_iters_from_libsvm_stdout(cap.getvalue())
     m = _eval_svc(clf, Xte, yte)
     n_sv = int(np.sum(clf[-1].n_support_))
-    return {"mode": "single(fast)", "time_sec": t1 - t0, "n_sv": n_sv, "iters": iters, **m, "model": clf}
+    return {"mode": "single(fast)", "time_sec": t1 - t0, "n_sv": n_sv, "iters_single": iters, "iters_double": None, **m, "model": clf}
 
 def svc_double(Xtr, ytr, Xte, yte, *,
                kernel="rbf", C=1.0, gamma="scale",
@@ -66,7 +66,7 @@ def svc_double(Xtr, ytr, Xte, yte, *,
     iters = _parse_iters_from_libsvm_stdout(cap.getvalue())
     m = _eval_svc(clf, Xte, yte)
     n_sv = int(np.sum(clf[-1].n_support_))
-    return {"mode": "double(precise)", "time_sec": t1 - t0, "n_sv": n_sv, "iters": iters, **m, "model": clf}
+    return {"mode": "double(precise)", "time_sec": t1 - t0, "n_sv": n_sv, "iters_single": None, "iters_double": iters, **m, "model": clf}
 
 # ----- hybrid (SV-refit) -----
 def svc_hybrid(Xtr, ytr, Xte, yte, *,
@@ -188,7 +188,8 @@ def svc_adaptive_hybrid(Xtr, ytr, Xte, yte, *,
         "n_sv": n_sv_final,
         "history": history,  # list of (tol, |working_set|, n_sv_on_pass)
         **m,
-        "final_iters": itersF,
+        "iters_single": None,
+        "iters_double": itersF,
         "model": clf_final
     }
 
@@ -374,7 +375,7 @@ def run_svc_experiments(
          # ---- summary (like your k-means example) ----
     group_key = "approach" if "approach" in df_out.columns else ("mode" if "mode" in df_out.columns else None)
     group_cols = ["dataset","kernel","C","gamma"] + ([group_key] if group_key else [])
-    metric_cols = [c for c in ["time_sec","n_sv","roc_auc","accuracy"] if c in df_out.columns]
+    metric_cols = [c for c in ["time_sec","n_sv","roc_auc","accuracy", "iters_single", "iters_double"] if c in df_out.columns]
          
     summary = (
         df_out.groupby(group_cols, as_index=False)[metric_cols].mean())
@@ -392,14 +393,16 @@ def run_svc_experiments(
 
 
 # 1) Nonlinear dataset (RBF-friendly)
-X, y = make_circles_like(m=6000, noise=0.15, factor=0.45, seed=1)
+X, y = make_circles_like(m=100_0000, noise=0.15, factor=0.45, seed=1)
 grid = {
+    # "linear", "poly", "sigmoid"
+
     "kernel": ["rbf", "linear", "poly", "sigmoid"],
     "C": [1.0, 4.0],
     "gamma": ["scale", "auto"],
     "tol_single": [1e-2, 1e-3],
     "tol_double": [1e-4],
-    "max_iter_single":[0, 100, 200, 300, 1000, 2000],
+    "max_iter_single":[100, 250, 500, 1000, 3000],
     "max_iter_double":[10000],
     "buffer_frac": [0.05],
     "tol_schedule": [(2e-2, 5e-3, 1e-3)],
@@ -411,7 +414,7 @@ df, df_mean = run_svc_experiments(X, y, dataset_name="circles", grid=grid,
                                   repeats=3)
 
 # 2) Linear-ish dataset (hybrid may help less because 'double' is already quick)
-X, y = make_shifted_gaussian(m=6000, n=40, delta=0.7, seed=2)
+X, y = make_shifted_gaussian(m=1000_000, n=120, delta=0.7, seed=2)
 df, df_mean = run_svc_experiments(X, y, dataset_name="gauss", grid=grid,
                                   approaches=("single","double","hybrid","adaptive"),
                                   repeats=3)
