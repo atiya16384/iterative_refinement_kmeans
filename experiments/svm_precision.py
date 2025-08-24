@@ -342,53 +342,56 @@ def run_svc_experiments(
 
          # --- Summarize results ---
          # Add a friendly alias and drop failed rows, if any
-    if "mode" in df.columns and "approach" not in df.columns:
-            df["approach"] = df["mode"]
-            
-    if "error" in df.columns:
-            # keep a copy of raw for debugging; drop errors for summary
-            df_raw = df.copy()
-            df = df[df["error"].isna()].copy()
-    else:
-            df_raw = df.copy()
-        
-        # Guard: if nothing succeeded, show the first few errors and stop cleanly
-    if df.empty:
-            print("\nNo successful runs. First few errors:")
-            print(df_raw[["dataset","mode","repeat","error"]].head(10).to_string(index=False))
-            # still save the raw errors for inspection
-            df_raw.to_csv("svm_precision_raw.csv", index=False)
-            print("\nSaved: svm_precision_raw.csv (contains only error rows)")
-            return df_raw, pd.DataFrame()
-        
-        # Build a tidy output subset for CSV
-    keep = [
-            "dataset","repeat","mode","kernel","C","gamma",
-            "tol_single","tol_double","buffer_frac","tol_schedule","final_tol","min_rel_drop",
-            "time_sec","n_sv","roc_auc","accuracy",
-            "iters_single","iters_double",
-            "time_stageA","time_stageB","n_sv_stageA","n_used_stageB",
-            "n_passes","working_set_final"
-        ]
-    df_out = df[[c for c in keep if c in df.columns]].copy()
-        
-        # Grouped summary like your KMeans example
-    summary = (
-            df_out.groupby(["dataset","kernel","C","gamma","approach"], as_index=False)
-                [["time_sec","n_sv","roc_auc","accuracy"]]
-                .mean()
-        )
-        
-    print("\n==== SUMMARY: SVM Precision Experiments ====")
-    print(summary.to_string(index=False))
-        
-        # Save CSVs
-    df_raw.to_csv("svm_precision_raw.csv", index=False)        # everything (incl. errors)
-    df_out.to_csv("svm_precision_runs.csv", index=False)       # tidy successful runs
-    summary.to_csv("../Results/svm_precision_summary.csv", index=False)   # grouped mean table
-    print("\nSaved: svm_precision_raw.csv, svm_precision_runs.csv, svm_precision_summary.csv")
-        
-    return df_out, summary
+    # ---- make 'approach' alias and separate raw/success ----
+         if "mode" in df.columns and "approach" not in df.columns:
+             df["approach"] = df["mode"]
+         
+         df_raw = df.copy()
+         if "error" in df.columns:
+             df = df[df["error"].isna()].copy()
+         
+         # Guard: if nothing succeeded, show errors and exit cleanly
+         if df.empty:
+             print("\nNo successful runs. First few errors:")
+             cols = [c for c in ["dataset","mode","repeat","error"] if c in df_raw.columns]
+             print(df_raw[cols].head(10).to_string(index=False))
+             df_raw.to_csv("svm_precision_raw.csv", index=False)
+             print("\nSaved: svm_precision_raw.csv (contains only error rows)")
+             # Return something sensible
+             return df_raw, pd.DataFrame()
+         
+         # ---- tidy output for CSVs (KEEP 'approach') ----
+         keep = [
+             "dataset","repeat","approach","mode","kernel","C","gamma",
+             "tol_single","tol_double","buffer_frac","tol_schedule","final_tol","min_rel_drop",
+             "time_sec","n_sv","roc_auc","accuracy",
+             "iters_single","iters_double",
+             "time_stageA","time_stageB","n_sv_stageA","n_used_stageB",
+             "n_passes","working_set_final"
+         ]
+         df_out = df[[c for c in keep if c in df.columns]].copy()
+         
+         # ---- summary (like your k-means example) ----
+         group_key = "approach" if "approach" in df_out.columns else ("mode" if "mode" in df_out.columns else None)
+         group_cols = ["dataset","kernel","C","gamma"] + ([group_key] if group_key else [])
+         metric_cols = [c for c in ["time_sec","n_sv","roc_auc","accuracy"] if c in df_out.columns]
+         
+         summary = (
+             df_out.groupby(group_cols, as_index=False)[metric_cols]
+                   .mean()
+         )
+         
+         print("\n==== SUMMARY: SVM Precision Experiments ====")
+         print(summary.to_string(index=False))
+         
+         # ---- save CSVs ----
+         df_raw.to_csv("svm_precision_raw.csv", index=False)        # everything (incl. errors)
+         df_out.to_csv("svm_precision_runs.csv", index=False)       # tidy successful runs
+         summary.to_csv("svm_precision_summary.csv", index=False)   # grouped mean table
+         print("\nSaved: svm_precision_raw.csv, svm_precision_runs.csv, svm_precision_summary.csv")
+         
+         return df_out, summary
+
 
 # 1) Nonlinear dataset (RBF-friendly)
 X, y = make_circles_like(m=6000, noise=0.15, factor=0.45, seed=1)
