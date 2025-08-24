@@ -8,6 +8,45 @@ from sklearn.cluster import KMeans, MiniBatchKMeans
 def evaluate_metrics(inertia):
     return inertia
 
+
+def run_full_single(X, initial_centers, n_clusters, max_iter, tol, y_true,
+                    algorithm='lloyd', random_state=0):
+    """
+    Full single-precision run (treat as the 'single' baseline).
+    Returns the same tuple layout as run_full_double:
+      centers, labels, iters_single_tot, iters_double_tot, elapsed, mem_MB, inertia
+    """
+    # cast to float32 for memory/speed (sklearn may upcast internally on some versions)
+    X32 = np.asarray(X, dtype=np.float32)
+    init32 = np.asarray(initial_centers, dtype=np.float32)
+
+    start_time = time.time()
+    kmeans = KMeans(
+        n_clusters=n_clusters,
+        init=init32,
+        n_init=1,
+        max_iter=max_iter,
+        tol=tol,
+        algorithm=algorithm,
+        random_state=random_state,
+    )
+    kmeans.fit(X32)
+    elapsed = time.time() - start_time
+
+    iters_single_tot = int(kmeans.n_iter_)
+    iters_double_tot = 0  # full single run: no double-precision phase
+
+    labels = kmeans.labels_
+    # return centers in float64 for consistency with other paths
+    centers = kmeans.cluster_centers_.astype(np.float64, copy=False)
+    inertia = evaluate_metrics(kmeans.inertia_)
+
+    mem_MB_single = X32.nbytes / 1e6
+
+    print(f"This is total for single run: {iters_single_tot}")
+
+    return centers, labels, iters_single_tot, iters_double_tot, elapsed, mem_MB_single, inertia
+
 def run_full_double(X, initial_centers, n_clusters, max_iter, tol, y_true):
     start_time = time.time()
     kmeans = KMeans(n_clusters=n_clusters, init=initial_centers, n_init=1, max_iter=max_iter,tol=tol, algorithm='lloyd', random_state=0)
