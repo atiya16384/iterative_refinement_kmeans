@@ -339,35 +339,32 @@ def run_svc_experiments(
 
     df  = pd.DataFrame(rows)
 
+         # --- Summarize results ---
+    if "mode" in df.columns and "approach" not in df.columns:
+         df["approach"] = df["mode"]
+         
+         # Drop any errors
+    if "error" in df.columns:
+         df = df[df["error"].isna()].copy()
+         
+         # Summarize: average across repeats
+    summary = (
+         df.groupby([
+             "dataset", "kernel", "C", "gamma", "approach"
+    ])
+    [["time_sec", "n_sv", "roc_auc", "accuracy"]]
+    .mean()
+    .reset_index()
+    )
 
-         # Keep only tidy, relevant columns (missing ones are auto-dropped)
-    keep = [
-             "dataset","repeat","mode","kernel","C","gamma",
-             "tol_single","tol_double","buffer_frac","tol_schedule","final_tol","min_rel_drop",
-             "time_sec","iters_single","iters_double","n_sv",
-             "time_stageA","time_stageB","n_sv_stageA","n_used_stageB",
-             "n_passes","working_set_final","roc_auc","accuracy","error"
-         ]
-    df_out = df[[c for c in keep if c in df.columns]].copy()
+    print("\n==== SUMMARY: SVM Precision Experiments ====")
+    print(summary.to_string(index=False))
          
-         # ---- Clean terminal prints: one line per run ----
-    print("\n=== SVM precision runs (one line per run) ===")
-    for row in df_out.itertuples(index=False):
-            print(
-                f"[{getattr(row, 'dataset', '?')}] rep={getattr(row,'repeat','?')} "
-                f"{getattr(row,'mode','?')} kernel={getattr(row,'kernel','?')} "
-                f"C={getattr(row,'C','?')} gamma={getattr(row,'gamma','?')} "
-                f"time={getattr(row,'time_sec',float('nan')):.4f}s "
-                f"iters_single={getattr(row,'iters_single', None)} "
-                f"iters_double={getattr(row,'iters_double', None)} "
-                f"n_sv={getattr(row,'n_sv', None)}"
-             )
-         
-         # ---- Save CSV ----
-    out_csv = f"svm_precision_runs.csv"
-    df_out.to_csv(out_csv, index=False)
-    print(f"\nSaved results → {out_csv}")
-         
+    # Save both raw and summary results
+    df.to_csv("svm_precision_raw.csv", index=False)
+    summary.to_csv("svm_precision_summary.csv", index=False)
+    print("\nSaved: svm_precision_raw.csv and svm_precision_summary.csv")
+
          # (optional) also return the tidy frame
     return df_out, pd.DataFrame()
 
