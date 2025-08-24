@@ -1,5 +1,5 @@
 from visualisations.kmeans_visualisations import KMeansVisualizer
-from experiments.kmeans_precision import run_full_double, run_hybrid,  run_expD_adaptive_sklearn, run_expE_minibatch_then_full,run_expF_percluster_mixed
+from experiments.kmeans_precision import run_full_single, run_full_double, run_hybrid,  run_expD_adaptive_sklearn, run_expE_minibatch_then_full,run_expF_percluster_mixed
 import numpy as np
 import time
 import numpy as np
@@ -19,6 +19,16 @@ def run_experiment_A(ds_name, X, y_true, n_clusters, initial_centers, config):
 
     for rep in range(n_repeats):
         # Full double precision run
+        # Full single-precision baseline
+        centers_single, labels_single, iters_single_tot_s, iters_double_tot_s, elapsed_s, mem_MB_single, inertia_s = run_full_single(
+            X_cur, initial_centers, n_clusters, max_iter, tol_fixed_A, y_true_cur
+        )
+        rows_A.append([
+            ds_name, n_samples, n_clusters, "A", 0, 0,
+            iters_single_tot_s, iters_double_tot_s, "Single", elapsed_s, mem_MB_single, inertia_s
+        ])
+
+        
         centers_double, labels_double, iters_double_tot, iters_single_tot, elapsed, mem_MB_double, inertia = run_full_double(
             X_cur, initial_centers, n_clusters, max_iter, tol_fixed_A, y_true_cur
         )
@@ -70,6 +80,15 @@ def run_experiment_B(ds_name, X, y_true, n_clusters, initial_centers, config):
     n_repeats = config["n_repeats"]
 
     for rep in range(n_repeats):
+        # Full single-precision baseline (use same tol as double; or add a tol_single_B if you prefer)
+        centers_single, labels_single, iters_single_tot_s, iters_double_tot_s, elapsed_s, mem_MB_single, inertia_s = run_full_single(
+            X_cur, initial_centers, n_clusters, max_iter_B, tol_double_B, y_true_cur
+        )
+        rows_B.append([
+            ds_name, n_samples, n_clusters, "B", tol_double_B,
+            iters_single_tot_s, iters_double_tot_s, "Single", elapsed_s, mem_MB_single, inertia_s
+        ])
+
         centers_double, labels_double, iters_double_tot, iters_single_tot, elapsed, mem_MB_double, inertia = run_full_double(
         X_cur, initial_centers, n_clusters, max_iter_B, tol_double_B, y_true_cur
         )
@@ -119,6 +138,15 @@ def run_experiment_C(ds_name, X, y_true, n_clusters, initial_centers, config):
 
     for rep in range(n_repeats):
         # Full double precision baseline
+        # Full single-precision baseline
+        centers_single, labels_single, iters_single_tot_s, iters_double_tot_s, elapsed_s, mem_MB_single, inertia_s = run_full_single(
+            X, initial_centers, n_clusters, max_iter_C, tol_fixed_C, y_true
+        )
+        rows_C.append([
+            ds_name, n_samples, n_clusters, "C", "full", tol_fixed_C,
+            iters_single_tot_s, iters_double_tot_s, "Single", elapsed_s, mem_MB_single, inertia_s
+        ])
+
         centers_double, labels_double, iters_double_tot, iters_single_tot, elapsed_d, mem_MB_d, inertia_d = run_full_double(
             X, initial_centers, n_clusters, max_iter_C, tol_fixed_C, y_true
         )
@@ -176,6 +204,17 @@ def run_experiment_D(ds_name, X, y_true, n_clusters, initial_centers, config):
     stability_threshold = float(config["stability_threshold_D"])
 
     for rep in range(reps):
+        # Baseline: pure single with same budget/tol
+        c_s, l_s, it_s_s, it_d_s, t_s, mem_s, J_s = run_full_single(
+            X, initial_centers, n_clusters, max_iter, tol_double_baseline, y_true
+        )
+        rows_D.append([
+            ds_name, n, n_clusters, "D",
+            chunk_single, improve_threshold,   # just storing the variant knobs for reference
+            it_s_s, it_d_s,
+            "Single", t_s, mem_s, J_s
+        ])
+
         # Baseline: pure double (same budget)
         c_d, l_d, it_d, it_s, t, mem, J = run_full_double(
             X, initial_centers, n_clusters, max_iter, tol_double_baseline, y_true
@@ -222,6 +261,17 @@ def run_experiment_E(ds_name, X, y_true, n_clusters, initial_centers, config):
                 for refine_iter in refine_grid:
                     budget = mb_iter + refine_iter
 
+                    # Baseline: pure single with same total budget
+                    c_s, l_s, it_s_s, it_d_s, t_s, mem_s, J_s = run_full_single(
+                        X, initial_centers, n_clusters, budget, tol_double_baseline, y_true
+                    )
+                    rows_E.append([
+                        ds_name, n, n_clusters, "E",
+                        mb_iter, mb_batch, refine_iter,
+                        it_s_s, it_d_s,
+                        "Single", t_s, mem_s, J_s
+                    ])
+
                     # Baseline: pure double with same total budget
                     c_d, l_d, it_d, it_s, t, mem, J = run_full_double(
                         X, initial_centers, n_clusters, budget, tol_double_baseline, y_true
@@ -265,6 +315,17 @@ def run_experiment_F(ds_name, X, y_true, n_clusters, initial_centers, config):
         for single_iter_cap in cap_grid:
             for tol_single in tol_single_grid:
                 # Baseline: pure double with same total budget
+                # Baseline: pure single with same total budget
+                c_s, l_s, it_s_s, it_d_s, t_s, mem_s, J_s = run_full_single(
+                    X, initial_centers, n_clusters, max_iter_total, tol_double, y_true
+                )
+                rows_F.append([
+                    ds_name, n, n_clusters, "F",
+                    tol_single, tol_double, single_iter_cap, freeze_stable, freeze_patience,
+                    it_s_s, it_d_s,
+                    "Single", t_s, mem_s, J_s
+                ])
+
                 c_d, l_d, it_d, it_s, t, mem, J = run_full_double(
                     X, initial_centers, n_clusters, max_iter_total, tol_double, y_true
                 )
@@ -293,5 +354,6 @@ def run_experiment_F(ds_name, X, y_true, n_clusters, initial_centers, config):
                     "MixedPerCluster", res["elapsed_time"], res["mem_MB"], res["inertia"]
                 ])
     return rows_F
+
 
 
