@@ -339,72 +339,38 @@ def run_svc_experiments(
 
     df  = pd.DataFrame(rows)
 
-        # --- Pretty printing ---
-    if "mode" in df.columns and "approach" not in df.columns:
-                    df["approach"] = df["mode"]
-            
-            # 1) Drop errors
-    if "error" in df.columns:
-                df = df[df["error"].isna()].copy()
-            
-            # 2) Select grouping keys (hyper-params + approach)
-    group_cols = [c for c in [
-                "dataset", "kernel", "C", "gamma",
-                "tol_single", "tol_double",
-                "max_iter_single", "max_iter_double",
-                "buffer_frac", "tol_schedule", "final_tol", "min_rel_drop",
-                "approach"  # == mode
-            ] if c in df.columns]
-            
-            # 3) Metrics to average across repeats
-    metric_cols = [c for c in [
-                "time_sec", "roc_auc", "accuracy", "n_sv",
-                "time_stageA", "time_stageB", "n_sv_stageA", "n_used_stageB",
-                "n_passes", "working_set_final"
-            ] if c in df.columns]
-            
-            # 4) Mean over repeats
-            # Note: if you want both mean & std like before, you can .agg(["mean","std"]) and flatten columns.
-        
-    df_mean = (df.groupby(group_cols, as_index=False)[metric_cols].mean())
-            
-            # 5) (Optional) compute speedups vs single(fast)
-            # pivot to get time per approach side-by-side, then divide by single
-    if "time_sec" in df_mean.columns:
-            time_piv = df_mean.pivot_table(
-                    index=[c for c in group_cols if c != "approach"],
-                    columns="approach",
-                    values="time_sec",
-                    aggfunc="mean"
-                )
-            
-                # compute ratios: approach_time / single_time
-            for other in ["double(precise)", "hybrid(SV-refit)", "adaptive-hybrid(SV-shrink)"]:
-                if other in time_piv.columns and "single(fast)" in time_piv.columns:
-                        time_piv[f"speedup_{other}_over_single"] = (
-                            time_piv[other] / time_piv["single(fast)"]
-                    )
-            
-            # merge speedups back (optional; comment out if you just want the pivot printed)
-                speed_cols = [c for c in time_piv.columns if str(c).startswith("speedup_")]
-                if speed_cols:
-                    df_speed = time_piv.reset_index()[[ *time_piv.index.names, *speed_cols ]]
-                else:
-                    df_speed = pd.DataFrame()
-            else:
-                df_speed = pd.DataFrame()
-            
-            # 6) Pretty console prints (compact)
-            with pd.option_context("display.max_rows", 200, "display.width", 140,
-                                    "display.colheader_justify", "center"):
-                print("\n=== Mean over repeats (per hyperparams × approach) ===")
-                print(df_mean.round(4).to_string(index=False))
-            
-                if not df_speed.empty:
-                    print("\n=== Speedups (time ratio vs single(fast); lower is better) ===")
-                    print(df_speed.round(3).to_string(index=False))
 
-    return df, df_mean
+         # Keep only tidy, relevant columns (missing ones are auto-dropped)
+         keep = [
+             "dataset","repeat","mode","kernel","C","gamma",
+             "tol_single","tol_double","buffer_frac","tol_schedule","final_tol","min_rel_drop",
+             "time_sec","iters_single","iters_double","n_sv",
+             "time_stageA","time_stageB","n_sv_stageA","n_used_stageB",
+             "n_passes","working_set_final","roc_auc","accuracy","error"
+         ]
+         df_out = df[[c for c in keep if c in df.columns]].copy()
+         
+         # ---- Clean terminal prints: one line per run ----
+         print("\n=== SVM precision runs (one line per run) ===")
+         for row in df_out.itertuples(index=False):
+             print(
+                 f"[{getattr(row, 'dataset', '?')}] rep={getattr(row,'repeat','?')} "
+                 f"{getattr(row,'mode','?')} kernel={getattr(row,'kernel','?')} "
+                 f"C={getattr(row,'C','?')} gamma={getattr(row,'gamma','?')} "
+                 f"time={getattr(row,'time_sec',float('nan')):.4f}s "
+                 f"iters_single={getattr(row,'iters_single', None)} "
+                 f"iters_double={getattr(row,'iters_double', None)} "
+                 f"n_sv={getattr(row,'n_sv', None)}"
+             )
+         
+         # ---- Save CSV ----
+         out_csv = f"svm_precision_runs.csv"
+         df_out.to_csv(out_csv, index=False)
+         print(f"\nSaved results → {out_csv}")
+         
+         # (optional) also return the tidy frame
+         return df_out, pd.DataFrame()
+
 
 
 # 1) Nonlinear dataset (RBF-friendly)
