@@ -341,37 +341,35 @@ def run_svc_experiments(
 
 
          # Keep only tidy, relevant columns (missing ones are auto-dropped)
-         keep = [
+    keep = [
              "dataset","repeat","mode","kernel","C","gamma",
              "tol_single","tol_double","buffer_frac","tol_schedule","final_tol","min_rel_drop",
              "time_sec","iters_single","iters_double","n_sv",
              "time_stageA","time_stageB","n_sv_stageA","n_used_stageB",
              "n_passes","working_set_final","roc_auc","accuracy","error"
          ]
-         df_out = df[[c for c in keep if c in df.columns]].copy()
+    df_out = df[[c for c in keep if c in df.columns]].copy()
          
          # ---- Clean terminal prints: one line per run ----
-         print("\n=== SVM precision runs (one line per run) ===")
-         for row in df_out.itertuples(index=False):
-             print(
-                 f"[{getattr(row, 'dataset', '?')}] rep={getattr(row,'repeat','?')} "
-                 f"{getattr(row,'mode','?')} kernel={getattr(row,'kernel','?')} "
-                 f"C={getattr(row,'C','?')} gamma={getattr(row,'gamma','?')} "
-                 f"time={getattr(row,'time_sec',float('nan')):.4f}s "
-                 f"iters_single={getattr(row,'iters_single', None)} "
-                 f"iters_double={getattr(row,'iters_double', None)} "
-                 f"n_sv={getattr(row,'n_sv', None)}"
+    print("\n=== SVM precision runs (one line per run) ===")
+    for row in df_out.itertuples(index=False):
+            print(
+                f"[{getattr(row, 'dataset', '?')}] rep={getattr(row,'repeat','?')} "
+                f"{getattr(row,'mode','?')} kernel={getattr(row,'kernel','?')} "
+                f"C={getattr(row,'C','?')} gamma={getattr(row,'gamma','?')} "
+                f"time={getattr(row,'time_sec',float('nan')):.4f}s "
+                f"iters_single={getattr(row,'iters_single', None)} "
+                f"iters_double={getattr(row,'iters_double', None)} "
+                f"n_sv={getattr(row,'n_sv', None)}"
              )
          
          # ---- Save CSV ----
-         out_csv = f"svm_precision_runs.csv"
-         df_out.to_csv(out_csv, index=False)
-         print(f"\nSaved results → {out_csv}")
+    out_csv = f"svm_precision_runs.csv"
+    df_out.to_csv(out_csv, index=False)
+    print(f"\nSaved results → {out_csv}")
          
          # (optional) also return the tidy frame
-         return df_out, pd.DataFrame()
-
-
+    return df_out, pd.DataFrame()
 
 # 1) Nonlinear dataset (RBF-friendly)
 X, y = make_circles_like(m=6000, noise=0.15, factor=0.45, seed=1)
