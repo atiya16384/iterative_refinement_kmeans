@@ -11,11 +11,11 @@ def evaluate_metrics(inertia):
 
 def run_full_single(X, initial_centers, n_clusters, max_iter, tol, y_true,
                     algorithm='lloyd', random_state=0):
-    """
-    Full single-precision run (treat as the 'single' baseline).
-    Returns the same tuple layout as run_full_double:
-      centers, labels, iters_single_tot, iters_double_tot, elapsed, mem_MB, inertia
-    """
+    
+    #Full single-precision run (treat as the 'single' baseline).
+    #Returns the same tuple layout as run_full_double:
+    #  centers, labels, iters_single_tot, iters_double_tot, elapsed, mem_MB, inertia
+
     # cast to float32 for memory/speed (sklearn may upcast internally on some versions)
     X32 = np.asarray(X, dtype=np.float32)
     init32 = np.asarray(initial_centers, dtype=np.float32)
