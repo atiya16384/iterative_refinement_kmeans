@@ -11,7 +11,7 @@ import io, re, contextlib
 
 # ----- helpers -----
 def _svc(kernel="rbf", C=1.0, gamma="scale", tol=1e-3, max_iter=-1,
-         shrinking=True, random_state=0, cache_size=500):
+         shrinking=True, random_state=0, cache_size=500, verbose=False):
     # Pipeline to standardize features (important for SVMs)
     return make_pipeline(
         StandardScaler(with_mean=True, with_std=True),
@@ -22,6 +22,7 @@ def _svc(kernel="rbf", C=1.0, gamma="scale", tol=1e-3, max_iter=-1,
             random_state=random_state,
             probability=False,  # use decision_function for metrics
             cache_size=cache_size,
+            verbose=verbose,
         )
     )
 
@@ -341,52 +342,53 @@ def run_svc_experiments(
 
          # --- Summarize results ---
          # Add a friendly alias and drop failed rows, if any
-         if "mode" in df.columns and "approach" not in df.columns:
-             df["approach"] = df["mode"]
-         if "error" in df.columns:
-             # keep a copy of raw for debugging; drop errors for summary
-             df_raw = df.copy()
-             df = df[df["error"].isna()].copy()
-         else:
-             df_raw = df.copy()
-         
-         # Guard: if nothing succeeded, show the first few errors and stop cleanly
-         if df.empty:
-             print("\nNo successful runs. First few errors:")
-             print(df_raw[["dataset","mode","repeat","error"]].head(10).to_string(index=False))
-             # still save the raw errors for inspection
-             df_raw.to_csv("svm_precision_raw.csv", index=False)
-             print("\nSaved: svm_precision_raw.csv (contains only error rows)")
-             return df_raw, pd.DataFrame()
-         
-         # Build a tidy output subset for CSV
-         keep = [
-             "dataset","repeat","mode","kernel","C","gamma",
-             "tol_single","tol_double","buffer_frac","tol_schedule","final_tol","min_rel_drop",
-             "time_sec","n_sv","roc_auc","accuracy",
-             "iters_single","iters_double",
-             "time_stageA","time_stageB","n_sv_stageA","n_used_stageB",
-             "n_passes","working_set_final"
-         ]
-         df_out = df[[c for c in keep if c in df.columns]].copy()
-         
-         # Grouped summary like your KMeans example
-         summary = (
-             df_out.groupby(["dataset","kernel","C","gamma","approach"], as_index=False)
-                   [["time_sec","n_sv","roc_auc","accuracy"]]
-                   .mean()
-         )
-         
-         print("\n==== SUMMARY: SVM Precision Experiments ====")
-         print(summary.to_string(index=False))
-         
-         # Save CSVs
-         df_raw.to_csv("svm_precision_raw.csv", index=False)        # everything (incl. errors)
-         df_out.to_csv("svm_precision_runs.csv", index=False)       # tidy successful runs
-         summary.to_csv("svm_precision_summary.csv", index=False)   # grouped mean table
-         print("\nSaved: svm_precision_raw.csv, svm_precision_runs.csv, svm_precision_summary.csv")
-         
-         return df_out, summary
+    if "mode" in df.columns and "approach" not in df.columns:
+            df["approach"] = df["mode"]
+            
+    if "error" in df.columns:
+            # keep a copy of raw for debugging; drop errors for summary
+            df_raw = df.copy()
+            df = df[df["error"].isna()].copy()
+    else:
+            df_raw = df.copy()
+        
+        # Guard: if nothing succeeded, show the first few errors and stop cleanly
+    if df.empty:
+            print("\nNo successful runs. First few errors:")
+            print(df_raw[["dataset","mode","repeat","error"]].head(10).to_string(index=False))
+            # still save the raw errors for inspection
+            df_raw.to_csv("svm_precision_raw.csv", index=False)
+            print("\nSaved: svm_precision_raw.csv (contains only error rows)")
+            return df_raw, pd.DataFrame()
+        
+        # Build a tidy output subset for CSV
+    keep = [
+            "dataset","repeat","mode","kernel","C","gamma",
+            "tol_single","tol_double","buffer_frac","tol_schedule","final_tol","min_rel_drop",
+            "time_sec","n_sv","roc_auc","accuracy",
+            "iters_single","iters_double",
+            "time_stageA","time_stageB","n_sv_stageA","n_used_stageB",
+            "n_passes","working_set_final"
+        ]
+    df_out = df[[c for c in keep if c in df.columns]].copy()
+        
+        # Grouped summary like your KMeans example
+    summary = (
+            df_out.groupby(["dataset","kernel","C","gamma","approach"], as_index=False)
+                [["time_sec","n_sv","roc_auc","accuracy"]]
+                .mean()
+        )
+        
+    print("\n==== SUMMARY: SVM Precision Experiments ====")
+    print(summary.to_string(index=False))
+        
+        # Save CSVs
+    df_raw.to_csv("svm_precision_raw.csv", index=False)        # everything (incl. errors)
+    df_out.to_csv("svm_precision_runs.csv", index=False)       # tidy successful runs
+    summary.to_csv("../Results/svm_precision_summary.csv", index=False)   # grouped mean table
+    print("\nSaved: svm_precision_raw.csv, svm_precision_runs.csv, svm_precision_summary.csv")
+        
+    return df_out, summary
 
 # 1) Nonlinear dataset (RBF-friendly)
 X, y = make_circles_like(m=6000, noise=0.15, factor=0.45, seed=1)
