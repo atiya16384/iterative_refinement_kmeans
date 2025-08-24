@@ -4,6 +4,15 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import make_pipeline
 from sklearn.svm import SVC
 from sklearn.metrics import roc_auc_score, accuracy_score
+import io, re, contextlib
+
+def _parse_iters_from_libsvm_stdout(s: str):
+    """
+    Parse '#iter = N' from libSVM verbose output.
+    """
+    m = re.search(r"#iter\s*=\s*(\d+)", s)
+    return int(m.group(1)) if m else None
+
 
 # ----- helpers -----
 def _svc(kernel="rbf", C=1.0, gamma="scale", tol=1e-3, max_iter=-1,
@@ -38,7 +47,7 @@ def svc_single(Xtr, ytr, Xte, yte, *,
     t1 = time.perf_counter()
     m = _eval_svc(clf, Xte, yte)
     n_sv = int(np.sum(clf[-1].n_support_))
-    return {"mode": "single(fast)", "time_sec": t1 - t0, "n_sv": n_sv, **m, "model": clf}
+    return {"mode": "single(fast)", "time_sec": t1 - t0, "n_sv": n_sv, "iters": iters,**m, "model": clf}
 
 def svc_double(Xtr, ytr, Xte, yte, *,
                kernel="rbf", C=1.0, gamma="scale",
