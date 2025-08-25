@@ -28,7 +28,7 @@ PLOTS_DIR= pathlib.Path("ClusterPlots")
 PLOTS_DIR.mkdir(exist_ok = True)
 
 # for the cluster size we are varying this for all datasets
-n_clusters_list = [80, 160, 240]
+n_clusters_list = [100]
 
 config = {
     "n_repeats": 3,
@@ -107,12 +107,12 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A, rows_B, ro
             rows_B += run_experiment_B(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
             print("Running C")
             rows_C += run_experiment_C(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
-        #    print("Running D")
-        #    rows_D += run_experiment_D(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
-        #    print("Running E")
-        #    rows_E += run_experiment_E(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
-        #    print("Running F")
-        #    rows_F += run_experiment_F(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
+            print("Running D")
+            rows_D += run_experiment_D(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
+            print("Running E")
+            rows_E += run_experiment_E(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
+            print("Running F")
+            rows_F += run_experiment_F(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
 
     return  rows_A, rows_B, rows_C, rows_E, rows_D, rows_E, rows_F
 
