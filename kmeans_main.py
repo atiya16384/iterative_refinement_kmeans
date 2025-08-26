@@ -155,26 +155,48 @@ df_C.to_csv("Results/hybrid_kmeans_Results_expC.csv", index = False)
 # df_E.to_csv("Results/hybrid_kmeans_Results_expE.csv", index = False)
 #df_F.to_csv("Results/hybrid_kmeans_Results_expF.csv", index = False)
 
-# === SUMMARY: Experiment A ===
 print("\n==== SUMMARY: EXPERIMENT A ====")
-print(df_A.groupby([
-    'DatasetSize', 'NumClusters', 'Mode', 'Cap',
-    'tolerance_single', 'iter_single', 'iter_double', 'Suite'
-])[['Time', 'Memory_MB', 'Inertia']].mean())
+df_A = pd.DataFrame(rows_A, columns=[
+    "DatasetName","DatasetSize","NumClusters","Mode","Cap","tolerance_single",
+    "iter_single","iter_double","Suite","Time","Memory_MB","Inertia"
+])
+summary_A = (
+    df_A.groupby(["DatasetSize","NumClusters","Mode","Cap","Suite"])
+        [["Time","Memory_MB","Inertia"]]
+        .mean()
+        .reset_index()
+        .sort_values(["Cap","Suite"])
+)
+print(summary_A.to_string(index=False))
 
-# === SUMMARY: Experiment B ===
 print("\n==== SUMMARY: EXPERIMENT B ====")
-print(df_B.groupby([
-    'DatasetSize', 'NumClusters', 'Mode',
-    'tolerance_single', 'iter_single', 'iter_double', 'Suite'
-])[['Time', 'Memory_MB', 'Inertia']].mean())
+df_B = pd.DataFrame(rows_B, columns=[
+    "DatasetName","DatasetSize","NumClusters","Mode","tolerance_single",
+    "iter_single","iter_double","Suite","Time","Memory_MB","Inertia"
+])
+summary_B = (
+    df_B.groupby(["DatasetSize","NumClusters","Mode","tolerance_single","Suite"])
+        [["Time","Memory_MB","Inertia"]]
+        .mean()
+        .reset_index()
+        .sort_values(["tolerance_single","Suite"])
+)
+print(summary_B.to_string(index=False))
 
-# === SUMMARY: Experiment C ===
 print("\n==== SUMMARY: EXPERIMENT C ====")
-print(df_C.groupby([
-    'DatasetSize', 'NumClusters', 'Mode', 'Cap',
-    'tolerance_single', 'iter_single', 'iter_double', 'Suite'
-])[['Time', 'Memory_MB','Inertia']].mean())
+df_C = pd.DataFrame(rows_C, columns=[
+    "DatasetName","DatasetSize","NumClusters","Mode","Cap","tolerance_single",
+    "iter_single","iter_double","Suite","Time","Memory_MB","Inertia"
+])
+summary_C = (
+    df_C.groupby(["DatasetSize","NumClusters","Mode","Cap","Suite"])
+        [["Time","Memory_MB","Inertia"]]
+        .mean()
+        .reset_index()
+        .sort_values(["Cap","Suite"])
+)
+print(summary_C.to_string(index=False))
+
 
 # print("\n==== SUMMARY: EXPERIMENT D ====")
 # print(df_D.groupby([
