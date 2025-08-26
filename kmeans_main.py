@@ -28,7 +28,7 @@ PLOTS_DIR= pathlib.Path("ClusterPlots")
 PLOTS_DIR.mkdir(exist_ok = True)
 
 # for the cluster size we are varying this for all datasets
-n_clusters_list = [100]
+n_clusters_list = [160]
 
 config = {
     "n_repeats": 3,
@@ -41,25 +41,26 @@ config = {
     "tol_single_grid": [1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6],
 
     "max_iter_C": 300,
-    "tol_fixed_C": 1e-16,
-    "cap_C_pct": int(300 * 0.8),
+    "tol_single_pct_C": 0.8,
+    "tol_double_C": 1e-6,
+    "cap_C_pct": 0.8,
 
     # D (Adaptive Hybrid – global switch)
     "max_iter_D": 300,
     "tol_double_baseline_D": 1e-16,
-    "chunk_single_D": 5,
-    "improve_threshold_D": 1e-4,
-    "shift_tol_D": 1e-4,
-    "stability_threshold_D": 0.10,
+    "chunk_single_D": 1,
+    "improve_threshold_D": 1e-2,
+    "shift_tol_D": 5e-4,
+    "stability_threshold_D": 0.05,
     
   # --- E (Mini-batch Hybrid) : sweep these ---
-    "E_mb_iter_grid":   [25, 50],   # was 100
-    "E_batch_grid":     [4096, 8192],    # optional sweep
-    "E_refine_grid":    [50, 100],       # was 100
+    "E_mb_iter_grid":   [5, 10, 25],   # was 100
+    "E_batch_grid":     [ 8192, 32768],    # optional sweep
+    "E_refine_grid":    [10, 25, 50],       # was 100
     "tol_double_baseline_E": 0.0,             # keep; baseline stops by budget
 
     # keep single “default” values used if grids not provided
-    "mb_iter_E": 100, "mb_batch_E": 2048, "max_refine_iter_E": 100,
+    "mb_iter_E": 50, "mb_batch_E": 8192, "max_refine_iter_E": 50,
 
     # --- F (Per‑cluster Mixed) : sweep these ---
     "max_iter_F": 300,
@@ -82,7 +83,7 @@ precisions = {
     "Double Precision": np.float64
 }
 
-def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A, rows_B, rows_C, rows_D, rows_E, rows_F): #rows_A, rows_B # 
+def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_D, rows_E): #rows_A, rows_B # 
     X_ns, y_ns = X_full, y_full
 
     n_features = X_ns.shape[1]
@@ -101,35 +102,35 @@ def run_one_dataset(ds_name: str, X_full: np.ndarray, y_full, rows_A, rows_B, ro
             initial_fit = init_kmeans.fit(X_cur)
             initial_centers = init_kmeans.cluster_centers_
 
-            print("Running A")
-            rows_A += run_experiment_A(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
-            print("Running B")
-            rows_B += run_experiment_B(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
-            print("Running C")
-            rows_C += run_experiment_C(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
+            # print("Running A")
+            # rows_A += run_experiment_A(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
+            # print("Running B")
+            # rows_B += run_experiment_B(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
+            # print("Running C")
+            # rows_C += run_experiment_C(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
             print("Running D")
             rows_D += run_experiment_D(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
             print("Running E")
             rows_E += run_experiment_E(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
-            print("Running F")
-            rows_F += run_experiment_F(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
+            # print("Running F")
+            # rows_F += run_experiment_F(ds_name, X_cur, y_true_cur, n_clusters, initial_centers, config)
 
-    return  rows_A, rows_B, rows_C, rows_E, rows_D, rows_E, rows_F
+    return  rows_D, rows_E
 
 all_rows = []
 
-rows_A = []
-rows_B = []
-rows_C = []
+# rows_A = []
+# rows_B = []
+# rows_C = []
 rows_D = []
-rows_E, rows_F= [], []
+rows_E = []
 
 for tag, n, d, k, seed in synth_specs:
     X, y = generate_synthetic_data(n, d, k, seed)
     print(f"[SYNTH] {tag:14s}  shape={X.shape}  any_NaN={np.isnan(X).any()}",
           flush=True)
     # check if the mappings are correct to the run_one_dataset
-    run_one_dataset(tag, X, y, rows_A, rows_B, rows_C, rows_D, rows_E, rows_F)
+    run_one_dataset(tag, X, y,  rows_D, rows_E)
 
 
 # real datasets
@@ -139,62 +140,62 @@ for tag, n, d, k, seed in synth_specs:
 
 # --- run for A, B, C (extend with D–F once CSVs exist) ---
 
-df_A = pd.DataFrame(rows_A, columns=columns_A)
-df_B = pd.DataFrame(rows_B, columns=columns_B)
-df_C= pd.DataFrame(rows_C, columns=columns_C)
+# df_A = pd.DataFrame(rows_A, columns=columns_A)
+# df_B = pd.DataFrame(rows_B, columns=columns_B)
+# df_C= pd.DataFrame(rows_C, columns=columns_C)
 df_D = pd.DataFrame(rows_D, columns=columns_D)
 df_E = pd.DataFrame(rows_E, columns=columns_E)
-df_F = pd.DataFrame(rows_F, columns=columns_F)
+# df_F = pd.DataFrame(rows_F, columns=columns_F)
 
-df_A.to_csv("Results/hybrid_kmeans_Results_expA.csv", index = False)
-df_B.to_csv("Results/hybrid_kmeans_Results_expB.csv", index = False)
-df_C.to_csv("Results/hybrid_kmeans_Results_expC.csv", index = False)
+# df_A.to_csv("Results/hybrid_kmeans_Results_expA.csv", index = False)
+# df_B.to_csv("Results/hybrid_kmeans_Results_expB.csv", index = False)
+# df_C.to_csv("Results/hybrid_kmeans_Results_expC.csv", index = False)
 df_D.to_csv("Results/hybrid_kmeans_Results_expD.csv", index = False)
 df_E.to_csv("Results/hybrid_kmeans_Results_expE.csv", index = False)
-df_F.to_csv("Results/hybrid_kmeans_Results_expF.csv", index = False)
+# df_F.to_csv("Results/hybrid_kmeans_Results_expF.csv", index = False)
 
 # === SUMMARY: Experiment A ===
-print("\n==== SUMMARY: EXPERIMENT A ====")
-print(df_A.groupby([
-    'DatasetSize', 'NumClusters', 'Mode', 'Cap',
-    'tolerance_single', 'iter_single', 'iter_double', 'Suite'
-])[['Time', 'Memory_MB', 'Inertia']].mean())
+# print("\n==== SUMMARY: EXPERIMENT A ====")
+# print(df_A.groupby([
+#     'DatasetSize', 'NumClusters', 'Mode', 'Cap',
+#     'tolerance_single', 'iter_single', 'iter_double', 'Suite'
+# ])[['Time', 'Memory_MB', 'Inertia']].mean().reset_index()
 
-# === SUMMARY: Experiment B ===
-print("\n==== SUMMARY: EXPERIMENT B ====")
-print(df_B.groupby([
-    'DatasetSize', 'NumClusters', 'Mode',
-    'tolerance_single', 'iter_single', 'iter_double', 'Suite'
-])[['Time', 'Memory_MB', 'Inertia']].mean())
+# # === SUMMARY: Experiment B ===
+# print("\n==== SUMMARY: EXPERIMENT B ====")
+# print(df_B.groupby([
+#     'DatasetSize', 'NumClusters', 'Mode',
+#     'tolerance_single', 'iter_single', 'iter_double', 'Suite'
+# ])[['Time', 'Memory_MB', 'Inertia']].mean().reset_index()
 
-# === SUMMARY: Experiment C ===
-print("\n==== SUMMARY: EXPERIMENT C ====")
-print(df_C.groupby([
-    'DatasetSize', 'NumClusters', 'Mode', 'Cap',
-    'tolerance_single', 'iter_single', 'iter_double', 'Suite'
-])[['Time', 'Memory_MB','Inertia']].mean())
+# # === SUMMARY: Experiment C ===
+# print("\n==== SUMMARY: EXPERIMENT C ====")
+# print(df_C.groupby([
+#     'DatasetSize', 'NumClusters', 'Mode', 'Cap',
+#     'tolerance_single', 'iter_single', 'iter_double', 'Suite'
+# ])[['Time', 'Memory_MB','Inertia']].mean().reset_index()
 
 print("\n==== SUMMARY: EXPERIMENT D ====")
 print(df_D.groupby([
         "DatasetSize","NumClusters","Mode",
         "chunk_single","improve_threshold","Suite"
-    ])[["Time","Memory_MB","Inertia"]].mean()
+    ])[["Time","Memory_MB","Inertia"]].mean().reset_index()
 )
 
 print("\n==== SUMMARY: EXPERIMENT E ====")
 print(df_E.groupby([
         "DatasetSize","NumClusters","Mode",
         "MB_Iter","MB_Batch","RefineIter","Suite"
-    ])[["Time","Memory_MB","Inertia"]].mean()
+    ])[["Time","Memory_MB","Inertia"]].mean().reset_index()
 )
 
-print("\n==== SUMMARY: EXPERIMENT F ====")
-print(df_F.groupby([
-        "DatasetSize","NumClusters","Mode",
-        "tol_single","tol_double","single_iter_cap",
-        "freeze_stable","freeze_patience","Suite"
-    ])[["Time","Memory_MB","Inertia"]].mean()
-)
+# print("\n==== SUMMARY: EXPERIMENT F ====")
+# print(df_F.groupby([
+#         "DatasetSize","NumClusters","Mode",
+#         "tol_single","tol_double","single_iter_cap",
+#         "freeze_stable","freeze_patience","Suite"
+#     ])[["Time","Memory_MB","Inertia"]].mean().reset_index()
+# )
 
 print(os.getcwd())
 
