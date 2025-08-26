@@ -343,72 +343,84 @@ def run_expE_minibatch_then_full(
 #   - Per-cluster freezing is not exposed in sklearn APIs, so Phase 1 is a tiny
 #     numpy loop. Phase 2 uses sklearn.KMeans, so AOCL still accelerates the
 #     heavy refinement stage.
+def _assign_labels_chunked(X32, centers32, batch=50000):
+    """Return labels for X32 w.r.t. centers32 without allocating (n×k×d)."""
+    n, d = X32.shape
+    k = centers32.shape[0]
+    labels = np.empty(n, dtype=np.int32)
+
+    x2 = np.einsum("ij,ij->i", X32, X32, dtype=np.float32)        # (n,)
+    c2 = np.einsum("ij,ij->i", centers32, centers32, dtype=np.float32)  # (k,)
+
+    for s in range(0, n, batch):
+        e = min(s + batch, n)
+        # (B×k) distances via GEMM; relies on optimized BLAS/AOCL
+        dists = x2[s:e, None] + c2[None, :] - 2.0 * (X32[s:e] @ centers32.T)
+        labels[s:e] = np.argmin(dists, axis=1)
+
+    return labels
+
+
 def run_expF_percluster_mixed(
     X,
     initial_centers,
     *,
-    max_iter_total=300,     # total budget = (phase1 iters) + (phase2 iters)
-    single_iter_cap=100,    # cap Phase 1 iterations
-    tol_single=1e-3,        # per-cluster movement tolerance to consider "stable"
-    tol_double=1e-4,        # sklearn refinement tolerance
-    freeze_stable=True,     # if True, stop updating clusters that are stable
-    freeze_patience=1,      # require N consecutive "below tol" moves to freeze
+    max_iter_total=300,
+    single_iter_cap=100,
+    tol_single=1e-3,
+    tol_double=1e-4,
+    freeze_stable=True,
+    freeze_patience=1,
     seed=0,
     algorithm="elkan",
+    batch_assign=50000,        # NEW: batch size for memory-safe assignment
 ):
     t0 = time.perf_counter()
 
-    # ----- Phase 1: per-cluster float32 Lloyd with optional freezing -----
+    # Phase 1 (float32)
     X32 = X.astype(np.float32, copy=False)
     centers32 = np.asarray(initial_centers, dtype=np.float32, order="C")
     k = centers32.shape[0]
 
-    # number of iterations we will do in Phase 1
-    iters1_max = max(1, min(single_iter_cap, max_iter_total))
-
-    # keep some simple state for freezing
+    iters1_max = max(1, min(int(single_iter_cap), int(max_iter_total)))
     frozen = np.zeros(k, dtype=bool)
-    below_tol_streak = np.zeros(k, dtype=np.int32)
+    below_tol = np.zeros(k, dtype=np.int32)
 
     iters_single = 0
+    labels = None
+
     for it in range(iters1_max):
         prev = centers32.copy()
 
-        # assignment step (squared Euclidean distances, all in float32)
-        # shape: (n_samples, k)
-        d2 = ((X32[:, None, :] - centers32[None, :, :]) ** 2).sum(axis=2, dtype=np.float32)
-        labels = np.argmin(d2, axis=1)
+        # --- memory-safe assignment ---
+        labels = _assign_labels_chunked(X32, centers32, batch=batch_assign)
 
-        # update step, with optional per-cluster freezing
+        # update centers (skip frozen clusters)
         for j in range(k):
             if freeze_stable and frozen[j]:
                 continue
-            mask = (labels == j)
-            if mask.any():
-                centers32[j] = X32[mask].mean(axis=0, dtype=np.float32)
+            m = (labels == j)
+            if m.any():
+                centers32[j] = X32[m].mean(axis=0, dtype=np.float32)
 
-        # track how much each cluster moved this iteration
+        # movement per cluster
         move = np.linalg.norm(centers32 - prev, axis=1).astype(np.float32)
 
         if freeze_stable:
-            # increment streak for clusters that moved less than tol_single
-            below_tol_streak = np.where(move < tol_single, below_tol_streak + 1, 0)
-            # freeze newly stable clusters (patience reached)
-            newly = (below_tol_streak >= freeze_patience) & (~frozen)
+            below_tol = np.where(move < tol_single, below_tol + 1, 0)
+            newly = (below_tol >= int(freeze_patience)) & (~frozen)
             frozen |= newly
 
         iters_single = it + 1
-
-        # global early stop for Phase 1: if *all* moves are tiny, break
         if move.max() < tol_single:
             break
 
-    # ----- Phase 2: sklearn.KMeans refinement in float64 -----
-    remaining = max(1, max_iter_total - iters_single)
-    X64 = X.astype(np.float64, copy=False)
+    # Phase 2 (float64 refine)
+    remaining = max(1, int(max_iter_total) - iters_single)
+    X64 = X32.astype(np.float64, copy=False)  # cast only when needed
     km = KMeans(
         n_clusters=k,
-        init=centers32.astype(np.float64, copy=False),  # warm start from Phase 1
+        init=centers32.astype(np.float64, copy=False),
         n_init=1,
         max_iter=remaining,
         tol=tol_double,
@@ -417,6 +429,7 @@ def run_expF_percluster_mixed(
     ).fit(X64)
 
     elapsed = time.perf_counter() - t0
+    mem_MB = (X32.nbytes + km.cluster_centers_.nbytes) / (2**20)
 
     return {
         "labels": km.labels_,
@@ -424,7 +437,7 @@ def run_expF_percluster_mixed(
         "iters_single": iters_single,
         "iters_double": int(km.n_iter_),
         "elapsed_time": elapsed,
-        "mem_MB": _mem_megabytes(X32, km.cluster_centers_),  # rough: float32 + final centers
+        "mem_MB": mem_MB,
         "inertia": float(km.inertia_),
-        "frozen_mask": frozen,  # which clusters ended Phase 1 frozen
+        "frozen_mask": frozen,
     }
