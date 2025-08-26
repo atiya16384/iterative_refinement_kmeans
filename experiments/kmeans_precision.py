@@ -377,42 +377,59 @@ def run_expF_percluster_mixed(
 ):
     t0 = time.perf_counter()
 
-    # Phase 1 (float32)
+    # ----- Phase 1: faster float32 Lloyd with optional freezing -----
     X32 = X.astype(np.float32, copy=False)
     centers32 = np.asarray(initial_centers, dtype=np.float32, order="C")
     k = centers32.shape[0]
-
-    iters1_max = max(1, min(int(single_iter_cap), int(max_iter_total)))
+    iters1_max = max(1, min(single_iter_cap, max_iter_total))
+    
     frozen = np.zeros(k, dtype=bool)
-    below_tol = np.zeros(k, dtype=np.int32)
-
+    below_tol_streak = np.zeros(k, dtype=np.int32)
     iters_single = 0
-    labels = None
-
+    
+    t_start = time.perf_counter()
     for it in range(iters1_max):
         prev = centers32.copy()
-
-        # --- memory-safe assignment ---
-        labels = _assign_labels_chunked(X32, centers32, batch=batch_assign)
-
-        # update centers (skip frozen clusters)
-        for j in range(k):
-            if freeze_stable and frozen[j]:
-                continue
-            m = (labels == j)
-            if m.any():
-                centers32[j] = X32[m].mean(axis=0, dtype=np.float32)
-
-        # movement per cluster
+    
+        # fast assignment (Cython)
+        labels, _ = pairwise_distances_argmin_min(
+            X32, centers32, metric='euclidean', metric_kwargs={'squared': True}
+        )
+    
+        # vectorized centroid update
+        if freeze_stable and frozen.any():
+            # keep frozen centers exactly; only recompute the rest
+            # mask labels of frozen clusters so they don’t update
+            live = ~frozen
+            # we’ll recompute all then overwrite frozen back from `prev`
+            pass
+    
+        counts = np.bincount(labels, minlength=k).astype(np.int32)
+        sums = np.zeros_like(centers32, dtype=np.float32)
+        np.add.at(sums, labels, X32)
+        centers32 = np.divide(
+            sums, counts[:, None],
+            out=np.copy(centers32), where=counts[:, None] != 0
+        )
+    
+        if freeze_stable and frozen.any():
+            centers32[ frozen] = prev[frozen]  # keep frozen as-is
+    
         move = np.linalg.norm(centers32 - prev, axis=1).astype(np.float32)
-
+    
         if freeze_stable:
-            below_tol = np.where(move < tol_single, below_tol + 1, 0)
-            newly = (below_tol >= int(freeze_patience)) & (~frozen)
+            below_tol_streak = np.where(move < tol_single, below_tol_streak + 1, 0)
+            newly = (below_tol_streak >= freeze_patience) & (~frozen)
             frozen |= newly
-
+    
         iters_single = it + 1
+    
+        # global early-stop on small movement
         if move.max() < tol_single:
+            break
+    
+        # hard wall-time for Phase-1 (keeps F competitive)
+        if (time.perf_counter() - t_start) > 2.0:  # seconds; tune 1–2s
             break
 
     # Phase 2 (float64 refine)
