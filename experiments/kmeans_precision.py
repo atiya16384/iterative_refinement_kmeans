@@ -333,108 +333,91 @@ def run_expE_minibatch_then_full(
     }
 
 
-# Experiment F — Mixed Precision Per-Cluster
-# Idea:
-#   1) Phase 1: A light, numpy-based Lloyd loop in float32 that lets you optionally
-#      "freeze" individual clusters that appear stable (small centroid movement).
-#   2) Phase 2: Hand off to sklearn.KMeans in float64 for final refinement.
-#
-# Why this is mostly AOCL-friendly:
-#   - Per-cluster freezing is not exposed in sklearn APIs, so Phase 1 is a tiny
-#     numpy loop. Phase 2 uses sklearn.KMeans, so AOCL still accelerates the
-#     heavy refinement stage.
-def _assign_labels_chunked(X32, centers32, batch=50000):
-    """Return labels for X32 w.r.t. centers32 without allocating (n×k×d)."""
-    n, d = X32.shape
-    k = centers32.shape[0]
-    labels = np.empty(n, dtype=np.int32)
-
-    x2 = np.einsum("ij,ij->i", X32, X32, dtype=np.float32)        # (n,)
-    c2 = np.einsum("ij,ij->i", centers32, centers32, dtype=np.float32)  # (k,)
-
-    for s in range(0, n, batch):
-        e = min(s + batch, n)
-        # (B×k) distances via GEMM; relies on optimized BLAS/AOCL
-        dists = x2[s:e, None] + c2[None, :] - 2.0 * (X32[s:e] @ centers32.T)
-        labels[s:e] = np.argmin(dists, axis=1)
-
-    return labels
-
-
 def run_expF_percluster_mixed(
     X,
     initial_centers,
     *,
     max_iter_total=300,
-    single_iter_cap=100,
-    tol_single=1e-3,
-    tol_double=1e-4,
+    single_iter_cap=3,         # tiny warm-start
+    tol_single=0.05,           # freeze quickly
+    tol_double=1e-3,           # sklearn tol
     freeze_stable=True,
     freeze_patience=1,
     seed=0,
     algorithm="elkan",
-    batch_assign=50000,        # NEW: batch size for memory-safe assignment
+    # NEW knobs that make it fast:
+    phase1_sample=50000,       # run Phase-1 on a small subsample
+    phase1_time_cap=0.8,       # seconds; hard wall-time for Phase-1
+    refine_iter_cap=5,         # max sklearn iterations after warm-start
 ):
-    t0 = time.perf_counter()
+    import time
+    import numpy as np
+    from sklearn.cluster import KMeans
+    from sklearn.metrics import pairwise_distances_argmin_min
 
-    # ----- Phase 1: faster float32 Lloyd with optional freezing -----
+    rs = np.random.RandomState(seed)
+    n = X.shape[0]
+
+    # ----- data views -----
     X32 = X.astype(np.float32, copy=False)
+    X64 = X.astype(np.float64, copy=False)
+
+    # ----- choose subsample for the Phase-1 warm start -----
+    if phase1_sample and phase1_sample < n:
+        idx = rs.choice(n, phase1_sample, replace=False)
+        X32_p1 = X32[idx]
+    else:
+        X32_p1 = X32
+
+    # ----- init -----
     centers32 = np.asarray(initial_centers, dtype=np.float32, order="C")
     k = centers32.shape[0]
+
     iters1_max = max(1, min(single_iter_cap, max_iter_total))
-    
     frozen = np.zeros(k, dtype=bool)
     below_tol_streak = np.zeros(k, dtype=np.int32)
     iters_single = 0
-    
-    t_start = time.perf_counter()
+
+    t0 = time.perf_counter()
+
+    # ----- Phase 1: FAST warm-start on subsample with hard wall-time -----
     for it in range(iters1_max):
         prev = centers32.copy()
-    
-        # fast assignment (Cython)
+
         labels, _ = pairwise_distances_argmin_min(
-            X32, centers32, metric='euclidean', metric_kwargs={'squared': True}
+            X32_p1, centers32, metric='euclidean', metric_kwargs={'squared': True}
         )
-    
+
         # vectorized centroid update
-        if freeze_stable and frozen.any():
-            # keep frozen centers exactly; only recompute the rest
-            # mask labels of frozen clusters so they don’t update
-            live = ~frozen
-            # we’ll recompute all then overwrite frozen back from `prev`
-            pass
-    
         counts = np.bincount(labels, minlength=k).astype(np.int32)
         sums = np.zeros_like(centers32, dtype=np.float32)
-        np.add.at(sums, labels, X32)
-        centers32 = np.divide(
+        np.add.at(sums, labels, X32_p1)
+        new_centers = np.divide(
             sums, counts[:, None],
             out=np.copy(centers32), where=counts[:, None] != 0
         )
-    
+
+        # keep frozen clusters unchanged
         if freeze_stable and frozen.any():
-            centers32[ frozen] = prev[frozen]  # keep frozen as-is
-    
+            new_centers[frozen] = prev[frozen]
+
+        centers32 = new_centers
+
         move = np.linalg.norm(centers32 - prev, axis=1).astype(np.float32)
-    
+
         if freeze_stable:
             below_tol_streak = np.where(move < tol_single, below_tol_streak + 1, 0)
-            newly = (below_tol_streak >= freeze_patience) & (~frozen)
-            frozen |= newly
-    
+            frozen |= (below_tol_streak >= freeze_patience) & (~frozen)
+
         iters_single = it + 1
-    
-        # global early-stop on small movement
         if move.max() < tol_single:
             break
-    
-        # hard wall-time for Phase-1 (keeps F competitive)
-        if (time.perf_counter() - t_start) > 2.0:  # seconds; tune 1–2s
+        if (time.perf_counter() - t0) >= phase1_time_cap:  # hard wall-time
             break
 
-    # Phase 2 (float64 refine)
-    remaining = max(1, int(max_iter_total) - iters_single)
-    X64 = X32.astype(np.float64, copy=False)  # cast only when needed
+    # ----- Phase 2: clamp sklearn refine iterations -----
+    remaining = max(1, min(max_iter_total - iters_single, refine_iter_cap))
+
     km = KMeans(
         n_clusters=k,
         init=centers32.astype(np.float64, copy=False),
@@ -446,6 +429,8 @@ def run_expF_percluster_mixed(
     ).fit(X64)
 
     elapsed = time.perf_counter() - t0
+
+    # rough memory: float32 view + final centers
     mem_MB = (X32.nbytes + km.cluster_centers_.nbytes) / (2**20)
 
     return {
