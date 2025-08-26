@@ -4,6 +4,7 @@ from sklearn.cluster import KMeans
 import time
 import numpy as np
 from sklearn.cluster import KMeans, MiniBatchKMeans
+from sklearn.metrics import pairwise_distances_argmin_min
 
 def evaluate_metrics(inertia):
     return inertia
