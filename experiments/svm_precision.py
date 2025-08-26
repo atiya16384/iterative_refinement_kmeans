@@ -39,21 +39,6 @@ def _parse_iters_from_libsvm_stdout(s:str):
     return int(m.group(1)) if m else None
 
 
-# ----- single / double -----
-def svc_single(Xtr, ytr, Xte, yte, *,
-               kernel="rbf", C=1.0, gamma="scale",
-               tol=1e-3, max_iter=-1, random_state=0):
-    cap = io.StringIO()
-    t0 = time.perf_counter()
-    clf = _svc(kernel, C, gamma, tol, max_iter, random_state=random_state, verbose=True)
-    with contextlib.redirect_stdout(cap):
-        clf.fit(Xtr, ytr)
-    t1 = time.perf_counter()
-    iters = _parse_iters_from_libsvm_stdout(cap.getvalue())
-    m = _eval_svc(clf, Xte, yte)
-    n_sv = int(np.sum(clf[-1].n_support_))
-    return {"mode": "single(fast)", "time_sec": t1 - t0, "n_sv": n_sv, "iters_single": iters, "iters_double": None, **m, "model": clf}
-
 def svc_double(Xtr, ytr, Xte, yte, *,
                kernel="rbf", C=1.0, gamma="scale",
                tol=1e-5, max_iter=-1, random_state=0):
@@ -283,15 +268,7 @@ def run_svc_experiments(
         for r in range(1, repeats+1):
             for mode in approaches:
                 try:
-                    if mode == "single":
-                        out = svc_single(
-                            Xtr, ytr, Xte, yte,
-                            kernel=params["kernel"], C=params["C"], gamma=params["gamma"],
-                            tol=params.get("tol_single", 1e-3),
-                            max_iter=params.get("max_iter_single", -1),
-                            random_state=random_state + r
-                        )
-                    elif mode == "double":
+                    if mode == "double":
                         out = svc_double(
                             Xtr, ytr, Xte, yte,
                             kernel=params["kernel"], C=params["C"], gamma=params["gamma"],
