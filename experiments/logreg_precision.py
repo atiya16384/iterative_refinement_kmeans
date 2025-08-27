@@ -7,6 +7,8 @@ from sklearn.datasets import make_blobs
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_auc_score, average_precision_score, log_loss
 
+DATA_DIR = Path("./data")
+
 # Helpers
 #update the code so we know the number of single and double iterations printed out
 def _map_penalty_to_alpha(penalty, alpha=None):
@@ -76,6 +78,36 @@ def generate_synthetic_data(n_samples, n_features, n_clusters, random_state):
     
     return X.astype(np.float64), y_true
 
+def make_blobs_binary(n_samples=5000, n_features=30, n_clusters=2, cluster_std=1.0,
+                      random_state=0, dtype=np.float64):
+    """'Normal' synthetic dataset via sklearn.make_blobs (binary)."""
+    X, y = make_blobs(
+        n_samples=n_samples,
+        n_features=n_features,
+        centers=n_clusters,
+        cluster_std=cluster_std,
+        random_state=random_state
+    )
+    return X.astype(dtype, copy=False), y.astype(np.int32, copy=False)
+
+def load_3d_road(n_rows=1_000_000, dtype=np.float64):
+    """3D Spatial Network (features only). Returns (X, None).
+       Columns used: 1,2,3 (as in your screenshot)."""
+    path = DATA_DIR / "3D_spatial_network.csv"
+    X = pd.read_csv(
+        path, sep=r"\s+|,", engine="python",
+        header=None, usecols=[1, 2, 3], nrows=n_rows, dtype=dtype
+    ).to_numpy()
+    return X, None
+
+def load_susy(n_rows=1_000_000, dtype=np.float64):
+    """SUSY dataset. Assumes CSV with label in col 0, features in cols 1.."""
+    path = DATA_DIR / "SUSY.csv"
+    df = pd.read_csv(path, header=None, nrows=n_rows, dtype=dtype,
+                     names=[f"c{i}" for i in range(19)])  # 1 label + 18 features
+    y = df.iloc[:, 0].to_numpy().astype(np.int32, copy=False)
+    X = df.iloc[:, 1:].to_numpy()
+    return X, y
 
 # utilities for warm-started chunked fitting
 def _fit_chunk(X, y, *, precision, solver, reg_lambda, reg_alpha, max_iter, tol, x0=None):
@@ -309,7 +341,7 @@ def run_experiments(X, y,
     # for 'mse' and 'sparse_cg', this only supports l2 ridge and alpha is none
     if grid is None:
         grid = {
-            "dataset": ["uniform", "gaussian"],
+            "dataset": ["uniform", "gaussian", "blobs", "susy", "3droad"],
             "penalty": ["l2"],
             "alpha": [0.0, 0.25, 0.5, 0.75, 1.0],
             "lambda": [1e-10, 1e-8, 1e-5, 1e-3, 1e-2],
@@ -431,13 +463,21 @@ if __name__ == "__main__":
         X, y = make_shifted_gaussian(m=5000, n=200, delta=0.5, seed=42)
     elif dataset == "uniform":
         X, y = make_uniform_binary(m=1000_000, n=120, shift=0.25, seed=42)
+    elif dataset == "blobs":
+        X, y = make_blobs_binary(n_samples=100_000, n_features=50, cluster_std=1.2, random_state=42)
+    elif dataset == "susy":
+        X, y = load_susy(n_rows=1_000_000)
+    elif dataset == "3droad":
+        X, y = load_3d_road(n_rows=1_000_000)  # y=None -> metrics will be NaN; timing & internal loss still reported
+    else:
+        raise ValueError("Unknown dataset")
     else:
         raise ValueError("Unknown dataset")
 
     # for 'mse' and 'coord', we have alpha [0.0, 0.25, 0.5, 0.75, 1.0], and use "l1", "l2"
     # for 'mse' and 'sparse_cg', this only supports l2 ridge and alpha is none
     grid = {
-        "dataset": ["uniform", "guassian"],
+        "dataset": [dataset],
         "penalty": ["l2"],
         "alpha":   [0.0, 0.25, 0.5, 0.75, 1.0],
         "lambda":  [1e-2, 1e-3, 1e-4, 1e-6, 1e-8],
@@ -449,6 +489,11 @@ if __name__ == "__main__":
         "approaches": ["single", "double", "hybrid", "multistage-ir", "adaptive-precision"]
     }
 
-    df, df_mean = run_experiments(X, y, grid=grid)
+    df, df_mean = run_experiments(
+        X, y, grid=grid,
+        dataset=dataset,
+        save_path=f"./Results/{dataset}_results.csv",
+        repeats=3
+    )
     # with pd.option_context("display.max_columns", None, "display.width", 140):
     #     print(df.groupby("approach").head(5))
