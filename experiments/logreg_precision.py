@@ -1,3 +1,4 @@
+import pathlib
 import time
 import itertools
 import numpy as np
@@ -7,7 +8,7 @@ from sklearn.datasets import make_blobs
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_auc_score, average_precision_score, log_loss
 
-DATA_DIR = Path("./data")
+DATA_DIR = pathlib.Path("datasets")
 
 # Helpers
 #update the code so we know the number of single and double iterations printed out
@@ -460,17 +461,15 @@ if __name__ == "__main__":
 
 
     if dataset == "gaussian":
-        X, y = make_shifted_gaussian(m=5000, n=200, delta=0.5, seed=42)
+        X, y = make_shifted_gaussian(m=1000_000, n=200, delta=0.5, seed=42)
     elif dataset == "uniform":
         X, y = make_uniform_binary(m=1000_000, n=120, shift=0.25, seed=42)
     elif dataset == "blobs":
-        X, y = make_blobs_binary(n_samples=100_000, n_features=50, cluster_std=1.2, random_state=42)
+        X, y = make_blobs_binary(n_samples=1000_000, n_features=50, cluster_std=1.2, random_state=42)
     elif dataset == "susy":
         X, y = load_susy(n_rows=1_000_000)
     elif dataset == "3droad":
         X, y = load_3d_road(n_rows=1_000_000)  # y=None -> metrics will be NaN; timing & internal loss still reported
-    else:
-        raise ValueError("Unknown dataset")
     else:
         raise ValueError("Unknown dataset")
 
@@ -478,15 +477,15 @@ if __name__ == "__main__":
     # for 'mse' and 'sparse_cg', this only supports l2 ridge and alpha is none
     grid = {
         "dataset": [dataset],
-        "penalty": ["l2"],
+        "penalty": ["l1", "l2"],
         "alpha":   [0.0, 0.25, 0.5, 0.75, 1.0],
-        "lambda":  [1e-2, 1e-3, 1e-4, 1e-6, 1e-8],
+        "lambda":  [1e-2, 1e-3, 1e-4, 1e-6],
         "C":       [None],
         "solver":  ["coord"],
         "max_iter": [1000, 3000],
-        "tol":      [1e-2, 1e-4, 1e-6, 1e-8],
+        "tol":      [1e-2, 1e-4, 1e-6],
         "max_iter_single": [100, 200, 350, 500, 1000],
-        "approaches": ["single", "double", "hybrid", "multistage-ir", "adaptive-precision"]
+        "approaches": ["single", "double", "hybrid", "multistage-ir", "adaptive-precision" ]
     }
 
     df, df_mean = run_experiments(
