@@ -62,7 +62,12 @@ columns_B = [
 
 columns_C = columns_A  # since it's same structure as A
 
-columns_D = ["DatasetName", "DatasetSize", "NumClusters", "Mode", "chunk_single", "improve_threshold", "iter_single", "iter_double", "Suite", "Time", "Memory_MB", "Inertia"]
+columns_D = [
+  "DatasetName","DatasetSize","NumClusters","Experiment",
+  "chunk_single","improve_threshold","shift_tol","stability_threshold",
+  "iter_single","iter_double","Suite","Time","Memory_MB","Inertia","Repeat"
+]
+
 
 columns_E = [
     "DatasetName", "DatasetSize", "NumClusters", "Mode", "MB_Iter", "MB_Batch", "RefineIter", "iter_single", "iter_double", "Suite", "Time", "Memory_MB", "Inertia"]
@@ -90,6 +95,7 @@ enet_columns_B = [
     "iter_single", "iter_double", "Suite",
     "Time", "Memory_MB", "R2", "MSE",
 ]
+
 
 
 
