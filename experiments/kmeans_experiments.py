@@ -169,62 +169,76 @@ def run_experiment_C(ds_name, X, y_true, n_clusters, initial_centers, config):
 def run_experiment_D(ds_name, X, y_true, n_clusters, initial_centers, config):
     """
     Experiment D — Adaptive Hybrid (global switch)
-    Baseline: full double with same max_iter.
-    Variant:  short float32 burst -> finish in float64 (sklearn-only).
+      • Baselines: full Single and full Double (same max_iter & tol)
+      • Variant : repeated f32 bursts (size = chunk_single) until stall → finish in f64
+    We sweep over a grid of `chunk_single` values so the plots show curves rather than a dot.
     """
+
     rows_D = []
-    n = len(X)
-    reps = int(config["n_repeats"])
+    n_samples = len(X)
 
-    # Fixed POC parameters (read like A/B/C)
-    max_iter = int(config["max_iter_D"])
-    tol_double_baseline = float(config["tol_double_baseline_D"])
+    # --- config (with safe defaults) ---
+    reps                  = int(config.get("n_repeats", 1))
+    max_iter              = int(config.get("max_iter_D", 300))
+    tol_double_baseline   = float(config.get("tol_double_baseline_D", 1e-6))
 
-    # Variant knobs (single values; not sweeping)
-    chunk_single = int(config["chunk_single_D"])
-    improve_threshold = float(config["improve_threshold_D"])
-    shift_tol = float(config["shift_tol_D"])
-    stability_threshold = float(config["stability_threshold_D"])
+    # sweep this:
+    chunk_grid            = list(config.get("chunk_single_grid_D", [5, 10, 25, 50, 100, 150, 200]))
+
+    # adaptive knobs (kept fixed across the sweep, but you can make them grids too)
+    improve_threshold     = float(config.get("improve_threshold_D", 1e-3))
+    shift_tol             = float(config.get("shift_tol_D", 1e-3))
+    stability_threshold   = float(config.get("stability_threshold_D", 0.02))
 
     for rep in range(reps):
-        # Baseline: pure single with same budget/tol
-        c_s, l_s, it_s_s, it_d_s, t_s, mem_s, J_s = run_full_single(
-            X, initial_centers, n_clusters, max_iter, tol_double_baseline, y_true
-        )
-        rows_D.append([
-            ds_name, n, n_clusters, "D",
-            chunk_single, improve_threshold,   # just storing the variant knobs for reference
-            it_s_s, it_d_s,
-            "Single", t_s, mem_s, J_s
-        ])
+        for ch in chunk_grid:
+            # ---------- Baseline: full SINGLE (duplicate per `ch` so plotting/joining is easy) ----------
+            c_s, l_s, it_s_s, it_d_s, t_s, mem_s, J_s = run_full_single(
+                X, initial_centers, n_clusters, max_iter, tol_double_baseline, y_true
+            )
+            rows_D.append([
+                ds_name, n_samples, n_clusters,          # DatasetName, DatasetSize, NumClusters
+                "D",                                     # Experiment label
+                ch, improve_threshold, shift_tol, stability_threshold,  # params we used
+                it_s_s, it_d_s,                          # iter_single, iter_double
+                "Single",                                # Suite
+                t_s, mem_s, J_s,                         # Time, Memory_MB, Inertia
+                rep                                      # repeat id (optional)
+            ])
 
-        # Baseline: pure double (same budget)
-        c_d, l_d, it_d, it_s, t, mem, J = run_full_double(
-            X, initial_centers, n_clusters, max_iter, tol_double_baseline, y_true
-        )
-        rows_D.append([
-            ds_name, n, n_clusters, "D",
-            chunk_single, improve_threshold,     # store the variant params for reference
-            it_s, it_d,
-            "Double", t, mem, J
-        ])
+            # ---------- Baseline: full DOUBLE ----------
+            c_d, l_d, it_d, it_s, t_d, mem_d, J_d = run_full_double(
+                X, initial_centers, n_clusters, max_iter, tol_double_baseline, y_true
+            )
+            rows_D.append([
+                ds_name, n_samples, n_clusters,
+                "D",
+                ch, improve_threshold, shift_tol, stability_threshold,
+                it_s, it_d,
+                "Double",
+                t_d, mem_d, J_d,
+                rep
+            ])
 
-        # Variant: adaptive single burst -> double finish
-        res = run_expD_adaptive_sklearn(
-            X, initial_centers, n_clusters,
-            max_iter=max_iter,
-            chunk_single=chunk_single,
-            improve_threshold=improve_threshold,
-            shift_tol=shift_tol,
-            stability_threshold=stability_threshold,
-            seed=rep
-        )
-        rows_D.append([
-            ds_name, n, n_clusters, "D",
-            chunk_single, improve_threshold,
-            res["iters_single"], res["iters_double"],
-            "Adaptive", res["elapsed_time"], res["mem_MB"], res["inertia"]
-        ])
+            # ---------- Variant: Adaptive (f32 bursts → f64 finish) ----------
+            res = run_expD_adaptive_sklearn(
+                X, initial_centers, n_clusters,
+                max_iter=max_iter,
+                chunk_single=int(ch),
+                improve_threshold=improve_threshold,
+                shift_tol=shift_tol,
+                stability_threshold=stability_threshold,
+                seed=rep,
+            )
+            rows_D.append([
+                ds_name, n_samples, n_clusters,
+                "D",
+                ch, improve_threshold, shift_tol, stability_threshold,
+                res["iters_single"], res["iters_double"],
+                "Adaptive",
+                res["elapsed_time"], res["mem_MB"], res["inertia"],
+                rep
+            ])
 
     return rows_D
 
@@ -337,6 +351,7 @@ def run_experiment_F(ds_name, X, y_true, n_clusters, initial_centers, config):
                     "MixedPerCluster", res["elapsed_time"], res["mem_MB"], res["inertia"]
                 ])
     return rows_F
+
 
 
 
