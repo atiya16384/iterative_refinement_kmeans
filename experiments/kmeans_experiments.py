@@ -97,7 +97,6 @@ def run_experiment_B(ds_name, X, y_true, n_clusters, initial_centers, config):
     return rows_B
 
 from math import ceil
-
 def run_experiment_C(
     ds_name,
     X,
@@ -109,44 +108,40 @@ def run_experiment_C(
     """
     Exp-C: sweep cap as a fraction of max_iter and compare Hybrid vs Single/Double.
 
-    Expected config keys (with sensible defaults):
-      - max_iter_C: int              (e.g. 300)
-      - tol_single_C: float          (e.g. 1e-3)   # <-- numeric tolerance, not a percent
-      - tol_double_C: float          (e.g. 1e-3)
-      - cap_C_pct_grid: list[float]  (e.g. [0.2, 0.4, 0.6, 0.8, 1.0])
-      - n_repeats: int               (e.g. 3)
+    Expected config keys:
+      - max_iter_C: int                 (e.g. 300)
+      - tol_single_C: float             (e.g. 1e-3)  # numeric tolerance
+      - tol_double_C: float             (e.g. 1e-3)
+      - cap_C_pct_grid: list[float]     (e.g. [0.2, 0.4, 0.6, 0.8, 1.0])
+      - n_repeats: int                  (e.g. 3)
     """
     rows_C = []
     n_samples = len(X)
 
-    max_iter_C  = int(config.get("max_iter_C", 300))
-    tol_single  = float(config.get("tol_single_C", 1e-3))   # independent tolerance
-    tol_double  = float(config.get("tol_double_C", 1e-3))
-    cap_grid    = list(config.get("cap_C_pct_grid", [0.2, 0.4, 0.6, 0.8, 1.0]))
-    n_repeats   = int(config.get("n_repeats", 1))
+    max_iter_C = int(config.get("max_iter_C", 300))
+    tol_single = float(config.get("tol_single_C", 1e-3))
+    tol_double = float(config.get("tol_double_C", 1e-3))
+    cap_grid   = list(config.get("cap_C_pct_grid", [0.2, 0.4, 0.6, 0.8, 1.0]))
+    n_repeats  = int(config.get("n_repeats", 1))
 
     for rep in range(n_repeats):
         # ---------- Baselines (run once per repeat) ----------
-        # Single baseline (full single at tol_single)
         c_s, l_s, it_s_s, it_d_s, t_s, mem_s, J_s = run_full_single(
-            X, initial_centers, n_clusters, max_iter_C, tol_single, y_true
+            X, initial_centers, n_clusters,
+            max_iter_C, tol_single, y_true
         )
         rows_C.append([
-            ds_name, n_samples, n_clusters,
-            "C", 1.0, tol_single,
-            it_s_s, it_d_s, "Single", t_s, mem_s, J_s,
-            rep
+            ds_name, n_samples, n_clusters, "C", 1.0, tol_single,
+            it_s_s, it_d_s, "Single", t_s, mem_s, J_s, rep
         ])
 
-        # Double baseline (full double at tol_double)
         c_d, l_d, it_d_d, it_s_d, t_d, mem_d, J_d = run_full_double(
-            X, initial_centers, n_clusters, max_iter_C, tol_double, y_true
+            X, initial_centers, n_clusters,
+            max_iter_C, tol_double, y_true
         )
         rows_C.append([
-            ds_name, n_samples, n_clusters,
-            "C", 1.0, tol_double,
-            it_s_d, it_d_d, "Double", t_d, mem_d, J_d,
-            rep
+            ds_name, n_samples, n_clusters, "C", 1.0, tol_double,
+            it_s_d, it_d_d, "Double", t_d, mem_d, J_d, rep
         ])
 
         # ---------- Hybrid sweep over cap fractions ----------
@@ -157,27 +152,23 @@ def run_experiment_C(
             labels_h, centers_h, it_s_h, it_d_h, t_h, mem_h, J_h = run_hybrid(
                 X, initial_centers, n_clusters,
                 max_iter_total=max_iter_C,
-                single_iter_cap=single_cap,   # fraction of max_iter in f32
+                single_iter_cap=single_cap,
                 tol_single=tol_single,
                 tol_double=tol_double,
                 y_true=y_true,
                 seed=rep,
-                # If your implementation supports these, they help a lot:
+                # If supported by your implementation, these help a lot:
                 # skip_refine_if_converged=True,
                 # refine_cap=10,
-                # refine_stop_delta=1e-4,   # stop if ΔJ/J < 1e-4
+                # refine_stop_delta=1e-4,
             )
 
             rows_C.append([
-                ds_name, n_samples, n_clusters,
-                "C", pct, tol_single,          # store tol_single here; plots use "Cap"
-                it_s_h, it_d_h, "Hybrid", t_h, mem_h, J_h,
-                rep
+                ds_name, n_samples, n_clusters, "C", pct, tol_single,
+                it_s_h, it_d_h, "Hybrid", t_h, mem_h, J_h, rep
             ])
 
     return rows_C
-
-
 def run_experiment_D(ds_name, X, y_true, n_clusters, initial_centers, config):
     """
     Experiment D — Adaptive Hybrid (global switch)
@@ -349,6 +340,7 @@ def run_experiment_F(ds_name, X, y_true, n_clusters, initial_centers, config):
                     "MixedPerCluster", res["elapsed_time"], res["mem_MB"], res["inertia"]
                 ])
     return rows_F
+
 
 
 
