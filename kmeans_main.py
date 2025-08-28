@@ -41,9 +41,8 @@ config = {
     "tol_single_grid": [1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7],
 
     "max_iter_C": 300,
-    "tol_single_pct_C": 0.8,
-    "tol_double_C": 1e-6,
-    "cap_percentages": [0.2, 0.4, 0.6, 0.8, 1.0],
+    "tol_fixed_C": 1e-16,
+    "cap_C_pct": int(300 * 0.8),
 
     # D (Adaptive Hybrid – global switch)
     "max_iter_D": 300,
