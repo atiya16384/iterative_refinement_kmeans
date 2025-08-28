@@ -268,7 +268,7 @@ class KMeansVisualizer:
         df_use = df_E[df_E["RefineIter"] == refine_fix].copy()
 
         keys = ["DatasetName", "NumClusters", "MB_Iter", "RefineIter"]
-        suffix = f"(Refine={refine_fix}" + (f", Batch={batch_fix})" if batch_fix is not None else ")"
+        suffix = f"(Refine={refine_fix}" + (f", Batch={batch_fix})" if batch_fix is not None else ")")
 
         for base in ("Double", "Single"):
             relT = self._rel(df_use, keys, "Time", baseline_suite=base)
