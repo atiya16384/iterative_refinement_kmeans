@@ -98,29 +98,50 @@ def run_experiment_B(ds_name, X, y_true, n_clusters, initial_centers, config):
 
 
 def run_experiment_C(ds_name, X, y_true, n_clusters, initial_centers, config):
+    """
+    Exp-C: sweep cap as a fraction of max_iter and compare Hybrid vs
+           both baselines: Single and Double (each run once per repeat).
+
+    Expected config keys:
+      - max_iter_C: int
+      - tol_fixed_C: float
+      - cap_percentages: iterable of floats in [0,1], e.g. [0.0, 0.2, 0.4, 0.6, 0.8]
+      - n_repeats: int
+    """
     rows_C = []
     n_samples = len(X)
 
-    max_iter_C = config["max_iter_C"]
-    tol_fixed_C = config["tol_fixed_C"]
-    cap_percentages = config.get("cap_percentages", [0.0, 0.1, 0.2, 0.4, 0.6, 0.8])
-    n_repeats = config.get("n_repeats", 1)
+    max_iter_C       = int(config["max_iter_C"])
+    tol_fixed_C      = float(config["tol_fixed_C"])
+    cap_percentages  = list(config.get("cap_percentages", [0.0, 0.2, 0.4, 0.6, 0.8]))
+    n_repeats        = int(config.get("n_repeats", 1))
 
     for rep in range(n_repeats):
-        # Full double precision baseline
-        centers_double, labels_double, iters_double_tot, iters_single_tot, elapsed_d, mem_MB_d, inertia_d = run_full_double(
+        # -------- Baselines (run once per repeat) --------
+        # Single baseline (full single at tol_fixed_C)
+        c_s, l_s, it_s_s, it_d_s, t_s, mem_s, J_s = run_full_single(
             X, initial_centers, n_clusters, max_iter_C, tol_fixed_C, y_true
         )
-
         rows_C.append([
             ds_name, n_samples, n_clusters, "C", "full", tol_fixed_C,
-            0, iters_double_tot, "Double", elapsed_d, mem_MB_d, inertia_d
+            it_s_s, it_d_s, "Single", t_s, mem_s, J_s
         ])
 
-        for pct in cap_percentages:
-            single_cap = ceil(max_iter_C * pct)
+        # Double baseline (full double at tol_fixed_C)
+        c_d, l_d, it_d_d, it_s_d, t_d, mem_d, J_d = run_full_double(
+            X, initial_centers, n_clusters, max_iter_C, tol_fixed_C, y_true
+        )
+        rows_C.append([
+            ds_name, n_samples, n_clusters, "C", "full", tol_fixed_C,
+            it_s_d, it_d_d, "Double", t_d, mem_d, J_d
+        ])
 
-            labels_h, centers_h, iters_s, iters_d, elapsed_h, mem_MB_h, inertia_h = run_hybrid(
+        # -------- Hybrid sweep over cap fractions --------
+        for pct in cap_percentages:
+            pct = float(pct)
+            single_cap = int(ceil(max_iter_C * pct))
+
+            labels_h, centers_h, it_s_h, it_d_h, t_h, mem_h, J_h = run_hybrid(
                 X, initial_centers, n_clusters,
                 max_iter_total=max_iter_C,
                 single_iter_cap=single_cap,
@@ -129,18 +150,19 @@ def run_experiment_C(ds_name, X, y_true, n_clusters, initial_centers, config):
                 y_true=y_true,
                 seed=rep
             )
-
             rows_C.append([
                 ds_name, n_samples, n_clusters, "C", pct, tol_fixed_C,
-                iters_s, iters_d, "Hybrid", elapsed_h, mem_MB_h, inertia_h
+                it_s_h, it_d_h, "Hybrid", t_h, mem_h, J_h
             ])
 
-            # Optional: 2D PCA cluster plot for first rep
+            # Optional PCA snapshot (first repeat only)
             if rep == 0:
                 X_vis, centers_vis, xx, yy, labels_grid = KMeansVisualizer.pca_2d_view(X, centers_h)
-                filename = f"{ds_name}_C_cap{int(pct*100)}"
-                title = f"{ds_name}: cap = {int(pct*100)}% iter"
-                KMeansVisualizer.plot_clusters(X_vis, labels_h, centers_vis, xx, yy, labels_grid, title=title, filename=filename)
+                KMeansVisualizer.plot_clusters(
+                    X_vis, labels_h, centers_vis, xx, yy, labels_grid,
+                    title=f"{ds_name}: cap = {int(pct*100)}% iter",
+                    filename=f"{ds_name}_C_cap{int(pct*100)}"
+                )
 
     return rows_C
     
@@ -315,6 +337,7 @@ def run_experiment_F(ds_name, X, y_true, n_clusters, initial_centers, config):
                     "MixedPerCluster", res["elapsed_time"], res["mem_MB"], res["inertia"]
                 ])
     return rows_F
+
 
 
 
