@@ -1,10 +1,10 @@
 # kmeans_analyse_results.py
-import math
 from pathlib import Path
+import math
 import pandas as pd
 from scipy.stats import ttest_rel, wilcoxon
 
-# ---------- helpers for table export ----------
+# ---------------- helpers ----------------
 
 def _export_tables(per_ds_df: pd.DataFrame, summary_row: pd.Series, outstem: Path) -> None:
     """
@@ -15,36 +15,47 @@ def _export_tables(per_ds_df: pd.DataFrame, summary_row: pd.Series, outstem: Pat
     """
     outstem.parent.mkdir(parents=True, exist_ok=True)
 
-    # CSV
+    # Stable column order if present
+    order_cols = [c for c in ["DatasetName", "DatasetSize", "NumClusters"] if c in per_ds_df.columns]
+    rest_cols = [c for c in per_ds_df.columns if c not in order_cols]
+    per_ds_df = per_ds_df[order_cols + rest_cols]
+
     per_ds_df.to_csv(outstem.with_suffix(".csv"), index=False)
 
-    # Markdown (nice for quick copy into docs)
     with open(outstem.with_suffix(".md"), "w", encoding="utf-8") as f:
         f.write(per_ds_df.to_markdown(index=False))
-        f.write("\n\n**Summary:**\n\n")
+        f.write("\n\n**Summary**\n\n")
         f.write(pd.DataFrame([summary_row]).to_markdown(index=False))
 
-    # LaTeX (thesis-ready)
     with open(outstem.with_suffix(".tex"), "w", encoding="utf-8") as f:
         f.write(per_ds_df.to_latex(index=False, float_format="%.6g"))
         f.write("\n% Summary\n")
         f.write(pd.DataFrame([summary_row]).to_latex(index=False, float_format="%.6g"))
 
 
-# ---------- core analysis ----------
+# ---------------- core analysis ----------------
 
-def analyze_experiment(csv_file, metrics=("Time", "Inertia"), outdir="../Results/SUMMARY", label=None):
+def analyze_experiment(
+    csv_file: str,
+    metrics=("Time", "Inertia", "Memory_MB"),
+    compare_suite="Hybrid",
+    baselines=("Double", "Single"),   # run both if present
+    outdir="../Results/SUMMARY",
+    label=None,
+):
     """
     Analyze one experiment CSV.
     - Aggregates per (DatasetName, NumClusters) across any sweep columns.
-    - Compares Double vs the first non-Double suite found (e.g., Hybrid).
-    - Returns dict and writes per-dataset + summary tables to outdir.
+    - Compares <compare_suite> (default: Hybrid) to each baseline in `baselines`
+      if that baseline exists in the CSV (Double and/or Single).
+    - Emits per-dataset tables + one-row summaries to CSV/MD/TeX.
+    - Returns dict with results for each (metric, baseline) present.
     """
     df = pd.read_csv(csv_file)
     if df.empty:
         return {"_note": "empty file"}
 
-    # Base index across A..F (older files might have DatasetSize instead of DatasetName)
+    # Group keys (older runs might have DatasetSize instead of DatasetName)
     base_index = ["DatasetName", "NumClusters"]
     if not set(base_index).issubset(df.columns):
         base_index = [c for c in ["DatasetSize", "NumClusters"] if c in df.columns]
@@ -52,14 +63,8 @@ def analyze_experiment(csv_file, metrics=("Time", "Inertia"), outdir="../Results
             return {"_note": "no suitable grouping columns (DatasetName/DatasetSize, NumClusters)"}
 
     suites = sorted(df["Suite"].unique().tolist())
-    if "Double" not in suites:
-        return {"_note": "no Double rows in file"}
-
-    # Pick the comparison suite automatically (first non-Double)
-    hybrid_candidates = [s for s in suites if s != "Double"]
-    if not hybrid_candidates:
-        return {"_note": "no non-Double rows to compare against"}
-    hybrid_name = hybrid_candidates[0]
+    if compare_suite not in suites:
+        return {"_note": f"no '{compare_suite}' rows in file"}
 
     out = {}
     outdir = Path(outdir)
@@ -69,80 +74,88 @@ def analyze_experiment(csv_file, metrics=("Time", "Inertia"), outdir="../Results
         if metric not in df.columns:
             continue
 
-        # Aggregate to (dataset, k, suite) first to avoid overweighting any sweep setting
-        agg = (
-            df.groupby(base_index + ["Suite"], as_index=False)[metric]
-              .mean()
-        )
+        # Aggregate to avoid overweighting sweep settings
+        agg = df.groupby(base_index + ["Suite"], as_index=False)[metric].mean()
 
-        # Pivot to compare Double vs chosen suite
-        pivoted = (
-            agg.pivot_table(index=base_index, columns="Suite", values=metric, aggfunc="mean")
-               .filter(items=["Double", hybrid_name])
-               .dropna()
-        )
+        for baseline in baselines:
+            if baseline not in suites or baseline == compare_suite:
+                continue  # skip if baseline absent or same as compare_suite
 
-        if pivoted.empty or {"Double", hybrid_name} - set(pivoted.columns):
-            continue
+            # Pivot to [baseline, compare_suite]
+            pivoted = (
+                agg.pivot_table(index=base_index, columns="Suite", values=metric, aggfunc="mean")
+                   .filter(items=[baseline, compare_suite])
+                   .dropna()
+            )
+            if pivoted.empty or {baseline, compare_suite} - set(pivoted.columns):
+                continue
 
-        d = pivoted["Double"].to_numpy()
-        h = pivoted[hybrid_name].to_numpy()
+            b = pivoted[baseline].to_numpy()
+            c = pivoted[compare_suite].to_numpy()
+            diff = b - c  # positive means compare_suite is better (smaller) when lower is better
 
-        improvement_pct = (d - h) / d * 100.0
-        diff = d - h
+            # % improvement (lower is better for Time/Memory_MB; for Inertia we still show % change vs baseline)
+            lower_is_better = metric in ("Time", "Memory_MB")
+            improvement_pct = (b - c) / b * 100.0  # +% = compare_suite lower than baseline
 
-        # stats (safe guards for size 1)
-        if len(d) >= 2:
-            t_stat, t_p = ttest_rel(d, h)
-            try:
-                w_stat, w_p = wilcoxon(d, h)
-            except ValueError:
-                w_stat, w_p = float("nan"), float("nan")
-            cohens_d = diff.mean() / diff.std(ddof=1) if diff.std(ddof=1) > 0 else float("nan")
-        else:
-            t_stat = t_p = w_stat = w_p = cohens_d = float("nan")
+            # paired stats when we have ≥2 pairs
+            if len(b) >= 2:
+                t_stat, t_p = ttest_rel(b, c)
+                try:
+                    w_stat, w_p = wilcoxon(b, c)
+                except ValueError:
+                    w_stat, w_p = float("nan"), float("nan")
+                cohens_d = diff.mean() / diff.std(ddof=1) if diff.std(ddof=1) > 0 else float("nan")
+            else:
+                t_stat = t_p = w_stat = w_p = cohens_d = float("nan")
 
-        # Build per-dataset table (absolute values + relative/improvement)
-        per_ds_df = (
-            pivoted.reset_index()
-                   .rename(columns={
-                       "Double": f"Double_{metric}",
-                       hybrid_name: f"{hybrid_name}_{metric}"
-                   })
-        )
-        per_ds_df[f"Rel_{metric}"] = per_ds_df[f"{hybrid_name}_{metric}"] / per_ds_df[f"Double_{metric}"]
-        if metric == "Time":
-            per_ds_df["Improvement_%"] = (per_ds_df[f"Double_{metric}"] - per_ds_df[f"{hybrid_name}_{metric}"]) \
-                                          / per_ds_df[f"Double_{metric}"] * 100.0
+            # per-dataset table
+            per_ds_df = (
+                pivoted.reset_index()
+                       .rename(columns={
+                           baseline: f"{baseline}_{metric}",
+                           compare_suite: f"{compare_suite}_{metric}",
+                       })
+            )
+            per_ds_df[f"Rel_{metric}"] = per_ds_df[f"{compare_suite}_{metric}"] / per_ds_df[f"{baseline}_{metric}"]
+            per_ds_df["Improvement_%"] = (
+                (per_ds_df[f"{baseline}_{metric}"] - per_ds_df[f"{compare_suite}_{metric}"])
+                / per_ds_df[f"{baseline}_{metric}"] * 100.0
+            )
 
-        # One-row summary for the thesis
-        summary_row = pd.Series({
-            "n_pairs": len(d),
-            "mean_double": d.mean(),
-            "mean_other": h.mean(),
-            "mean_improvement_%": improvement_pct.mean() if metric == "Time" else float("nan"),
-            "t_test_stat": t_stat, "t_test_p": t_p,
-            "wilcoxon_stat": w_stat, "wilcoxon_p": w_p,
-            "cohens_d": cohens_d,
-        })
+            # summary row
+            summary_row = pd.Series({
+                "baseline": baseline,
+                "compare_suite": compare_suite,
+                "metric": metric,
+                "n_pairs": len(b),
+                "mean_baseline": b.mean(),
+                "mean_compare": c.mean(),
+                "mean_rel": (c / b).mean(),
+                "mean_improvement_%": improvement_pct.mean(),
+                "t_test_stat": t_stat, "t_test_p": t_p,
+                "wilcoxon_stat": w_stat, "wilcoxon_p": w_p,
+                "cohens_d": cohens_d,
+            })
 
-        # Emit tables
-        outstem = outdir / f"{stem_label}__{metric}__double_vs_{hybrid_name.lower()}"
-        _export_tables(per_ds_df, summary_row, outstem)
+            # write tables
+            outstem = outdir / f"{stem_label}__{metric}__{compare_suite.lower()}_vs_{baseline.lower()}"
+            _export_tables(per_ds_df, summary_row, outstem)
 
-        out[metric] = {
-            "hybrid_label": hybrid_name,
-            "per_dataset": per_ds_df,
-            "summary": dict(summary_row),
-            "outstem": str(outstem)
-        }
+            out[(metric, baseline)] = {
+                "baseline": baseline,
+                "compare_suite": compare_suite,
+                "per_dataset": per_ds_df,
+                "summary": dict(summary_row),
+                "outstem": str(outstem),
+            }
 
     if not out:
         return {"_note": "no comparable metrics present"}
     return out
 
 
-# ---------- CLI ----------
+# ---------------- run all & emit combined summary ----------------
 
 if __name__ == "__main__":
     csv_files = [
@@ -154,6 +167,7 @@ if __name__ == "__main__":
         "../Results/hybrid_kmeans_Results_expF.csv",
     ]
 
+    all_rows = []  # one row per (experiment × metric × baseline)
     for f in csv_files:
         p = Path(f)
         if not p.exists() or p.stat().st_size == 0:
@@ -161,17 +175,44 @@ if __name__ == "__main__":
             continue
 
         print(f"\n==== {f} ====")
-        res = analyze_experiment(f, outdir="../Results/SUMMARY", label=Path(f).stem)
+        res = analyze_experiment(
+            f,
+            metrics=("Time", "Inertia", "Memory_MB"),
+            compare_suite="Hybrid",
+            baselines=("Double", "Single"),
+            outdir="../Results/SUMMARY",
+            label=Path(f).stem,
+        )
         note = res.get("_note")
         if note:
             print(note)
             continue
 
-        for metric, r in res.items():
-            print(f"\n[{metric}] vs '{r['hybrid_label']}'")
+        for (metric, baseline), r in res.items():
+            print(f"\n[{metric}] {r['compare_suite']} vs {baseline}")
             for k, v in r["summary"].items():
-                print(f"  {k:>20}: {v}")
+                print(f"  {k:>22}: {v}")
             print(f"  wrote: {r['outstem']}.csv / .md / .tex")
+
+            all_rows.append({
+                "Experiment": Path(f).stem,
+                "Metric": metric,
+                "Baseline": baseline,
+                **r["summary"],
+            })
+
+    # write combined summary across experiments/metrics/baselines
+    if all_rows:
+        outdir = Path("../Results/SUMMARY")
+        outdir.mkdir(parents=True, exist_ok=True)
+        all_df = pd.DataFrame(all_rows)
+        stem = outdir / "_ALL_experiments_summary"
+        all_df.to_csv(stem.with_suffix(".csv"), index=False)
+        with open(stem.with_suffix(".md"), "w", encoding="utf-8") as fh:
+            fh.write(all_df.to_markdown(index=False))
+        with open(stem.with_suffix(".tex"), "w", encoding="utf-8") as fh:
+            fh.write(all_df.to_latex(index=False, float_format="%.6g"))
+        print(f"\nWrote combined summary: {stem}.csv / .md / .tex")
 
 
 
