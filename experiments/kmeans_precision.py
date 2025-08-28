@@ -162,110 +162,102 @@ def _mem_megabytes(*arrays) -> float:
 #   3) Finish remaining iterations in double precision (float64) using sklearn.KMeans.
 #
 
+from sklearn.cluster import KMeans
+import numpy as np, time
+
 def run_expD_adaptive_sklearn(
     X,
     initial_centers,
     n_clusters,
     *,
-    max_iter=300,           # total iteration budget (single + double)
-    chunk_single=20,        # length of the initial single-precision burst
-    improve_threshold=1e-3, # min relative inertia improvement to consider "good progress"
-    shift_tol=1e-3,         # min L2 center shift to consider "movement"
-    stability_threshold=0.02,# max label-change rate to consider "stable" (lower = more stable)
+    max_iter=300,
+    chunk_single=20,            # size of each f32 burst
+    improve_threshold=1e-3,     # relative inertia improvement threshold
+    shift_tol=1e-3,             # L2(center shift) threshold
+    stability_threshold=0.02,   # fraction of labels changed threshold
     seed=0,
     algorithm="lloyd",
 ):
-    # ------------------------------
-    # prepare data and state
-    # ------------------------------
-    X32 = X.astype(np.float32, copy=False)  # single-precision view
-    X64 = X.astype(np.float64, copy=False)  # double-precision view
+    X32 = X.astype(np.float32, copy=False)
+    X64 = X.astype(np.float64, copy=False)
     centers64 = initial_centers.astype(np.float64, copy=True)
 
-    # book-keeping
+    it_single = it_double = total = 0
     prev_inertia = np.inf
     prev_labels = None
-    it_single = 0
-    it_double = 0
-    total = 0
     switched = False
 
     t0 = time.perf_counter()
 
-    # ------------------------------
-    # Phase 1: single-precision burst
-    # ------------------------------
-    # cap the burst to remaining budget
-    step1 = max(1, min(chunk_single, max_iter))
-    km_s = KMeans(
-        n_clusters=n_clusters,
-        init=centers64.astype(np.float32, copy=False),
-        n_init=1,
-        max_iter=step1,
-        tol=0.0,                # we control stopping via chunk size, not tol
-        algorithm=algorithm,
-        random_state=seed,
-    )
-    labels_s = km_s.fit_predict(X32)
-    it1 = int(km_s.n_iter_)
-    it_single += it1
-    total += it1
+    # --------- Phase 1: keep taking f32 chunks until “stalled” or we hit the budget ---------
+    while total < max_iter and not switched:
+        step = int(min(chunk_single, max_iter - total))
+        km_s = KMeans(
+            n_clusters=n_clusters,
+            init=centers64.astype(np.float32, copy=False),
+            n_init=1,
+            max_iter=step,
+            tol=0.0,                 # run the full chunk
+            algorithm=algorithm,
+            random_state=seed,
+        )
+        labels_s = km_s.fit_predict(X32)
+        it = int(km_s.n_iter_)
+        total += it
+        it_single += it
 
-    # measure signals
-    new_centers64 = km_s.cluster_centers_.astype(np.float64, copy=False)
-    inertia_s = float(km_s.inertia_)
-    shift = float(np.linalg.norm(new_centers64 - centers64))
-    # relative improvement vs previous run; here prev is inf → treat as ∞
-    improve = np.inf if not np.isfinite(prev_inertia) else (prev_inertia - inertia_s) / prev_inertia
-    # label stability = fraction of points whose label changed vs prior labels
-    stability = 1.0 if prev_labels is None else float(np.mean(labels_s != prev_labels))
+        new_centers64 = km_s.cluster_centers_.astype(np.float64, copy=False)
+        inertia_s = float(km_s.inertia_)
+        shift = float(np.linalg.norm(new_centers64 - centers64))
+        improve = 0.0 if not np.isfinite(prev_inertia) else (prev_inertia - inertia_s) / max(prev_inertia, 1e-12)
+        stability = 1.0 if prev_labels is None else float(np.mean(labels_s != prev_labels))
 
-    # update state
-    centers64 = new_centers64
-    prev_inertia = inertia_s
-    prev_labels = labels_s
+        # update state
+        centers64 = new_centers64
+        prev_inertia = inertia_s
+        prev_labels = labels_s
 
-    # decide if we should switch now (POC: always switch after this single burst,
-    # but we also keep the logic here to be explicit about *why*)
-    if (it1 < step1) or (improve < improve_threshold) or (shift < shift_tol) or (stability < stability_threshold):
-        switched = True
+        # decide to switch to f64
+        stalled = (it < step) or (improve < improve_threshold) or (shift < shift_tol) or (stability < stability_threshold)
+        switched = stalled  # switch when progress is small/labels stable/centers not moving
+
+        # if budget exhausted, we’ll exit the loop anyway
+
+    # --------- Phase 2: finish in f64 for the remaining budget ---------
+    remaining = max(0, max_iter - total)
+    if remaining > 0:
+        km_d = KMeans(
+            n_clusters=n_clusters,
+            init=centers64,          # continue from the last f32 centers
+            n_init=1,
+            max_iter=remaining,
+            tol=0.0,
+            algorithm=algorithm,
+            random_state=seed,
+        )
+        labels_d = km_d.fit_predict(X64)
+        it = int(km_d.n_iter_)
+        it_double += it
+        total += it
+        centers64 = km_d.cluster_centers_.astype(np.float64, copy=False)
+        inertia = float(km_d.inertia_)
     else:
-        switched = True  # even if progress is good, we *want* to finish in double
+        # never entered double; report last f32 state
+        labels_d = prev_labels
+        inertia = float(prev_inertia)
 
-    # ------------------------------
-    # Phase 2: finish in double precision
-    # ------------------------------
-    remaining = max(1, max_iter - total)
-    km_d = KMeans(
-        n_clusters=n_clusters,
-        init=centers64,
-        n_init=1,
-        max_iter=remaining,
-        tol=0.0,
-        algorithm=algorithm,
-        random_state=seed,
-    )
-    labels_d = km_d.fit_predict(X64)
-    it2 = int(km_d.n_iter_)
-    it_double += it2
-    total += it2
-
-    # ------------------------------
-    # build result
-    # ------------------------------
     return {
         "labels": labels_d,
-        "centers": km_d.cluster_centers_.astype(np.float64, copy=False),
+        "centers": centers64,
         "iters_single": it_single,
         "iters_double": it_double,
         "switched": switched,
         "total_iters": total,
         "elapsed_time": time.perf_counter() - t0,
-        "mem_MB": _mem_megabytes(X32, km_d.cluster_centers_),
-        "inertia": float(km_d.inertia_),
-        # optional diagnostics
-        "shift_after_single": shift,
-        "stability_after_single": stability,
+        "mem_MB": _mem_megabytes(X32, centers64.astype(np.float32, copy=False)),
+        "inertia": inertia,
+        "shift_after_single": shift if 'shift' in locals() else np.nan,
+        "stability_after_single": stability if 'stability' in locals() else np.nan,
     }
 
 

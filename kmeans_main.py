@@ -45,12 +45,15 @@ config = {
     "cap_C_pct": int(300 * 0.8),
 
     # D (Adaptive Hybrid – global switch)
+
     "max_iter_D": 300,
-    "tol_double_baseline_D": 1e-16,
-    "chunk_single_D": 1,
-    "improve_threshold_D": 1e-2,
-    "shift_tol_D": 5e-4,
-    "stability_threshold_D": 0.05,
+    "tol_double_baseline_D": 1e-6,
+    # sweep this so the plots show curves
+    "chunk_single_grid_D": [5, 10, 25, 50, 100, 150, 200],
+    # stall criteria (keep fixed across the sweep; tune as needed)
+    "improve_threshold_D": 1e-3,   # relative inertia improvement
+    "shift_tol_D": 1e-3,           # L2 center shift
+    "stability_threshold_D": 0.02, # fraction of labels changed
     
   # --- E (Mini-batch Hybrid) : sweep these ---
     "E_mb_iter_grid":   [10, 25, 50, 100],   # was 100
