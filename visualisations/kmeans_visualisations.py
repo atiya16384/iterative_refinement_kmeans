@@ -195,41 +195,118 @@ class KMeansVisualizer:
         plt.tight_layout()
         plt.savefig(self.output_dir / f"tolerance_vs_inertia_hybrid_vs_{baseline.lower()}.png")
         plt.close()
-        
+
+
+    def _cap_fraction_column(self, df: pd.DataFrame) -> pd.Series:
+        """
+        Return a Series with the cap fraction in [0,1].
+        Supports either:
+          - df['Cap'] already being a fraction, OR
+          - df has 'single_iter_cap' and 'max_iter' (or 'max_iter_C').
+        """
+        if "Cap" in df.columns:
+            s = df["Cap"].astype(float)
+            # if Cap looks like an integer count, try to divide by max_iter if present
+            if s.max() > 1.0 and ("max_iter" in df.columns or "max_iter_C" in df.columns):
+                denom = df.get("max_iter", df.get("max_iter_C")).astype(float).replace(0, np.nan)
+                return (s / denom).clip(0, 1)
+            return s.clip(0, 1)
+    
+        if {"single_iter_cap", "max_iter"}.issubset(df.columns):
+            return (df["single_iter_cap"].astype(float) / df["max_iter"].astype(float)).clip(0, 1)
+        if {"single_iter_cap", "max_iter_C"}.issubset(df.columns):
+            return (df["single_iter_cap"].astype(float) / df["max_iter_C"].astype(float)).clip(0, 1)
+    
+        raise KeyError("Need a 'Cap' fraction column or ('single_iter_cap' & 'max_iter[_C]') to compute it.")
+
     # ---------------------- C: cap-as-fraction plots ----------------------
     def plot_cap_percentage_vs_inertia(self, df, baseline: str = "Double"):
+        # Hybrid rows only; compute/normalize cap fraction
         df_h = df[df["Suite"] == "Hybrid"].copy()
+        if df_h.empty:
+            print("No Hybrid rows for Experiment C; skipping inertia plot.")
+            return
+    
+        df_h["CapFrac"] = self._cap_fraction_column(df_h)
+    
+        # Aggregate repeats
+        grp_cols = ["DatasetName", "NumClusters", "CapFrac"]
+        dfH = df_h.groupby(grp_cols, as_index=False)[["Inertia"]].mean()
+    
+        # Baseline (mean over repeats) per dataset/cluster
+        base = (
+            df[(df["Suite"] == baseline)]
+            .groupby(["DatasetName", "NumClusters"], as_index=False)["Inertia"].mean()
+            .rename(columns={"Inertia": "BASE"})
+        )
+    
+        # Merge baseline onto hybrid means, compute relative inertia
+        dfM = dfH.merge(base, on=["DatasetName", "NumClusters"], how="inner")
+        dfM = dfM[np.isfinite(dfM["BASE"]) & (dfM["BASE"] != 0)].copy()
+        if dfM.empty:
+            print(f"No valid {baseline} baseline to normalize; skipping inertia plot.")
+            return
+        dfM["RelInertia"] = dfM["Inertia"] / dfM["BASE"]
+    
         plt.figure(figsize=(7, 5))
-        base = self._baseline_mean(df, ["DatasetName", "NumClusters"], "Inertia", baseline)
-        for (ds, k), grp in df_h.groupby(["DatasetName", "NumClusters"]):
-            base_val = base[(base["DatasetName"] == ds) & (base["NumClusters"] == k)]["BASE"].mean()
-            grp = grp.copy()
-            grp["NormInertia"] = grp["Inertia"] / base_val
-            plt.plot(grp["Cap"], grp["NormInertia"], marker="o", label=f"{ds}-C{k}")
+        for (ds, k), g in dfM.groupby(["DatasetName", "NumClusters"]):
+            g = g.sort_values("CapFrac")
+            plt.plot(g["CapFrac"], g["RelInertia"], marker="o", label=f"{ds}-C{k}", alpha=0.9)
+    
+        # Optional median overlay to summarize many lines
+        med = dfM.groupby("CapFrac")["RelInertia"].median().reset_index().sort_values("CapFrac")
+        if len(med) >= 2:
+            plt.plot(med["CapFrac"], med["RelInertia"], marker="o", lw=2, label="Median", alpha=0.9)
+    
         plt.title("Cap (fraction) vs Final Inertia (Hybrid)")
         plt.xlabel("Cap (fraction of max_iter)")
         plt.ylabel(f"Inertia (Relative to {baseline})")
         plt.axhline(1.0, linestyle="--", color="gray", linewidth=1, label=f"{baseline} baseline")
-        plt.grid(True)
+        plt.grid(True, ls="--", alpha=0.5)
         plt.legend()
         plt.tight_layout()
         plt.savefig(self.output_dir / f"exp_C_cap_percentage_vs_inertia_vs_{baseline.lower()}.png")
         plt.close()
 
+
     def plot_cap_percentage_vs_time(self, df, baseline: str = "Double"):
         df_h = df[df["Suite"] == "Hybrid"].copy()
+        if df_h.empty:
+            print("No Hybrid rows for Experiment C; skipping time plot.")
+            return
+    
+        df_h["CapFrac"] = self._cap_fraction_column(df_h)
+    
+        grp_cols = ["DatasetName", "NumClusters", "CapFrac"]
+        dfH = df_h.groupby(grp_cols, as_index=False)[["Time"]].mean()
+    
+        base = (
+            df[(df["Suite"] == baseline)]
+            .groupby(["DatasetName", "NumClusters"], as_index=False)["Time"].mean()
+            .rename(columns={"Time": "BASE"})
+        )
+    
+        dfM = dfH.merge(base, on=["DatasetName", "NumClusters"], how="inner")
+        dfM = dfM[np.isfinite(dfM["BASE"]) & (dfM["BASE"] != 0)].copy()
+        if dfM.empty:
+            print(f"No valid {baseline} baseline to normalize; skipping time plot.")
+            return
+        dfM["RelTime"] = dfM["Time"] / dfM["BASE"]
+    
         plt.figure(figsize=(7, 5))
-        base = self._baseline_mean(df, ["DatasetName", "NumClusters"], "Time", baseline)
-        for (ds, k), grp in df_h.groupby(["DatasetName", "NumClusters"]):
-            base_val = base[(base["DatasetName"] == ds) & (base["NumClusters"] == k)]["BASE"].mean()
-            grp = grp.copy()
-            grp["NormTime"] = grp["Time"] / base_val
-            plt.plot(grp["Cap"], grp["NormTime"], marker="o", label=f"{ds}-C{k}")
-        plt.title("Cap (fraction) vs Time (normalized, Hybrid)")
+        for (ds, k), g in dfM.groupby(["DatasetName", "NumClusters"]):
+            g = g.sort_values("CapFrac")
+            plt.plot(g["CapFrac"], g["RelTime"], marker="o", label=f"{ds}-C{k}", alpha=0.9)
+    
+        med = dfM.groupby("CapFrac")["RelTime"].median().reset_index().sort_values("CapFrac")
+        if len(med) >= 2:
+            plt.plot(med["CapFrac"], med["RelTime"], marker="o", lw=2, label="Median", alpha=0.9)
+    
+        plt.title("Cap (fraction) vs Time (Hybrid)")
         plt.xlabel("Cap (fraction of max_iter)")
         plt.ylabel(f"Time (Relative to {baseline})")
         plt.axhline(1.0, linestyle="--", color="gray", linewidth=1, label=f"{baseline} baseline")
-        plt.grid(True)
+        plt.grid(True, ls="--", alpha=0.5)
         plt.legend()
         plt.tight_layout()
         plt.savefig(self.output_dir / f"exp_C_cap_percentage_vs_norm_time_vs_{baseline.lower()}.png")
@@ -405,6 +482,7 @@ if __name__ == "__main__":
     vis.plot_expD(df_D)
     vis.plot_expE(df_E)
     vis.plot_expF(df_F)
+
 
 
 
