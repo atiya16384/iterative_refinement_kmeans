@@ -122,7 +122,7 @@ class KMeansVisualizer:
         plt.tight_layout()
         plt.savefig(self.output_dir / "cap_vs_inertia_hybrid.png")
         plt.close()
-        print(f"Saved: {self.output_dir / 'cap_vs_inertia_hybrid.png'}")
+        plt.savefig(self.output_dir / f"cap_vs_inertia_hybrid_vs_{baseline.lower()}.png")
 
     def plot_cap_vs_time(self, df, baseline: str = "Double"):
         df_hybrid = df[df["Suite"] == "Hybrid"]
@@ -144,9 +144,8 @@ class KMeansVisualizer:
         plt.grid(True)
         plt.legend()
         plt.tight_layout()
-        plt.savefig(self.output_dir / "cap_vs_time_hybrid.png")
+        plt.savefig(self.output_dir / f"cap_vs_time_hybrid_vs_{baseline.lower()}.png")
         plt.close()
-        print(f"Saved: {self.output_dir / 'cap_vs_time_hybrid.png'}")
 
     # ---------------------- B: tolerance sweeps ----------------------
     def plot_tolerance_vs_time(self, df, baseline: str = "Double"):
@@ -170,9 +169,8 @@ class KMeansVisualizer:
         plt.grid(True)
         plt.legend()
         plt.tight_layout()
-        plt.savefig(self.output_dir / "tolerance_vs_time_hybrid.png")
+        plt.savefig(self.output_dir / f"tolerance_vs_time_hybrid_vs_{baseline.lower()}.png")
         plt.close()
-        print(f"Saved: {self.output_dir / 'tolerance_vs_time_hybrid.png'}")
 
     def plot_tolerance_vs_inertia(self, df, baseline: str = "Double"):
         df_hybrid = df[df["Suite"] == "Hybrid"]
@@ -196,10 +194,9 @@ class KMeansVisualizer:
         plt.grid(True)
         plt.legend()
         plt.tight_layout()
-        plt.savefig(self.output_dir / "tolerance_vs_inertia_hybrid.png")
+        plt.savefig(self.output_dir / f"tolerance_vs_inertia_hybrid_vs_{baseline.lower()}.png")
         plt.close()
-        print(f"Saved: {self.output_dir / 'tolerance_vs_inertia_hybrid.png'}")
-
+        
     # ---------------------- C: cap-as-fraction plots ----------------------
     def plot_cap_percentage_vs_inertia(self, df, baseline: str = "Double"):
         df_h = df[df["Suite"] == "Hybrid"].copy()
@@ -217,9 +214,8 @@ class KMeansVisualizer:
         plt.grid(True)
         plt.legend()
         plt.tight_layout()
-        plt.savefig(self.output_dir / "exp_C_cap_percentage_vs_inertia.png")
+        plt.savefig(self.output_dir / f"exp_C_cap_percentage_vs_inertia_vs_{baseline.lower()}.png")
         plt.close()
-        print(f"Saved: {self.output_dir / 'exp_C_cap_percentage_vs_inertia.png'}")
 
     def plot_cap_percentage_vs_time(self, df, baseline: str = "Double"):
         df_h = df[df["Suite"] == "Hybrid"].copy()
@@ -237,9 +233,8 @@ class KMeansVisualizer:
         plt.grid(True)
         plt.legend()
         plt.tight_layout()
-        plt.savefig(self.output_dir / "exp_C_cap_percentage_vs_norm_time.png")
+        plt.savefig(self.output_dir / f"exp_C_cap_percentage_vs_norm_time_vs_{baseline.lower()}.png")
         plt.close()
-        print(f"Saved: {self.output_dir / 'exp_C_cap_percentage_vs_norm_time.png'}")
 
     # ---------------------- D/E/F plots (produce both baselines internally) ----------------------
     def plot_expD(self, df_D: pd.DataFrame) -> None:
@@ -411,6 +406,7 @@ if __name__ == "__main__":
     vis.plot_expD(df_D)
     vis.plot_expE(df_E)
     vis.plot_expF(df_F)
+
 
 
 
