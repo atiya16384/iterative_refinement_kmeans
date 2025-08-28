@@ -120,9 +120,8 @@ class KMeansVisualizer:
         plt.grid(True)
         plt.legend()
         plt.tight_layout()
-        plt.savefig(self.output_dir / "cap_vs_inertia_hybrid.png")
-        plt.close()
         plt.savefig(self.output_dir / f"cap_vs_inertia_hybrid_vs_{baseline.lower()}.png")
+        plt.close()
 
     def plot_cap_vs_time(self, df, baseline: str = "Double"):
         df_hybrid = df[df["Suite"] == "Hybrid"]
@@ -406,6 +405,7 @@ if __name__ == "__main__":
     vis.plot_expD(df_D)
     vis.plot_expE(df_E)
     vis.plot_expF(df_F)
+
 
 
 
