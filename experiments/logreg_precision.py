@@ -455,28 +455,11 @@ def run_experiments(X, y,
 
     return df, df_mean
 
-# Demo
 if __name__ == "__main__":
-    dataset = "uniform"   # options: "gaussian"
+    # pick multiple datasets instead of just one
+    datasets = ["uniform", "gaussian", "blobs"]  # add/remove any you want
 
-
-    if dataset == "gaussian":
-        X, y = make_shifted_gaussian(m=1000_000, n=200, delta=0.5, seed=42)
-    elif dataset == "uniform":
-        X, y = make_uniform_binary(m=1000_000, n=120, shift=0.25, seed=42)
-    elif dataset == "blobs":
-        X, y = make_blobs_binary(n_samples=1000_000, n_features=50, cluster_std=1.2, random_state=42)
-    elif dataset == "susy":
-        X, y = load_susy(n_rows=1_000_000)
-    elif dataset == "3droad":
-        X, y = load_3d_road(n_rows=1_000_000)  # y=None -> metrics will be NaN; timing & internal loss still reported
-    else:
-        raise ValueError("Unknown dataset")
-
-    # for 'mse' and 'coord', we have alpha [0.0, 0.25, 0.5, 0.75, 1.0], and use "l1", "l2"
-    # for 'mse' and 'sparse_cg', this only supports l2 ridge and alpha is none
-    grid = {
-        "dataset": [dataset],
+    base_grid = {
         "penalty": ["l1", "l2"],
         "alpha":   [0.0, 0.25, 0.5, 1.0],
         "lambda":  [1e-2, 1e-4, 1e-6],
@@ -485,14 +468,45 @@ if __name__ == "__main__":
         "max_iter": [1000, 3000],
         "tol":      [1e-2, 1e-4, 1e-6],
         "max_iter_single": [100, 350, 500, 1000],
-        "approaches": ["single", "double", "hybrid" ]
+        "approaches": ["single", "double", "hybrid"]
     }
 
-    df, df_mean = run_experiments(
-        X, y, grid=grid,
-        dataset=dataset,
-        save_path=f"../Results/{dataset}_results.csv",
-        repeats=1
-    )
-    # with pd.option_context("display.max_columns", None, "display.width", 140):
-    #     print(df.groupby("approach").head(5))
+    all_df, all_df_mean = [], []
+
+    for dataset in datasets:
+        # load each dataset
+        if dataset == "gaussian":
+            X, y = make_shifted_gaussian(m=1000000, n=200, delta=0.5, seed=42)
+        elif dataset == "uniform":
+            X, y = make_uniform_binary(m=100000, n=120, shift=0.25, seed=42)
+        elif dataset == "blobs":
+            X, y = make_blobs_binary(n_samples=1000000, n_features=50,
+                                     cluster_std=1.2, random_state=42)
+        elif dataset == "susy":
+            X, y = load_susy(n_rows=1000000)
+        elif dataset == "3droad":
+            X, y = load_3d_road(n_rows=1000000)
+        else:
+            raise ValueError("Unknown dataset")
+
+        # clone grid and set dataset name
+        grid = dict(base_grid)
+        grid["dataset"] = [dataset]
+
+        # run experiments
+        df, df_mean = run_experiments(
+            X, y, grid=grid,
+            dataset=dataset,
+            save_path=f"./Results/{dataset}_results.csv",
+            repeats=1
+        )
+        all_df.append(df)
+        all_df_mean.append(df_mean)
+
+    # combine everything into one big file too
+    df_all = pd.concat(all_df, ignore_index=True)
+    df_all_mean = pd.concat(all_df_mean, ignore_index=True)
+
+    df_all.to_csv("../Results/_ALL_raw.csv", index=False)
+    df_all_mean.to_csv("./Results/_ALL_mean.csv", index=False)
+    print("\nSaved combined results for all datasets to ./Results/_ALL_raw.csv and ./Results/_ALL_mean.csv")
