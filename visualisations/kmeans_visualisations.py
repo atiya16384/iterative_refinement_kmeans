@@ -41,38 +41,37 @@ class KMeansVisualizer:
     # REMOVE the @staticmethod above _clean_line
 
     def _clean_line(
-          self,
-            rel_df: pd.DataFrame,
-            xcol: str,
-            title: str,
-            ylabel: str,
-            outpath=None,
-            logx: bool = False,
-            baseline_label: str = "Double",
-        ) -> None:
-            fig, ax = plt.subplots(figsize=(7, 5))
-        
-            # one faint line per (dataset, k)
-            for (_, _), g in rel_df.groupby(["DatasetName", "NumClusters"]):
-                g = g.sort_values(xcol)
-                ax.plot(g[xcol], g["Rel"], marker="o", alpha=0.35)
-        
-            # optional median overlay
-            agg = rel_df.groupby(xcol)["Rel"].median().reset_index().sort_values(xcol)
-            ax.plot(agg[xcol], agg["Rel"], marker="o", lw=2, label="Median")
-        
-            if logx:
-                ax.set_xscale("log")
-            ax.axhline(1.0, ls="--", c="gray", lw=1, label=f"{baseline_label} baseline")
-            ax.set_title(title)
-            ax.set_xlabel(xcol)
-            ax.set_ylabel(ylabel)
-            ax.grid(True, ls="--", alpha=0.5)
-            ax.legend()
-            fig.tight_layout()
-            if outpath is not None:
-                fig.savefig(outpath, dpi=200)
-            plt.close(fig)
+        self,
+        rel_df: pd.DataFrame,
+        xcol: str,
+        title: str,
+        ylabel: str,
+        outpath=None,
+        logx: bool = False,
+        baseline_label: str = "Double",
+    ) -> None:
+        fig, ax = plt.subplots(figsize=(7, 5))
+    
+        # one line per (dataset, k)
+        for (_, _), g in rel_df.groupby(["DatasetName", "NumClusters"]):
+            # robust numeric sort (handles str columns)
+            g = g.sort_values(xcol, key=lambda s: pd.to_numeric(s, errors="coerce"))
+            # force a line (linestyle='-') + markers
+            ax.plot(g[xcol], g["Rel"], linestyle="-", marker="o", linewidth=1.5, markersize=4, alpha=0.8)
+    
+        if logx:
+            ax.set_xscale("log")
+        ax.axhline(1.0, ls="--", c="gray", lw=1, label=f"{baseline_label} baseline")
+        ax.set_title(title)
+        ax.set_xlabel(xcol)
+        ax.set_ylabel(ylabel)
+        ax.grid(True, ls="--", alpha=0.5)
+        ax.legend()
+        fig.tight_layout()
+        if outpath is not None:
+            fig.savefig(outpath, dpi=200)
+        plt.close(fig)
+    
 
 
     def _baseline_mean(self, df, keys, value_col, baseline_suite):
@@ -481,6 +480,7 @@ if __name__ == "__main__":
     vis.plot_expD(df_D)
     vis.plot_expE(df_E)
     vis.plot_expF(df_F)
+
 
 
 
