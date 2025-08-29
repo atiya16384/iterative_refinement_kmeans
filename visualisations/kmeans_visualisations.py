@@ -45,40 +45,30 @@ class KMeansVisualizer:
         xcol: str,
         title: str,
         ylabel: str,
-        outpath: pathlib.Path,
+        outpath=None,              # <- make optional
         logx: bool = False,
         baseline_label: str = "Double",
-        show_summary: bool = False,   # NEW: default off
     ) -> None:
         fig, ax = plt.subplots(figsize=(7, 5))
-    
-        # one line per (dataset, K)
         for (_, _), g in rel_df.groupby(["DatasetName", "NumClusters"]):
             g = g.sort_values(xcol)
-            ax.plot(g[xcol], g["Rel"], marker="o", alpha=0.65)
+            ax.plot(g[xcol], g["Rel"], marker="o", alpha=0.35)
     
-        # (optional) summary overlay – OFF by default
-        if show_summary and rel_df[xcol].nunique() >= 2:
-            agg = rel_df.groupby(xcol)["Rel"].median().reset_index().sort_values(xcol)
-            ax.plot(agg[xcol], agg["Rel"], marker="o", lw=2, label="Median")
-    
+        agg = rel_df.groupby(xcol)["Rel"].median().reset_index().sort_values(xcol)
+        ax.plot(agg[xcol], agg["Rel"], marker="o", lw=2, label="Median")
         if logx:
             ax.set_xscale("log")
-    
         ax.axhline(1.0, ls="--", c="gray", lw=1, label=f"{baseline_label} baseline")
         ax.set_title(title)
         ax.set_xlabel(xcol)
         ax.set_ylabel(ylabel)
         ax.grid(True, ls="--", alpha=0.5)
-    
-        # Only show legend if something besides per-line is labeled
-        handles, labels = ax.get_legend_handles_labels()
-        if any("baseline" in s.lower() or "median" in s.lower() for s in labels):
-            ax.legend()
-    
+        ax.legend()
         fig.tight_layout()
-        fig.savefig(outpath, dpi=200)
+        if outpath is not None:      # <- only save if provided
+            fig.savefig(outpath, dpi=200)
         plt.close(fig)
+
 
     def _baseline_mean(self, df, keys, value_col, baseline_suite):
         """Return baseline means with columns = keys + ['BASE']."""
@@ -486,6 +476,7 @@ if __name__ == "__main__":
     vis.plot_expD(df_D)
     vis.plot_expE(df_E)
     vis.plot_expF(df_F)
+
 
 
 
