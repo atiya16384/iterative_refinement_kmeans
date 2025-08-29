@@ -40,9 +40,10 @@ def analyze_experiment_per_dataset(
     """
     Per-dataset analysis:
     - For each (DatasetName, NumClusters) present in the CSV,
-      compute baseline vs <compare_suite> (default: Hybrid) for each metric,
+      compute baseline vs <compare_suite>(s) for each metric,
       averaging repeats within the dataset (but NOT across datasets).
-    - Emits one table per dataset per (metric, baseline) to CSV/MD/TeX.
+    - <compare_suite> can be a string or an iterable of suite names.
+    - Emits one table per dataset per (metric, baseline, compare_suite) to CSV/MD/TeX.
     - Returns a dict with file paths written.
     """
     df = pd.read_csv(csv_file)
@@ -56,8 +57,16 @@ def analyze_experiment_per_dataset(
         if not base_keys:
             return {"_note": "no suitable grouping columns (DatasetName/DatasetSize, NumClusters)"}
 
-    if compare_suite not in df["Suite"].unique():
-        return {"_note": f"no '{compare_suite}' rows in file"}
+    # --- normalize compare suites to a list ---
+    if isinstance(compare_suite, (str, bytes)):
+        compare_suites = [compare_suite]
+    else:
+        compare_suites = list(compare_suite)
+
+    suites_in_file = set(df["Suite"].unique().tolist())
+    suites_present = [s for s in compare_suites if s in suites_in_file]
+    if not suites_present:
+        return {"_note": f"none of {compare_suites} found in file"}
 
     outdir = Path(outdir)
     stem_label = label or Path(csv_file).stem
@@ -70,11 +79,10 @@ def analyze_experiment_per_dataset(
         if isinstance(ds_keys, pd.DataFrame):
             ds_row = ds_keys.iloc[0].to_dict()
         else:
-            # (older pandas may pass tuple; handle generously)
             ds_row = dict(zip(base_keys, ds_keys))
 
         suites_here = set(sub["Suite"].unique().tolist())
-        if compare_suite not in suites_here:
+        if not (set(suites_present) & suites_here):
             continue
 
         for metric in metrics:
@@ -89,48 +97,48 @@ def analyze_experiment_per_dataset(
             )
 
             for baseline in baselines:
-                if baseline == compare_suite or baseline not in suites_here:
+                if baseline not in suites_here:
                     continue
 
-                if baseline not in per_suite.index or compare_suite not in per_suite.index:
-                    continue
+                for cs in compare_suites:
+                    if cs == baseline or cs not in suites_here:
+                        continue
+                    if baseline not in per_suite.index or cs not in per_suite.index:
+                        continue
 
-                b_val = float(per_suite.loc[baseline])
-                c_val = float(per_suite.loc[compare_suite])
-                if b_val == 0 or not pd.notna(b_val) or not pd.notna(c_val):
-                    continue
+                    b_val = float(per_suite.loc[baseline])
+                    c_val = float(per_suite.loc[cs])
+                    if b_val == 0 or not pd.notna(b_val) or not pd.notna(c_val):
+                        continue
 
-                rel = c_val / b_val
-                improve_pct = (b_val - c_val) / b_val * 100.0  # +% = compare is lower than baseline
+                    rel = c_val / b_val
+                    improve_pct = (b_val - c_val) / b_val * 100.0
 
-                # Build a one-row table for this dataset/metric/baseline
-                row = {
-                    **ds_row,
-                    "metric": metric,
-                    "baseline": baseline,
-                    "compare_suite": compare_suite,
-                    f"{baseline}_{metric}": b_val,
-                    f"{compare_suite}_{metric}": c_val,
-                    f"Rel_{metric}": rel,
-                    "Improvement_%": improve_pct,
-                    # repeats in this dataset (count of rows per Suite before the mean)
-                    "n_pairs": int(sub[sub["Suite"] == baseline][metric].shape[0])
-                }
-                per_ds_df = pd.DataFrame([row])
+                    row = {
+                        **ds_row,
+                        "metric": metric,
+                        "baseline": baseline,
+                        "compare_suite": cs,
+                        f"{baseline}_{metric}": b_val,
+                        f"{cs}_{metric}": c_val,
+                        f"Rel_{metric}": rel,
+                        "Improvement_%": improve_pct,
+                        "n_pairs": int(sub[sub["Suite"] == baseline][metric].shape[0]),
+                    }
+                    per_ds_df = pd.DataFrame([row])
 
-                # Out path encodes dataset id for easy insertion into thesis
-                ds_tag = []
-                for k in ["DatasetName", "DatasetSize", "NumClusters"]:
-                    if k in row and pd.notna(row[k]):
-                        ds_tag.append(f"{k[:2]}{row[k]}")
-                ds_tag_str = "__".join(str(x) for x in ds_tag) if ds_tag else "dataset"
+                    ds_tag = []
+                    for k in ["DatasetName", "DatasetSize", "NumClusters"]:
+                        if k in row and pd.notna(row[k]):
+                            ds_tag.append(f"{k[:2]}{row[k]}")
+                    ds_tag_str = "__".join(str(x) for x in ds_tag) if ds_tag else "dataset"
 
-                outstem = (
-                    outdir
-                    / f"{stem_label}__{ds_tag_str}__{metric}__{compare_suite.lower()}_vs_{baseline.lower()}"
-                )
-                _export_simple(per_ds_df, outstem)
-                written.append(str(outstem))
+                    outstem = (
+                        outdir
+                        / f"{stem_label}__{ds_tag_str}__{metric}__{cs.lower()}_vs_{baseline.lower()}"
+                    )
+                    _export_simple(per_ds_df, outstem)
+                    written.append(str(outstem))
 
     return {"written": written} if written else {"_note": "nothing written (no comparable suites/metrics)"}
 
