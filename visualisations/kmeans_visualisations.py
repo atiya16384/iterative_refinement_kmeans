@@ -40,8 +40,8 @@ class KMeansVisualizer:
 
     # REMOVE the @staticmethod above _clean_line
 
-        def _clean_line(
-            self,
+    def _clean_line(
+          self,
             rel_df: pd.DataFrame,
             xcol: str,
             title: str,
@@ -73,7 +73,6 @@ class KMeansVisualizer:
             if outpath is not None:
                 fig.savefig(outpath, dpi=200)
             plt.close(fig)
-
 
 
     def _baseline_mean(self, df, keys, value_col, baseline_suite):
