@@ -7,9 +7,7 @@ import pandas as pd
 def _export_simple(per_ds_df: pd.DataFrame, outstem: Path) -> None:
     """
     Write a per-dataset table (no global summary) to:
-      - <outstem>.csv
       - <outstem>.md
-      - <outstem>.tex
     """
     outstem.parent.mkdir(parents=True, exist_ok=True)
 
@@ -18,13 +16,8 @@ def _export_simple(per_ds_df: pd.DataFrame, outstem: Path) -> None:
     rest = [c for c in per_ds_df.columns if c not in lead]
     per_ds_df = per_ds_df[lead + rest]
 
-    per_ds_df.to_csv(outstem.with_suffix(".csv"), index=False)
-
     with open(outstem.with_suffix(".md"), "w", encoding="utf-8") as f:
         f.write(per_ds_df.to_markdown(index=False))
-
-    with open(outstem.with_suffix(".tex"), "w", encoding="utf-8") as f:
-        f.write(per_ds_df.to_latex(index=False, float_format="%.6g"))
 
 
 # ---------------- core analysis (per-dataset) ----------------
@@ -154,7 +147,7 @@ if __name__ == "__main__":
             print(note)
         else:
             for path in res["written"]:
-                print("  wrote:", path + ".csv / .md / .tex")
+                print("  wrote:", path + ".md")
 
 
 
