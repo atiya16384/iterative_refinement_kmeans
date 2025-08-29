@@ -457,7 +457,7 @@ def run_experiments(X, y,
 
 if __name__ == "__main__":
     # pick multiple datasets instead of just one
-    datasets = ["uniform", "gaussian", "blobs"]  # add/remove any you want
+    datasets = ["uniform"]  # add/remove any you want
 
     base_grid = {
         "penalty": ["l1", "l2"],
@@ -476,11 +476,11 @@ if __name__ == "__main__":
     for dataset in datasets:
         # load each dataset
         if dataset == "gaussian":
-            X, y = make_shifted_gaussian(m=1000000, n=200, delta=0.5, seed=42)
+            X, y = make_shifted_gaussian(m=1000_000, n=200, delta=0.5, seed=42)
         elif dataset == "uniform":
-            X, y = make_uniform_binary(m=100000, n=120, shift=0.25, seed=42)
+            X, y = make_uniform_binary(m=1000_000, n=120, shift=0.25, seed=42)
         elif dataset == "blobs":
-            X, y = make_blobs_binary(n_samples=1000000, n_features=50,
+            X, y = make_blobs_binary(n_samples=1000_000, n_features=50,
                                      cluster_std=1.2, random_state=42)
         elif dataset == "susy":
             X, y = load_susy(n_rows=1000000)
@@ -497,16 +497,9 @@ if __name__ == "__main__":
         df, df_mean = run_experiments(
             X, y, grid=grid,
             dataset=dataset,
-            save_path=f"./Results/{dataset}_results.csv",
+            save_path=f"../Results/{dataset}_results.csv",
             repeats=1
         )
         all_df.append(df)
         all_df_mean.append(df_mean)
 
-    # combine everything into one big file too
-    df_all = pd.concat(all_df, ignore_index=True)
-    df_all_mean = pd.concat(all_df_mean, ignore_index=True)
-
-    df_all.to_csv("../Results/_ALL_raw.csv", index=False)
-    df_all_mean.to_csv("./Results/_ALL_mean.csv", index=False)
-    print("\nSaved combined results for all datasets to ./Results/_ALL_raw.csv and ./Results/_ALL_mean.csv")
