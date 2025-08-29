@@ -463,7 +463,7 @@ if __name__ == "__main__":
     if dataset == "gaussian":
         X, y = make_shifted_gaussian(m=1000_000, n=200, delta=0.5, seed=42)
     elif dataset == "uniform":
-        X, y = make_uniform_binary(m=1000_000, n=120, shift=0.25, seed=42)
+        X, y = make_uniform_binary(m=1000_0, n=120, shift=0.25, seed=42)
     elif dataset == "blobs":
         X, y = make_blobs_binary(n_samples=1000_000, n_features=50, cluster_std=1.2, random_state=42)
     elif dataset == "susy":
