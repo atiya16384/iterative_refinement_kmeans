@@ -37,32 +37,18 @@ def analyze_experiment_per_dataset(
     outdir="../Results/SUMMARY",
     label=None,
 ):
-    """
-    Per-dataset analysis:
-    - For each (DatasetName, NumClusters) present in the CSV,
-      compute baseline vs <compare_suite>(s) for each metric,
-      averaging repeats within the dataset (but NOT across datasets).
-    - <compare_suite> can be a string or an iterable of suite names.
-    - Emits one table per dataset per (metric, baseline, compare_suite) to CSV/MD/TeX.
-    - Returns a dict with file paths written.
-    """
     df = pd.read_csv(csv_file)
     if df.empty:
         return {"_note": "empty file"}
 
-    # Group keys (older runs might have DatasetSize instead of DatasetName)
     base_keys = ["DatasetName", "NumClusters"]
     if not set(base_keys).issubset(df.columns):
         base_keys = [c for c in ["DatasetSize", "NumClusters"] if c in df.columns]
         if not base_keys:
-            return {"_note": "no suitable grouping columns (DatasetName/DatasetSize, NumClusters)"}
+            return {"_note": "no suitable grouping columns"}
 
-    # --- normalize compare suites to a list ---
-    if isinstance(compare_suite, (str, bytes)):
-        compare_suites = [compare_suite]
-    else:
-        compare_suites = list(compare_suite)
-
+    # normalize suites
+    compare_suites = [compare_suite] if isinstance(compare_suite, str) else list(compare_suite)
     suites_in_file = set(df["Suite"].unique().tolist())
     suites_present = [s for s in compare_suites if s in suites_in_file]
     if not suites_present:
@@ -71,11 +57,9 @@ def analyze_experiment_per_dataset(
     outdir = Path(outdir)
     stem_label = label or Path(csv_file).stem
 
-    written = []
+    all_rows = []   # collect all comparisons here
 
-    # Work per dataset
     for ds_keys, sub in df.groupby(base_keys, as_index=False):
-        # ds_keys is a DataFrame row (because as_index=False); make a dict
         if isinstance(ds_keys, pd.DataFrame):
             ds_row = ds_keys.iloc[0].to_dict()
         else:
@@ -89,7 +73,6 @@ def analyze_experiment_per_dataset(
             if metric not in sub.columns:
                 continue
 
-            # average repeats within this dataset per Suite
             per_suite = (
                 sub.groupby(["Suite"], as_index=False)[metric]
                    .mean()
@@ -125,22 +108,18 @@ def analyze_experiment_per_dataset(
                         "Improvement_%": improve_pct,
                         "n_pairs": int(sub[sub["Suite"] == baseline][metric].shape[0]),
                     }
-                    per_ds_df = pd.DataFrame([row])
+                    all_rows.append(row)
 
-                    ds_tag = []
-                    for k in ["DatasetName", "DatasetSize", "NumClusters"]:
-                        if k in row and pd.notna(row[k]):
-                            ds_tag.append(f"{k[:2]}{row[k]}")
-                    ds_tag_str = "__".join(str(x) for x in ds_tag) if ds_tag else "dataset"
+    if not all_rows:
+        return {"_note": "nothing written"}
 
-                    outstem = (
-                        outdir
-                        / f"{stem_label}__{ds_tag_str}__{metric}__{cs.lower()}_vs_{baseline.lower()}"
-                    )
-                    _export_simple(per_ds_df, outstem)
-                    written.append(str(outstem))
+    # make one big dataframe
+    out_df = pd.DataFrame(all_rows)
 
-    return {"written": written} if written else {"_note": "nothing written (no comparable suites/metrics)"}
+    outstem = outdir / f"{stem_label}__all_comparisons"
+    _export_simple(out_df, outstem)
+
+    return {"written": [str(outstem)]}
 
 
 # ---------------- run all ----------------
