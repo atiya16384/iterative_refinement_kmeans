@@ -10,6 +10,25 @@ from sklearn.metrics import roc_auc_score, average_precision_score, log_loss
 
 DATA_DIR = pathlib.Path("datasets")
 
+
+
+def valid_combo_linear(solver, penalty, reg_alpha, reg_lambda) -> bool:
+    """
+    Linear regression (mod='mse') compatibility.
+    - sparse_cg: L2 only, needs reg_lambda > 0
+    - coord: L1/L2/elasticnet ok
+    """
+    if solver == "sparse_cg":
+        return (penalty == "l2") and (float(reg_alpha) == 0.0) and (float(reg_lambda) > 0.0)
+    if solver == "coord":
+        return penalty in ("l1", "l2") and (0.0 <= float(reg_alpha) <= 1.0)
+    return False
+
+
+def _now():
+    import time
+    return time.perf_counter()
+
 # Helpers
 #update the code so we know the number of single and double iterations printed out
 def _map_penalty_to_alpha(penalty, alpha=None):
@@ -357,6 +376,13 @@ def run_experiments(X, y,
     keys = ["penalty", "alpha", "lambda", "C", "solver", "max_iter", "tol", "max_iter_single"]
     combos = list(itertools.product(*[grid.get(k, [None]) for k in keys]))
 
+    # count total tasks for progress display
+    approaches = grid.get("approaches", [])
+    total_tasks = repeats * len(combos) * len(approaches)
+    done_tasks = 0
+    t_start = _now()
+    PRINT_EVERY = 25  # progress cadence
+
     all_repeats = []
 
     for rep in range(repeats):
@@ -370,14 +396,14 @@ def run_experiments(X, y,
         for vals in combos:
             penalty, alpha, lam, C, solver, max_iter, tol, max_iter_single = vals
             try:
-                reg_alpha = _map_penalty_to_alpha(penalty, alpha)
+                reg_alpha  = _map_penalty_to_alpha(penalty, alpha)
                 reg_lambda = _map_C_to_lambda(C=C, reg_lambda=lam)
 
-                # skip invalid solver/penalty combos
-                if solver == "lbfgs" and reg_alpha != 0.0:
+                # ✅ linear/MSE compatibility guard
+                if not valid_combo_linear(solver, penalty, reg_alpha, reg_lambda):
                     continue
 
-                for approach in grid.get("approaches", []):
+                for approach in approaches:
                     if approach == "single":
                         res = approach_single(Xtr, ytr, Xte, yte,
                                               solver=solver, reg_lambda=reg_lambda, reg_alpha=reg_alpha,
@@ -422,6 +448,18 @@ def run_experiments(X, y,
                     }
                     rows.append(row)
 
+                    # ---- progress & self-timing ----
+                    done_tasks += 1
+                    if done_tasks % PRINT_EVERY == 0 or done_tasks == total_tasks:
+                        elapsed = _now() - t_start
+                        rate = done_tasks / max(elapsed, 1e-9)
+                        remaining = total_tasks - done_tasks
+                        eta_sec = remaining / max(rate, 1e-9)
+                        print(f"[{done_tasks}/{total_tasks}] "
+                              f"elapsed={elapsed:.1f}s, "
+                              f"avg={1.0/rate:.3f}s/task, "
+                              f"ETA~{eta_sec:.1f}s")
+
             except Exception as e:
                 rows.append({
                     "dataset": dataset,
@@ -457,14 +495,15 @@ def run_experiments(X, y,
 
 if __name__ == "__main__":
     # pick multiple datasets instead of just one
-    datasets = ["uniform"]  # add/remove any you want
+    datasets = ["uniform", "gaussian", "blobs"]  # add/remove any you want
 
+    # Linear/MSE with both solvers
     base_grid = {
-        "penalty": ["l1", "l2"],
-        "alpha":   [0.0, 0.25, 0.5, 1.0],
-        "lambda":  [1e-2, 1e-4, 1e-6],
+        "penalty": ["l1", "l2"],                 # coord supports both; sparse_cg -> L2 only (guarded above)
+        "alpha":   [0.0, 0.25, 0.5, 1.0],         # only used by coord (elastic-net family)
+        "lambda":  [1e-2, 1e-4, 1e-6],           # NOTE: sparse_cg requires > 0
         "C":       [None],
-        "solver":  ["coord"],
+        "solver":  ["coord", "sparse_cg"],       # ✅ both in the same sweep
         "max_iter": [1000, 3000],
         "tol":      [1e-2, 1e-4, 1e-6],
         "max_iter_single": [100, 350, 500, 1000],
@@ -474,26 +513,24 @@ if __name__ == "__main__":
     all_df, all_df_mean = [], []
 
     for dataset in datasets:
-        # load each dataset
+        # load each dataset (100k rows)
         if dataset == "gaussian":
-            X, y = make_shifted_gaussian(m=1000_000, n=200, delta=0.5, seed=42)
+            X, y = make_shifted_gaussian(m=100_000, n=200, delta=0.5, seed=42)
         elif dataset == "uniform":
-            X, y = make_uniform_binary(m=1000_000, n=120, shift=0.25, seed=42)
+            X, y = make_uniform_binary(m=100_000, n=120, shift=0.25, seed=42)
         elif dataset == "blobs":
-            X, y = make_blobs_binary(n_samples=1000_000, n_features=50,
+            X, y = make_blobs_binary(n_samples=100_000, n_features=50,
                                      cluster_std=1.2, random_state=42)
         elif dataset == "susy":
-            X, y = load_susy(n_rows=1000000)
+            X, y = load_susy(n_rows=100_000)
         elif dataset == "3droad":
-            X, y = load_3d_road(n_rows=1000000)
+            X, y = load_3d_road(n_rows=100_000)
         else:
             raise ValueError("Unknown dataset")
 
-        # clone grid and set dataset name
         grid = dict(base_grid)
         grid["dataset"] = [dataset]
 
-        # run experiments
         df, df_mean = run_experiments(
             X, y, grid=grid,
             dataset=dataset,
@@ -502,4 +539,3 @@ if __name__ == "__main__":
         )
         all_df.append(df)
         all_df_mean.append(df_mean)
-
