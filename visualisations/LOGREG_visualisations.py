@@ -79,83 +79,99 @@ def _agg_mean_std(df: pd.DataFrame) -> pd.DataFrame:
     return agg
 
 # ---------- plotting ----------
-def _plot_hybrid_ratio_one_baseline(df_ds, ds_name, param, metric_mean_col, baseline_label):
-    # keep what we need
+def _plot_hybrid_ratio_both_baselines(df_ds, ds_name, param, metric_mean_col):
+    """
+    Single chart with two lines:
+      - hybrid / single(f32)
+      - hybrid / double(f64)
+    Uses exact-config pairing (dataset + all params) and then averages ratios per x.
+    """
+    if param not in df_ds.columns or "approach" not in df_ds.columns or metric_mean_col not in df_ds.columns:
+        return None
+
+    # keep all params so we can pair exactly
     cols_keep = ["dataset", "approach", param] + [c for c in PARAM_CANDIDATES if c in df_ds.columns]
-    cols_keep = list(dict.fromkeys(cols_keep))  # de-dup
+    cols_keep = list(dict.fromkeys(cols_keep))
     cols_keep += [metric_mean_col]
+
     d = df_ds[cols_keep].dropna(subset=[metric_mean_col]).copy()
-    
-    # split hybrid and baseline
+    if d.empty:
+        return None
+
     hy = d[d["approach"] == APP_HYBRID].copy()
-    bl = d[d["approach"] == baseline_label].copy()
-    
-    # keys to pair on = dataset + ALL params (incl the x param)
-    pair_keys = ["dataset"] + [c for c in PARAM_CANDIDATES if c in d.columns]
-    
-    # inner-join: exact matching configs only
-    paired = hy.merge(
-        bl,
-        on=pair_keys,
-        suffixes=("_hy", "_bl"),
-        how="inner"
-    )
-    
-    if paired.empty:
+    if hy.empty:
         return None
-    
-    # ratio per exact config (avoid divide-by-zero)
-    num = paired[f"{metric_mean_col}_hy"].astype(float)
-    den = paired[f"{metric_mean_col}_bl"].astype(float).replace(0.0, np.nan)
-    paired["ratio"] = num / den
-    paired = paired.dropna(subset=["ratio"])
-    
-    if paired.empty:
+
+    def _pair_and_ratio(baseline_label):
+        bl = d[d["approach"] == baseline_label].copy()
+        if bl.empty:
+            return None
+        pair_keys = ["dataset"] + [c for c in PARAM_CANDIDATES if c in d.columns]
+        merged = hy.merge(bl, on=pair_keys, suffixes=("_hy", "_bl"), how="inner")
+        if merged.empty:
+            return None
+        num = merged[f"{metric_mean_col}_hy"].astype(float)
+        den = merged[f"{metric_mean_col}_bl"].astype(float).replace(0.0, np.nan)
+        merged["ratio"] = (num / den).replace([np.inf, -np.inf], np.nan)
+        merged = merged.dropna(subset=["ratio"])
+        if merged.empty:
+            return None
+        series = merged.groupby(param, as_index=True)["ratio"].mean()
+        return series
+
+    r_single = _pair_and_ratio(APP_SINGLE)
+    r_double = _pair_and_ratio(APP_DOUBLE)
+    if r_single is None and r_double is None:
         return None
-    
-    # now average ratios per x value
-    ratio_by_x = paired.groupby(param, as_index=True)["ratio"].mean().sort_index()
-    x_vals = _order_vals(ratio_by_x.index.tolist())
-    ratio_by_x = ratio_by_x.reindex(x_vals)
-    
+
+    # union of x values we have for either baseline, ordered nicely
+    x_all = set()
+    if r_single is not None: x_all |= set(r_single.index.tolist())
+    if r_double is not None: x_all |= set(r_double.index.tolist())
+    x_order = _order_vals(list(x_all))
+
     # plot
-    fig, ax = plt.subplots(figsize=(7.2, 4.4))
-    x_labels = [str(v) for v in ratio_by_x.index]
-    ax.plot(x_labels, ratio_by_x.values, marker="o", label=f"{APP_HYBRID} / {baseline_label}")
-    ax.axhline(1.0, linestyle=":", linewidth=1.5, color="grey")
+    fig, ax = plt.subplots(figsize=(7.6, 4.6))
+    # draw baseline parity line
+    ax.axhline(1.0, linestyle=":", linewidth=1.5, color="grey", label="baseline parity (×1.0)")
+
+    def _plot_one(series, label, marker):
+        s = series.reindex(x_order) if series is not None else None
+        if s is None: 
+            return
+        ax.plot([str(v) for v in s.index], s.values, marker=marker, label=label)
+
+    _plot_one(r_single,  f"{APP_HYBRID} / {APP_SINGLE}  (hybrid ÷ single)", marker="o")
+    _plot_one(r_double,  f"{APP_HYBRID} / {APP_DOUBLE}  (hybrid ÷ double)", marker="s")
+
     y_label_raw = re.sub("_mean$", "", metric_mean_col)
     ax.set_xlabel(param)
-    ax.set_ylabel(f"{y_label_raw} (hybrid / baseline)")
-    pretty_base = "single(f32)" if baseline_label == APP_SINGLE else "double(f64)"
-    ax.set_title(f"{ds_name}: {y_label_raw} vs {param} — hybrid ÷ {pretty_base}")
+    ax.set_ylabel(f"{y_label_raw} (ratio to baseline)")
+    ax.set_title(f"{ds_name}: {y_label_raw} vs {param} — hybrid vs single & double")
     ax.grid(True, alpha=0.25)
     ax.legend(loc="best", fontsize=9)
-    out = OUTDIR / f"{ds_name}__{y_label_raw}__by_{param}__hybrid_over_{'single' if baseline_label==APP_SINGLE else 'double'}.png"
-    fig.tight_layout(); fig.savefig(out, dpi=150); plt.close(fig)
+
+    out = OUTDIR / f"{ds_name}__{y_label_raw}__by_{param}__hybrid_over_single_and_double.png"
+    fig.tight_layout()
+    fig.savefig(out, dpi=150)
+    plt.close(fig)
     return out
 
 def _make_all_ratio_plots_for_dataset(ds_df, ds_name):
-    """For each param that varies and each metric found, emit two plots:
-       hybrid/single and hybrid/double. Returns list of (title, path) pairs."""
     paths = []
-    # which metric mean columns do we have?
     metric_mean_cols = [f"{m}_mean" for m in METRICS if f"{m}_mean" in ds_df.columns]
     if not metric_mean_cols:
         return paths
 
-    # loop params that actually vary
     varying_params = [p for p in PARAM_CANDIDATES if p in ds_df.columns and ds_df[p].nunique() > 1]
     for param in varying_params:
         for mcol in metric_mean_cols:
-            p1 = _plot_hybrid_ratio_one_baseline(ds_df, ds_name, param, mcol, APP_SINGLE)
-            if p1 is not None:
-                title = f"{ds_name}: {re.sub('_mean$','', mcol)} vs {param} "
-                paths.append((title, p1))
-            p2 = _plot_hybrid_ratio_one_baseline(ds_df, ds_name, param, mcol, APP_DOUBLE)
-            if p2 is not None:
-                title = f"{ds_name}: {re.sub('_mean$','', mcol)} vs {param} "
-                paths.append((title, p2))
+            p_both = _plot_hybrid_ratio_both_baselines(ds_df, ds_name, param, mcol)
+            if p_both is not None:
+                title = f"{ds_name}: {re.sub('_mean$','', mcol)} vs {param} — hybrid vs single & double"
+                paths.append((title, p_both))
     return paths
+
 
 def _write_md(ds_name, figs):
     md = OUTDIR / f"{ds_name}__summary.md"
