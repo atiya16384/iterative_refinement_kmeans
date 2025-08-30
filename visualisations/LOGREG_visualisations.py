@@ -82,42 +82,60 @@ def _agg_mean_std(df: pd.DataFrame) -> pd.DataFrame:
     return agg
 
 def _lineplot_param(df_ds, ds_name, param, metric="time_sec_mean"):
+    """
+    Line plot of <param> vs <metric>, one line per approach.
+    We first aggregate over all *other* params so we have a single value
+    per (approach, param) to avoid duplicate index issues.
+    """
     if param not in df_ds.columns or metric not in df_ds.columns:
         return None
-    fig, ax = plt.subplots(figsize=(7, 4))
 
-    # columns we need (std if available)
-    cols = ["approach", param, metric]
     std_col = metric.replace("_mean", "_std")
     has_std = std_col in df_ds.columns
-    if has_std:
-        cols.append(std_col)
 
+    # Keep only needed columns, then average over everything except [approach, param]
+    cols = ["approach", param, metric] + ([std_col] if has_std else [])
     d = df_ds[cols].dropna(subset=[metric]).copy()
+    if d.empty:
+        return None
 
-    # order x values
+    gcols = ["approach", param]
+    agg_dict = {metric: "mean"}
+    if has_std:
+        # For a sensible band, average the per-config stds (not perfect, but ok for visualization)
+        agg_dict[std_col] = "mean"
+    d = d.groupby(gcols, as_index=False).agg(agg_dict)
+
+    # Order x values nicely
     x_vals = _order_vals(d[param].unique().tolist())
+
+    fig, ax = plt.subplots(figsize=(7, 4))
     for app, sub in d.groupby("approach"):
+        # Sort by our ordered x
         sub = sub.set_index(param).reindex(x_vals).reset_index()
-        ax.plot(sub[param].astype(str), sub[metric].values, marker="o", label=app)
+
+        # X for plotting
+        x_labels = [str(v) for v in sub[param].values]
+        y = sub[metric].values
+        ax.plot(x_labels, y, marker="o", label=app)
+
         if has_std:
-            ax.fill_between(
-                sub[param].astype(str),
-                (sub[metric] - sub[std_col]).values,
-                (sub[metric] + sub[std_col]).values,
-                alpha=0.15
-            )
+            y_std = sub[std_col].values
+            ax.fill_between(x_labels, y - y_std, y + y_std, alpha=0.15)
 
     ax.set_xlabel(param)
     ax.set_ylabel(metric.replace("_mean", ""))
     ax.set_title(f"{ds_name}: {metric.replace('_mean','')} vs {param}")
     ax.legend(loc="best", fontsize=9)
     ax.grid(True, alpha=0.25)
-    fname = OUTDIR / f"{ds_name}__{metric}__by_{param}.png"
+
+    out = OUTDIR / f"{ds_name}__{metric}__by_{param}.png"
     fig.tight_layout()
-    fig.savefig(fname, dpi=150)
+    fig.savefig(out, dpi=150)
     plt.close(fig)
-    return fname
+    return out
+
+
 
 def _bar_iters(df_ds, ds_name):
     # average (over params) the mean-iteration columns if present
