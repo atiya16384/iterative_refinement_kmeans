@@ -80,51 +80,49 @@ def _agg_mean_std(df: pd.DataFrame) -> pd.DataFrame:
 
 # ---------- plotting ----------
 def _plot_hybrid_ratio_one_baseline(df_ds, ds_name, param, metric_mean_col, baseline_label):
-    """
-    Make a single line plot for (param vs hybrid/baseline) where baseline is APP_SINGLE or APP_DOUBLE.
-    We first collapse over all *other* params so we have one value per (approach, param).
-    """
-    # safety: need param, approach, and metric column
-    if param not in df_ds.columns or "approach" not in df_ds.columns or metric_mean_col not in df_ds.columns:
+    # keep what we need
+    cols_keep = ["dataset", "approach", param] + [c for c in PARAM_CANDIDATES if c in df_ds.columns]
+    cols_keep = list(dict.fromkeys(cols_keep))  # de-dup
+    cols_keep += [metric_mean_col]
+    d = df_ds[cols_keep].dropna(subset=[metric_mean_col]).copy()
+    
+    # split hybrid and baseline
+    hy = d[d["approach"] == APP_HYBRID].copy()
+    bl = d[d["approach"] == baseline_label].copy()
+    
+    # keys to pair on = dataset + ALL params (incl the x param)
+    pair_keys = ["dataset"] + [c for c in PARAM_CANDIDATES if c in d.columns]
+    
+    # inner-join: exact matching configs only
+    paired = hy.merge(
+        bl,
+        on=pair_keys,
+        suffixes=("_hy", "_bl"),
+        how="inner"
+    )
+    
+    if paired.empty:
         return None
-
-    # keep just what we need
-    d = df_ds[["approach", param, metric_mean_col]].dropna(subset=[metric_mean_col]).copy()
-    if d.empty:
+    
+    # ratio per exact config (avoid divide-by-zero)
+    num = paired[f"{metric_mean_col}_hy"].astype(float)
+    den = paired[f"{metric_mean_col}_bl"].astype(float).replace(0.0, np.nan)
+    paired["ratio"] = num / den
+    paired = paired.dropna(subset=["ratio"])
+    
+    if paired.empty:
         return None
-
-    # average over everything except (approach,param)
-    d = d.groupby(["approach", param], as_index=False)[metric_mean_col].mean()
-
-    # pivot to have columns by approach
-    piv = d.pivot(index=param, columns="approach", values=metric_mean_col)
-
-    # ensure needed columns
-    if APP_HYBRID not in piv.columns or baseline_label not in piv.columns:
-        return None
-
-    # compute ratio; drop rows where baseline is 0 or NaN
-    base = piv[baseline_label]
-    with np.errstate(divide="ignore", invalid="ignore"):
-        ratio = piv[APP_HYBRID] / base
-    ratio = ratio.replace([np.inf, -np.inf], np.nan).dropna()
-
-    if ratio.empty:
-        return None
-
-    # order x for nicer plotting
-    idx_ordered = _order_vals(ratio.index.tolist())
-    ratio = ratio.reindex(idx_ordered)
-
+    
+    # now average ratios per x value
+    ratio_by_x = paired.groupby(param, as_index=True)["ratio"].mean().sort_index()
+    x_vals = _order_vals(ratio_by_x.index.tolist())
+    ratio_by_x = ratio_by_x.reindex(x_vals)
+    
     # plot
     fig, ax = plt.subplots(figsize=(7.2, 4.4))
-    x_labels = [str(v) for v in ratio.index.tolist()]
-    ax.plot(x_labels, ratio.values, marker="o", label=f"{APP_HYBRID} / {baseline_label}")
-
-    # grey dotted baseline at 1.0
+    x_labels = [str(v) for v in ratio_by_x.index]
+    ax.plot(x_labels, ratio_by_x.values, marker="o", label=f"{APP_HYBRID} / {baseline_label}")
     ax.axhline(1.0, linestyle=":", linewidth=1.5, color="grey")
-
-    # labels/titles
     y_label_raw = re.sub("_mean$", "", metric_mean_col)
     ax.set_xlabel(param)
     ax.set_ylabel(f"{y_label_raw} (hybrid / baseline)")
@@ -132,11 +130,8 @@ def _plot_hybrid_ratio_one_baseline(df_ds, ds_name, param, metric_mean_col, base
     ax.set_title(f"{ds_name}: {y_label_raw} vs {param} — hybrid ÷ {pretty_base}")
     ax.grid(True, alpha=0.25)
     ax.legend(loc="best", fontsize=9)
-
     out = OUTDIR / f"{ds_name}__{y_label_raw}__by_{param}__hybrid_over_{'single' if baseline_label==APP_SINGLE else 'double'}.png"
-    fig.tight_layout()
-    fig.savefig(out, dpi=150)
-    plt.close(fig)
+    fig.tight_layout(); fig.savefig(out, dpi=150); plt.close(fig)
     return out
 
 def _make_all_ratio_plots_for_dataset(ds_df, ds_name):
