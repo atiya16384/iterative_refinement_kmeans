@@ -1,5 +1,5 @@
 # LOGREG_visualisations.py
-# Visualizations for logreg_precision.py experiments (similar to k-means summaries)
+# Visualizations for logreg_precision.py experiments (hybrid normalized to single/double)
 
 from pathlib import Path
 import re
@@ -16,13 +16,20 @@ IN_FILES = [
     "../Results/3droad_results.csv",
 ]
 OUTDIR = Path("../Results/SUMMARY_LOGPREC")
+
+# metrics emitted by logreg_precision.py (we'll normalize these)
 METRICS = ["time_sec", "iters_single", "iters_double", "roc_auc", "pr_auc", "logloss"]
 
-# parameters we’ll sweep/plot; include only those present in the CSVs
+# parameters we may sweep; we’ll auto-skip ones not present
 PARAM_CANDIDATES = [
     "penalty", "alpha", "lambda", "solver",
     "max_iter", "tol", "max_iter_single"
 ]
+
+# approach labels as produced by your runner
+APP_SINGLE = "single(f32)"
+APP_DOUBLE = "double(f64)"
+APP_HYBRID = "hybrid(f32→f64)"
 
 # ---------- helpers ----------
 def _order_vals(vals):
@@ -50,29 +57,19 @@ def _read_existing(files):
     return frames
 
 def _agg_mean_std(df: pd.DataFrame) -> pd.DataFrame:
-    """Aggregate mean/std over repeats, keeping group-key names intact.
-
-    Pandas will produce a MultiIndex on columns; we flatten it in a way that
-    leaves the group-by keys (e.g., 'dataset', 'approach') unchanged and adds
-    '_mean'/'_std' to metric columns.
-    """
-    # only keep metrics that are present in df
+    """Aggregate mean/std over repeats, flatten MultiIndex nicely."""
     metrics_present = [m for m in METRICS if m in df.columns]
     if not metrics_present:
         raise ValueError("None of the expected metrics are present in the data.")
 
     group_cols = ["dataset", "approach"] + [c for c in PARAM_CANDIDATES if c in df.columns]
-
-    # aggregate
     agg = df.groupby(group_cols, as_index=False).agg({m: ["mean", "std"] for m in metrics_present})
 
-    # flatten multiindex columns
     flat_cols = []
     for col in agg.columns:
         if isinstance(col, tuple):
             top, sub = col
-            if sub is None or sub == "":
-                # group-by key -> keep as-is
+            if sub in (None, ""):
                 flat_cols.append(str(top))
             else:
                 flat_cols.append(f"{top}_{sub}")
@@ -81,135 +78,95 @@ def _agg_mean_std(df: pd.DataFrame) -> pd.DataFrame:
     agg.columns = flat_cols
     return agg
 
-def _lineplot_param(df_ds, ds_name, param, metric="time_sec_mean"):
+# ---------- plotting ----------
+def _plot_hybrid_ratio_one_baseline(df_ds, ds_name, param, metric_mean_col, baseline_label):
     """
-    Line plot of <param> vs <metric>, one line per approach.
-    We first aggregate over all *other* params so we have a single value
-    per (approach, param) to avoid duplicate index issues.
+    Make a single line plot for (param vs hybrid/baseline) where baseline is APP_SINGLE or APP_DOUBLE.
+    We first collapse over all *other* params so we have one value per (approach, param).
     """
-    if param not in df_ds.columns or metric not in df_ds.columns:
+    # safety: need param, approach, and metric column
+    if param not in df_ds.columns or "approach" not in df_ds.columns or metric_mean_col not in df_ds.columns:
         return None
 
-    std_col = metric.replace("_mean", "_std")
-    has_std = std_col in df_ds.columns
-
-    # Keep only needed columns, then average over everything except [approach, param]
-    cols = ["approach", param, metric] + ([std_col] if has_std else [])
-    d = df_ds[cols].dropna(subset=[metric]).copy()
+    # keep just what we need
+    d = df_ds[["approach", param, metric_mean_col]].dropna(subset=[metric_mean_col]).copy()
     if d.empty:
         return None
 
-    gcols = ["approach", param]
-    agg_dict = {metric: "mean"}
-    if has_std:
-        # For a sensible band, average the per-config stds (not perfect, but ok for visualization)
-        agg_dict[std_col] = "mean"
-    d = d.groupby(gcols, as_index=False).agg(agg_dict)
+    # average over everything except (approach,param)
+    d = d.groupby(["approach", param], as_index=False)[metric_mean_col].mean()
 
-    # Order x values nicely
-    x_vals = _order_vals(d[param].unique().tolist())
+    # pivot to have columns by approach
+    piv = d.pivot(index=param, columns="approach", values=metric_mean_col)
 
-    fig, ax = plt.subplots(figsize=(7, 4))
-    for app, sub in d.groupby("approach"):
-        # Sort by our ordered x
-        sub = sub.set_index(param).reindex(x_vals).reset_index()
+    # ensure needed columns
+    if APP_HYBRID not in piv.columns or baseline_label not in piv.columns:
+        return None
 
-        # X for plotting
-        x_labels = [str(v) for v in sub[param].values]
-        y = sub[metric].values
-        ax.plot(x_labels, y, marker="o", label=app)
+    # compute ratio; drop rows where baseline is 0 or NaN
+    base = piv[baseline_label]
+    with np.errstate(divide="ignore", invalid="ignore"):
+        ratio = piv[APP_HYBRID] / base
+    ratio = ratio.replace([np.inf, -np.inf], np.nan).dropna()
 
-        if has_std:
-            y_std = sub[std_col].values
-            ax.fill_between(x_labels, y - y_std, y + y_std, alpha=0.15)
+    if ratio.empty:
+        return None
 
+    # order x for nicer plotting
+    idx_ordered = _order_vals(ratio.index.tolist())
+    ratio = ratio.reindex(idx_ordered)
+
+    # plot
+    fig, ax = plt.subplots(figsize=(7.2, 4.4))
+    x_labels = [str(v) for v in ratio.index.tolist()]
+    ax.plot(x_labels, ratio.values, marker="o", label=f"{APP_HYBRID} / {baseline_label}")
+
+    # grey dotted baseline at 1.0
+    ax.axhline(1.0, linestyle=":", linewidth=1.5, color="grey")
+
+    # labels/titles
+    y_label_raw = re.sub("_mean$", "", metric_mean_col)
     ax.set_xlabel(param)
-    ax.set_ylabel(metric.replace("_mean", ""))
-    ax.set_title(f"{ds_name}: {metric.replace('_mean','')} vs {param}")
-    ax.legend(loc="best", fontsize=9)
+    ax.set_ylabel(f"{y_label_raw} (hybrid / baseline)")
+    pretty_base = "single(f32)" if baseline_label == APP_SINGLE else "double(f64)"
+    ax.set_title(f"{ds_name}: {y_label_raw} vs {param} — hybrid ÷ {pretty_base}")
     ax.grid(True, alpha=0.25)
+    ax.legend(loc="best", fontsize=9)
 
-    out = OUTDIR / f"{ds_name}__{metric}__by_{param}.png"
+    out = OUTDIR / f"{ds_name}__{y_label_raw}__by_{param}__hybrid_over_{'single' if baseline_label==APP_SINGLE else 'double'}.png"
     fig.tight_layout()
     fig.savefig(out, dpi=150)
     plt.close(fig)
     return out
 
-
-
-def _bar_iters(df_ds, ds_name):
-    # average (over params) the mean-iteration columns if present
-    cols = [c for c in ["iters_single_mean", "iters_double_mean"] if c in df_ds.columns]
-    if not cols:
-        return None, None
-
-    want = df_ds.groupby("approach", as_index=False)[cols].mean()
-    if want.empty:
-        return None, None
-
-    f1 = f2 = None
-    if "iters_single_mean" in want.columns:
-        fig1, ax1 = plt.subplots(figsize=(6, 4))
-        ax1.bar(want["approach"], want["iters_single_mean"])
-        ax1.set_ylabel("iters_single")
-        ax1.set_title(f"{ds_name}: mean iters_single by approach")
-        ax1.grid(True, axis="y", alpha=0.25)
-        f1 = OUTDIR / f"{ds_name}__iters_single_bar.png"
-        fig1.tight_layout(); fig1.savefig(f1, dpi=150); plt.close(fig1)
-
-    if "iters_double_mean" in want.columns:
-        fig2, ax2 = plt.subplots(figsize=(6, 4))
-        ax2.bar(want["approach"], want["iters_double_mean"])
-        ax2.set_ylabel("iters_double")
-        ax2.set_title(f"{ds_name}: mean iters_double by approach")
-        ax2.grid(True, axis="y", alpha=0.25)
-        f2 = OUTDIR / f"{ds_name}__iters_double_bar.png"
-        fig2.tight_layout(); fig2.savefig(f2, dpi=150); plt.close(fig2)
-
-    return f1, f2
-
-def _heatmap(df_ds, ds_name, metric="time_sec_mean",
-             x="tol", y="max_iter_single"):
-    if (x not in df_ds.columns) or (y not in df_ds.columns) or (metric not in df_ds.columns):
-        return []
+def _make_all_ratio_plots_for_dataset(ds_df, ds_name):
+    """For each param that varies and each metric found, emit two plots:
+       hybrid/single and hybrid/double. Returns list of (title, path) pairs."""
     paths = []
-    for app, sub in df_ds.groupby("approach"):
-        piv = sub.pivot_table(index=y, columns=x, values=metric, aggfunc="mean")
-        if piv.empty or piv.shape[0] < 1 or piv.shape[1] < 1:
-            continue
-        x_order = _order_vals(piv.columns.tolist())
-        y_order = _order_vals(piv.index.tolist())
-        piv = piv.loc[y_order, x_order]
+    # which metric mean columns do we have?
+    metric_mean_cols = [f"{m}_mean" for m in METRICS if f"{m}_mean" in ds_df.columns]
+    if not metric_mean_cols:
+        return paths
 
-        fig, ax = plt.subplots(figsize=(6.5, 4.5))
-        im = ax.imshow(piv.values, aspect="auto")
-        ax.set_xticks(range(len(piv.columns)), labels=[str(v) for v in piv.columns], rotation=45, ha="right")
-        ax.set_yticks(range(len(piv.index)), labels=[str(v) for v in piv.index])
-        ax.set_xlabel(x); ax.set_ylabel(y)
-        ax.set_title(f"{ds_name} [{app}]: {metric.replace('_mean','')}")
-        fig.colorbar(im, ax=ax, shrink=0.85)
-        fig.tight_layout()
-        fp = OUTDIR / f"{ds_name}__{app}__{metric}__heatmap_{y}_vs_{x}.png"
-        fig.savefig(fp, dpi=150)
-        plt.close(fig)
-        paths.append(fp)
+    # loop params that actually vary
+    varying_params = [p for p in PARAM_CANDIDATES if p in ds_df.columns and ds_df[p].nunique() > 1]
+    for param in varying_params:
+        for mcol in metric_mean_cols:
+            p1 = _plot_hybrid_ratio_one_baseline(ds_df, ds_name, param, mcol, APP_SINGLE)
+            if p1 is not None:
+                title = f"{ds_name}: {re.sub('_mean$','', mcol)} vs {param} — hybrid ÷ single"
+                paths.append((title, p1))
+            p2 = _plot_hybrid_ratio_one_baseline(ds_df, ds_name, param, mcol, APP_DOUBLE)
+            if p2 is not None:
+                title = f"{ds_name}: {re.sub('_mean$','', mcol)} vs {param} — hybrid ÷ double"
+                paths.append((title, p2))
     return paths
 
-def _write_md(ds_name, tables, figs):
+def _write_md(ds_name, figs):
     md = OUTDIR / f"{ds_name}__summary.md"
     with open(md, "w", encoding="utf-8") as f:
-        f.write(f"# {ds_name} – logreg precision visualizations\n\n")
-        if "best_time" in tables:
-            f.write("## Fastest config per approach (lower is better)\n\n")
-            f.write(tables["best_time"].to_markdown(index=False))
-            f.write("\n\n")
-
-        if "mean_scores" in tables:
-            f.write("## Mean metrics by approach\n\n")
-            f.write(tables["mean_scores"].to_markdown(index=False))
-            f.write("\n\n")
-
-        f.write("## Figures\n\n")
+        f.write(f"# {ds_name} – Hybrid speed/quality ratios\n\n")
+        f.write("All plots show **hybrid ÷ baseline** with a grey dotted line at 1.0 (baseline).\n\n")
         for title, path in figs:
             f.write(f"**{title}**  \n")
             f.write(f"![{title}]({path.as_posix()})\n\n")
@@ -225,63 +182,18 @@ def main():
     if "approach" in df.columns:
         df = df[df["approach"] != "ERROR"].copy()
 
-    # aggregate mean/std over repeats
+    # aggregate mean/std over repeats & configs
     agg = _agg_mean_std(df)
 
     # per dataset
     for ds, ds_df in agg.groupby("dataset"):
         ds_df = ds_df.copy()
 
-        # tables
-        # 1) fastest config per approach by time_sec_mean
-        metric_name = "time_sec_mean" if "time_sec_mean" in ds_df.columns else None
-        tables = {}
+        # make ratio plots for every metric × varying-param
+        figs = _make_all_ratio_plots_for_dataset(ds_df, ds)
 
-        cols_for_id = ["approach"] + [c for c in PARAM_CANDIDATES if c in ds_df.columns]
-        if metric_name:
-            fastest = (
-                ds_df.loc[ds_df.groupby("approach")[metric_name].idxmin(), cols_for_id + [metric_name]]
-                     .sort_values(metric_name)
-                     .rename(columns={metric_name: "best_time_sec"})
-            )
-            tables["best_time"] = fastest
-
-        # 2) mean metrics by approach (time/iters/aucs)
-        mean_cols = [c for c in [
-            "time_sec_mean", "iters_single_mean", "iters_double_mean",
-            "roc_auc_mean", "pr_auc_mean", "logloss_mean"
-        ] if c in ds_df.columns]
-
-        if mean_cols:
-            mean_scores = (
-                ds_df.groupby("approach", as_index=False)[mean_cols]
-                     .mean()
-                     .rename(columns=lambda c: re.sub("_mean$", "", c))
-            )
-            tables["mean_scores"] = mean_scores
-
-        # figures
-        figs = []
-
-        # lines: time vs each parameter that varies
-        for p in [c for c in PARAM_CANDIDATES if c in ds_df.columns]:
-            if metric_name and ds_df[p].nunique() > 1:
-                path = _lineplot_param(ds_df, ds, param=p, metric=metric_name)
-                if path:
-                    figs.append((f"time vs {p}", path))
-
-        # bars: iters
-        f1, f2 = _bar_iters(ds_df, ds)
-        if f1: figs.append(("iters_single by approach", f1))
-        if f2: figs.append(("iters_double by approach", f2))
-
-        # heatmaps for 2-D sweeps (if both axes vary)
-        if metric_name and ("tol" in ds_df.columns) and ("max_iter_single" in ds_df.columns):
-            if ds_df["tol"].nunique() > 1 and ds_df["max_iter_single"].nunique() > 1:
-                for pth in _heatmap(ds_df, ds, metric=metric_name, x="tol", y="max_iter_single"):
-                    figs.append(("time heatmap (tol × max_iter_single)", pth))
-
-        md_path = _write_md(ds, tables, figs)
+        # write a simple index markdown
+        md_path = _write_md(ds, figs)
         print(f"wrote: {md_path}")
 
 if __name__ == "__main__":
