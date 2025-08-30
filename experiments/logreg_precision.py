@@ -11,7 +11,6 @@ from sklearn.metrics import roc_auc_score, average_precision_score, log_loss
 DATA_DIR = pathlib.Path("datasets")
 
 
-
 def valid_combo_linear(solver, penalty, reg_alpha, reg_lambda) -> bool:
     """
     Linear regression (mod='mse') compatibility.
@@ -137,7 +136,7 @@ def _fit_chunk(X, y, *, precision, solver, reg_lambda, reg_alpha, max_iter, tol,
     x0= None if x0 is None else x0.astype(dt, copy=False)
 
     mdl = linmod(
-        mod="mse",
+        mod="logistic",
         solver=solver,
         precision=precision,
         intercept=True,
@@ -177,7 +176,7 @@ def train_linmod(X, y, *, precision="single", reg_lambda=0.0, reg_alpha=0.0,
     # - For ridge-like only, 'lbfgs' can be used; 'coord' works across penalties.
 
     mdl = linmod(
-        mod="mse",
+        mod="logistic",
         solver=solver,
         precision=precision,
         intercept=True,
@@ -233,7 +232,7 @@ def approach_hybrid(Xtr, ytr, Xte, yte, *, solver="lbfgs", reg_lambda=0.01, reg_
     x0 = mdl_f32.coef.astype(np.float64, copy=False)
 
     # Stage B: refine in f64 from warm start
-    mdl_f64 = linmod(mod="mse", solver=solver, precision="double",
+    mdl_f64 = linmod(mod="logistic", solver=solver, precision="double",
                      intercept=True, max_iter=max_iter_double, scaling="standardize")
 
     Xd = Xtr.astype(np.float64, copy=False)
@@ -399,7 +398,7 @@ def run_experiments(X, y,
                 reg_alpha  = _map_penalty_to_alpha(penalty, alpha)
                 reg_lambda = _map_C_to_lambda(C=C, reg_lambda=lam)
 
-                # ✅ linear/MSE compatibility guard
+                #  linear/MSE compatibility guard
                 if not valid_combo_linear(solver, penalty, reg_alpha, reg_lambda):
                     continue
 
@@ -495,18 +494,18 @@ def run_experiments(X, y,
 
 if __name__ == "__main__":
     # pick multiple datasets instead of just one
-    datasets = ["uniform", "gaussian", "blobs"]  # add/remove any you want
+    datasets = ["uniform", "gaussian"]  # add/remove any you want
 
     # Linear/MSE with both solvers
     base_grid = {
-        "penalty": ["l1", "l2"],                 # coord supports both; sparse_cg -> L2 only (guarded above)
-        "alpha":   [0.0, 0.25, 0.5, 1.0],         # only used by coord (elastic-net family)
-        "lambda":  [1e-2, 1e-4, 1e-6],           # NOTE: sparse_cg requires > 0
+        "penalty": ["l2"],                 # coord supports both; sparse_cg -> L2 only (guarded above)
+        "alpha":   [0.0, 0.5, 1.0],         # only used by coord (elastic-net family)
+        "lambda":  [1e-2, 1e-4, 1e-6, 1e-8],           # NOTE: sparse_cg requires > 0
         "C":       [None],
-        "solver":  ["coord", "sparse_cg"],       # ✅ both in the same sweep
-        "max_iter": [1000, 3000],
-        "tol":      [1e-2, 1e-4, 1e-6],
-        "max_iter_single": [100, 350, 500, 1000],
+        "solver":  ["lbfgs", "coord"],       #  both in the same sweep
+        "max_iter": [10000],
+        "tol":      [1e-2, 1e-4, 1e-6, 1e-8],
+        "max_iter_single": [500, 1000],
         "approaches": ["single", "double", "hybrid"]
     }
 
@@ -515,7 +514,7 @@ if __name__ == "__main__":
     for dataset in datasets:
         # load each dataset (100k rows)
         if dataset == "gaussian":
-            X, y = make_shifted_gaussian(m=100_000, n=200, delta=0.5, seed=42)
+            X, y = make_shifted_gaussian(m=100_00, n=200, delta=0.5, seed=42)
         elif dataset == "uniform":
             X, y = make_uniform_binary(m=100_000, n=120, shift=0.25, seed=42)
         elif dataset == "blobs":
