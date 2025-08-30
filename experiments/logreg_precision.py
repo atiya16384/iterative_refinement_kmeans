@@ -11,17 +11,22 @@ from sklearn.metrics import roc_auc_score, average_precision_score, log_loss
 DATA_DIR = pathlib.Path("datasets")
 
 
-def valid_combo_linear(solver, penalty, reg_alpha, reg_lambda) -> bool:
+# ---- replace the linear guard with a logistic one ----
+def valid_combo_logistic(solver, penalty, reg_alpha, reg_lambda) -> bool:
     """
-    Linear regression (mod='mse') compatibility.
-    - sparse_cg: L2 only, needs reg_lambda > 0
-    - coord: L1/L2/elasticnet ok
+    Logistic regression (mod='logistic') compatibility.
+    - lbfgs: ridge (L2) only  -> reg_alpha must be 0.0
+    - coord: L1/L2/elasticnet ok (0 <= reg_alpha <= 1)
     """
-    if solver == "sparse_cg":
-        return (penalty == "l2") and (float(reg_alpha) == 0.0) and (float(reg_lambda) > 0.0)
-    if solver == "coord":
-        return penalty in ("l1", "l2") and (0.0 <= float(reg_alpha) <= 1.0)
+    s = str(solver).lower() if solver is not None else ""
+    p = str(penalty).lower() if penalty is not None else ""
+
+    if s == "lbfgs":
+        return (p == "l2") and (float(reg_alpha) == 0.0)
+    if s == "coord":
+        return p in ("l1", "l2", "elasticnet") and (0.0 <= float(reg_alpha) <= 1.0)
     return False
+
 
 
 def _now():
@@ -399,7 +404,7 @@ def run_experiments(X, y,
                 reg_lambda = _map_C_to_lambda(C=C, reg_lambda=lam)
 
                 #  linear/MSE compatibility guard
-                if not valid_combo_linear(solver, penalty, reg_alpha, reg_lambda):
+                if not valid_combo_logistic(solver, penalty, reg_alpha, reg_lambda):
                     continue
 
                 for approach in approaches:
@@ -473,13 +478,21 @@ def run_experiments(X, y,
 
     df = pd.DataFrame(all_repeats)
 
-    # Save raw results
+       # Save raw results
     if save_path is not None:
         df.to_csv(save_path, index=False)
         print(f"\nSaved results to {save_path}")
-
+    
+    # If nothing made it through, exit gracefully
+    if df.empty or "approach" not in df.columns:
+        print("No valid runs were produced. Check grid/compatibility.")
+        return df, pd.DataFrame()
+    
     # Drop errors
     df = df[df["approach"] != "ERROR"].copy()
+    if df.empty:
+        print("All runs errored out after filtering.")
+        return df, pd.DataFrame()
 
     # === Take mean over repeats ===
     group_cols = ["dataset", "penalty", "alpha", "lambda", "solver", "max_iter", "tol", "max_iter_single", "approach"]
