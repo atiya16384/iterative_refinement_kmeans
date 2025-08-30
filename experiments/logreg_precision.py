@@ -494,7 +494,7 @@ def run_experiments(X, y,
 
 if __name__ == "__main__":
     # pick multiple datasets instead of just one
-    datasets = ["uniform", "gaussian"]  # add/remove any you want
+    datasets = ["uniform"]  # add/remove any you want
 
     # Linear/MSE with both solvers
     base_grid = {
@@ -502,7 +502,7 @@ if __name__ == "__main__":
         "alpha":   [0.0, 0.5, 1.0],         # only used by coord (elastic-net family)
         "lambda":  [1e-2, 1e-4, 1e-6, 1e-8],           # NOTE: sparse_cg requires > 0
         "C":       [None],
-        "solver":  ["lbfgs", "coord"],       #  both in the same sweep
+        "solver":  ["lbfgs"],       #  both in the same sweep
         "max_iter": [10000],
         "tol":      [1e-2, 1e-4, 1e-6, 1e-8],
         "max_iter_single": [500, 1000],
