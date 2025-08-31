@@ -507,20 +507,20 @@ def run_experiments(X, y,
 
 if __name__ == "__main__":
     # pick multiple datasets instead of just one
-    # blobs and susy gaussian
-    datasets = ["blobs"]  # add/remove any you want
+    # blobs and susy gaussian, "uniform", "blobs"
+    datasets = ["gaussian"]  # add/remove any you want
 
     # Linear/MSE with both solvers
     base_grid = {
         "penalty": ["l2"],                 # coord supports both; sparse_cg -> L2 only (guarded above)
         "alpha":   [0.0],         # only used by coord (elastic-net family)
-        "lambda":  [ 1e-4, 1e-6, 1e-8],           # NOTE: sparse_cg requires > 0
+        "lambda":  [1e-2, 1e-4, 1e-6, 1e-8],           # NOTE: sparse_cg requires > 0
         "C":       [None],
         "solver":  ["lbfgs"],       #  both in the same sweep
-        "max_iter": [150, 400, 1000, 10000],
-        "tol":      [  1e-4, 1e-6, 1e-8],
-        "max_iter_single": [0, 50, 100, 150, 300, 500, 1000, 2000 ],
-        "approaches": ["single", "double", "hybrid"]
+        "max_iter": [3000],
+        "tol":      [ 1e-2, 1e-4, 1e-6, 1e-8],
+        "max_iter_single": [ 0, 50, 100, 200, 500, 800, 1000, 2000, 3000 ],
+        "approaches": ["hybrid", "multistage-ir", "adaptive-precision"]
     }
 
     all_df, all_df_mean = [], []
@@ -528,14 +528,14 @@ if __name__ == "__main__":
     for dataset in datasets:
         # load each dataset (100k rows)
         if dataset == "gaussian":
-            X, y = make_shifted_gaussian(m=1000_000, n=120, delta=0.5, seed=42)
+            X, y = make_shifted_gaussian(m=100_00, n=120, delta=0.5, seed=42)
         elif dataset == "uniform":
-            X, y = make_uniform_binary(m=1000_000, n=120, shift=0.25, seed=42)
+            X, y = make_uniform_binary(m=100_00, n=120, shift=0.25, seed=42)
         elif dataset == "blobs":
-            X, y = make_blobs_binary(n_samples=1000_000, n_features=30,
+            X, y = make_blobs_binary(n_samples=100_00, n_features=30,
                                      cluster_std=1.2, random_state=42)
         elif dataset == "susy":
-            X, y = load_susy(n_rows=1000_000)
+            X, y = load_susy(n_rows=100_000)
         else:
             raise ValueError("Unknown dataset")
 
