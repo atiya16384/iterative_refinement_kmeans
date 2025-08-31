@@ -165,7 +165,7 @@ def _score_model(model, X, y):
         "grad_norm": float(model.nrm_gradient_loss[0]) if hasattr(model, "nrm_gradient_loss") else np.nan,
     }
 
-# Train & evaluate (AOCL-DA)
+# Train & evaluate_linear_mse_linear_mse (AOCL-DA)
 def train_linmod(X, y, *, precision="single", reg_lambda=0.0, reg_alpha=0.0,
                  solver="lbfgs", max_iter=10000, tol=1e-4, scaling="standardize"):
 
@@ -193,7 +193,7 @@ def _margin(model, X):
     return X_aug @ model.coef.astype(X.dtype)
 
 def evaluate_linear_mse(model, X, y):
-    z = _margin(model, X)                 # real-valued margin
+    z = _margin(model, X)                 # real-valued marginf
     # AUC / PR take arbitrary scores:
     roc = float(roc_auc_score(y, z))
     pr  = float(average_precision_score(y, z))
@@ -217,7 +217,7 @@ def approach_single(Xtr, ytr, Xte, yte, *, solver="lbfgs", reg_lambda=0.01, reg_
                        reg_lambda=reg_lambda, reg_alpha=reg_alpha,
                        max_iter=max_iter, tol=tol)
     t1 = time.perf_counter()
-    metrics = evaluate(mdl, Xte, yte)
+    metrics = evaluate_linear_mse(mdl, Xte, yte)
     return {"approach": "single(f32)", "time_sec": t1 - t0, "iters_single": mdl.n_iter, **metrics}
 
 def approach_double(Xtr, ytr, Xte, yte, *, solver="lbfgs", reg_lambda=0.01, reg_alpha=0.0,
@@ -227,7 +227,7 @@ def approach_double(Xtr, ytr, Xte, yte, *, solver="lbfgs", reg_lambda=0.01, reg_
                        reg_lambda=reg_lambda, reg_alpha=reg_alpha,
                        max_iter=max_iter, tol=tol)
     t1 = time.perf_counter()
-    metrics = evaluate(mdl, Xte, yte)
+    metrics = evaluate_linear_mse(mdl, Xte, yte)
     return {"approach": "double(f64)", "time_sec": t1 - t0, "iters_single" : 0, "iters_double": mdl.n_iter, **metrics}
 
 def approach_hybrid(Xtr, ytr, Xte, yte, *, solver="lbfgs", reg_lambda=0.01, reg_alpha=0.0,
@@ -249,7 +249,7 @@ def approach_hybrid(Xtr, ytr, Xte, yte, *, solver="lbfgs", reg_lambda=0.01, reg_
                 x0=x0, tol=float(tol))
     t1 = time.perf_counter()
 
-    metrics = evaluate(mdl_f64, Xte, yte)
+    metrics = evaluate_linear_mse(mdl_f64, Xte, yte)
     return {"approach": "hybrid(f32→f64)", "time_sec": t1 - t0, "iters_single": mdl_f32.n_iter, "iters_double": mdl_f64.n_iter, **metrics}
 
 
@@ -305,7 +305,7 @@ def run_experiments(X, y,
                 reg_lambda = _map_C_to_lambda(C=C, reg_lambda=lam)
 
                 #  linear/MSE compatibility guard
-                if not valid_combo_logistic(solver, penalty, reg_alpha, reg_lambda):
+                if not valid_combo_mse(solver, penalty, reg_alpha, reg_lambda):
                     continue
 
                 for approach in approaches:
@@ -321,15 +321,6 @@ def run_experiments(X, y,
                         res = approach_hybrid(Xtr, ytr, Xte, yte,
                                               solver=solver, reg_lambda=reg_lambda, reg_alpha=reg_alpha,
                                               max_iter_single=max_iter_single, max_iter_double=max_iter, tol=tol)
-                    elif approach == "multistage-ir":
-                        res = approach_multistage_ir(Xtr, ytr, Xte, yte,
-                                                     schedule=[("single", max_iter_single), ("double", max_iter)],
-                                                     solver=solver, reg_lambda=reg_lambda, reg_alpha=reg_alpha,
-                                                     tol=tol)
-                    elif approach == "adaptive-precision":
-                        res = approach_adaptive_precision(Xtr, ytr, Xte, yte,
-                                                          solver=solver, reg_lambda=reg_lambda, reg_alpha=reg_alpha,
-                                                          chunk_iters=max_iter_single, tol=tol)
                     else:
                         continue
 
@@ -417,7 +408,7 @@ if __name__ == "__main__":
         "alpha":   [0.0, 0.25, 0.75, 1.0],         # only used by coord (elastic-net family)
         "lambda":  [1e-2, 1e-4, 1e-6, 1e-8],           # NOTE: sparse_cg requires > 0
         "C":       [None],
-        "solver":  ["lbfgs", "coord", "sparse-cg"],       #  both in the same sweep
+        "solver":  ["coord", "sparse_cg"],       #  both in the same sweep
         "max_iter": [5000],
         "tol":      [ 1e-2, 1e-4, 1e-6, 1e-8],
         "max_iter_single": [ 0, 50, 100, 200, 500, 800, 1000, 2000, 3000, 4000, 5000 ],
