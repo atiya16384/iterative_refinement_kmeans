@@ -141,7 +141,7 @@ def _fit_chunk(X, y, *, precision, solver, reg_lambda, reg_alpha, max_iter, tol,
     x0= None if x0 is None else x0.astype(dt, copy=False)
 
     mdl = linmod(
-        mod="logistic",
+        mod="mse",
         solver=solver,
         precision=precision,
         intercept=True,
@@ -181,7 +181,7 @@ def train_linmod(X, y, *, precision="single", reg_lambda=0.0, reg_alpha=0.0,
     # - For ridge-like only, 'lbfgs' can be used; 'coord' works across penalties.
 
     mdl = linmod(
-        mod="logistic",
+        mod="mse",
         solver=solver,
         precision=precision,
         intercept=True,
@@ -237,7 +237,7 @@ def approach_hybrid(Xtr, ytr, Xte, yte, *, solver="lbfgs", reg_lambda=0.01, reg_
     x0 = mdl_f32.coef.astype(np.float64, copy=False)
 
     # Stage B: refine in f64 from warm start
-    mdl_f64 = linmod(mod="logistic", solver=solver, precision="double",
+    mdl_f64 = linmod(mod="mse", solver=solver, precision="double",
                      intercept=True, max_iter=max_iter_double, scaling="standardize")
 
     Xd = Xtr.astype(np.float64, copy=False)
@@ -516,11 +516,11 @@ if __name__ == "__main__":
         "alpha":   [0.0],         # only used by coord (elastic-net family)
         "lambda":  [1e-2, 1e-4, 1e-6, 1e-8],           # NOTE: sparse_cg requires > 0
         "C":       [None],
-        "solver":  ["lbfgs"],       #  both in the same sweep
-        "max_iter": [3000],
+        "solver":  ["lbfgs", "coord", "sparce-"],       #  both in the same sweep
+        "max_iter": [5000],
         "tol":      [ 1e-2, 1e-4, 1e-6, 1e-8],
-        "max_iter_single": [ 0, 50, 100, 200, 500, 800, 1000, 2000, 3000 ],
-        "approaches": ["hybrid", "multistage-ir", "adaptive-precision"]
+        "max_iter_single": [ 0, 50, 100, 200, 500, 800, 1000, 2000, 3000, 4000, 5000 ],
+        "approaches": ["single", "double" "hybrid"]
     }
 
     all_df, all_df_mean = [], []
@@ -528,7 +528,7 @@ if __name__ == "__main__":
     for dataset in datasets:
         # load each dataset (100k rows)
         if dataset == "gaussian":
-            X, y = make_shifted_gaussian(m=100_00, n=120, delta=0.5, seed=42)
+            X, y = make_shifted_gaussian(m=1000_000, n=120, delta=0.5, seed=42)
         elif dataset == "uniform":
             X, y = make_uniform_binary(m=100_00, n=120, shift=0.25, seed=42)
         elif dataset == "blobs":
