@@ -12,19 +12,16 @@ DATA_DIR = pathlib.Path("../datasets")
 
 
 # ---- replace the linear guard with a logistic one ----
-def valid_combo_logistic(solver, penalty, reg_alpha, reg_lambda) -> bool:
-    """
-    Logistic regression (mod='logistic') compatibility.
-    - lbfgs: ridge (L2) only  -> reg_alpha must be 0.0
-    - coord: L1/L2/elasticnet ok (0 <= reg_alpha <= 1)
-    """
-    s = str(solver).lower() if solver is not None else ""
-    p = str(penalty).lower() if penalty is not None else ""
+def valid_combo_mse(solver, penalty, reg_alpha, reg_lambda) -> bool:
+    s = (solver or "").lower()
+    p = (penalty or "").lower()
 
-    if s == "lbfgs":
-        return (p == "l2") and (float(reg_alpha) == 0.0)
     if s == "coord":
-        return p in ("l1", "l2", "elasticnet") and (0.0 <= float(reg_alpha) <= 1.0)
+        # L1/L2/elastic-net allowed; alpha must be in [0,1]
+        return p in ("l1", "l2", "elasticnet") and 0.0 <= float(reg_alpha) <= 1.0
+    if s == "sparse_cg":
+        # L2 only, and needs lambda > 0
+        return p == "l2" and float(reg_alpha) == 0.0 and float(reg_lambda) > 0.0
     return False
 
 
@@ -191,20 +188,26 @@ def train_linmod(X, y, *, precision="single", reg_lambda=0.0, reg_alpha=0.0,
     mdl.fit(X, y, reg_lambda=float(reg_lambda), reg_alpha=float(reg_alpha), tol=float(tol))
     return mdl
 
-def evaluate(model, X, y):
-    # Build logits via [X | 1] @ coef, then sigmoid to get P(y=1)
+def _margin(model, X):
     X_aug = np.hstack([X, np.ones((X.shape[0], 1), dtype=X.dtype)])
-    z = X_aug @ model.coef.astype(X.dtype)
+    return X_aug @ model.coef.astype(X.dtype)
+
+def evaluate_linear_mse(model, X, y):
+    z = _margin(model, X)                 # real-valued margin
+    # AUC / PR take arbitrary scores:
+    roc = float(roc_auc_score(y, z))
+    pr  = float(average_precision_score(y, z))
+    # For log loss, map to [0,1] with a sigmoid:
     p = 1.0 / (1.0 + np.exp(-z))
     p = np.clip(p, 1e-12, 1-1e-12)
-
-    metrics = {
-        "roc_auc": float(roc_auc_score(y, p)),           # AUC (ROC)
-        "pr_auc":  float(average_precision_score(y, p)), # AUC (PR)
+    return {
+        "roc_auc": roc,
+        "pr_auc":  pr,
         "logloss": float(log_loss(y, p)),
         "loss_internal": float(model.loss[0]),
     }
-    return metrics
+
+
 
 # All approaches
 def approach_single(Xtr, ytr, Xte, yte, *, solver="lbfgs", reg_lambda=0.01, reg_alpha=0.0,
@@ -248,108 +251,6 @@ def approach_hybrid(Xtr, ytr, Xte, yte, *, solver="lbfgs", reg_lambda=0.01, reg_
 
     metrics = evaluate(mdl_f64, Xte, yte)
     return {"approach": "hybrid(f32→f64)", "time_sec": t1 - t0, "iters_single": mdl_f32.n_iter, "iters_double": mdl_f64.n_iter, **metrics}
-
-
-def approach_multistage_ir(
-    Xtr, ytr, Xte, yte, *,
-    # schedule = list of (precision, chunk_iters)
-    schedule=(("single", 200), ("double", 800)),
-    solver="lbfgs", reg_lambda=1e-2, reg_alpha=0.0,
-    tol=1e-6, max_chunks=10,
-    stop_delta=1e-7  # stop if ||coef_new - coef_old||_2 < stop_delta
-):
-    #Example schedules:
-    #  [("single", 200), ("double", 800)]
-    #  [("single", 100), ("double", 200), ("single", 100), ("double", 200)]
-   
-    t0 = time.perf_counter()
-    x0 = None
-    coef_prev = None
-    history = []
-    chunk_id = 0
-
-    for _ in range(max_chunks):
-        for prec, iters in schedule:
-            chunk_id += 1
-            mdl = _fit_chunk(
-                Xtr, ytr,
-                precision="single" if prec.startswith("single") else "double",
-                solver=solver, reg_lambda=reg_lambda, reg_alpha=reg_alpha,
-                max_iter=int(iters), tol=tol, x0=x0
-            )
-            # convergence check
-            coef = mdl.coef.copy()
-            if coef_prev is not None:
-                delta = float(np.linalg.norm(coef - coef_prev))
-                history.append(("chunk", chunk_id, prec, iters, delta, float(mdl.loss[0])))
-                if delta < stop_delta:
-                    t1 = time.perf_counter()
-                    metrics = _score_model(mdl, Xte, yte)
-                    return {"approach": "multistage-IR", "time_sec": t1 - t0, **metrics, "chunks": history}
-            else:
-                history.append(("chunk", chunk_id, prec, iters, np.nan, float(mdl.loss[0])))
-
-            coef_prev = coef
-            x0 = coef  # warm-start next chunk
-
-    # finished all chunks
-    t1 = time.perf_counter()
-    metrics = _score_model(mdl, Xte, yte)
-    return {"approach": "multistage-IR", "time_sec": t1 - t0, **metrics, "chunks": history}
-
-
-def approach_adaptive_precision(
-    Xtr, ytr, Xte, yte, *,
-    solver="lbfgs", reg_lambda=1e-2, reg_alpha=0.0,
-    chunk_iters=100, tol=1e-6,
-    promote_patience=2,       # how many "weak-improvement" chunks before promoting precision
-    improve_thresh=1e-3,      # relative loss improvement threshold per chunk
-    max_chunks=50,
-    allow_demote=False        # set True if you want to switch back to single after good progress
-):
-
-   # Start in single precision. If relative loss improvement per chunk < improve_thresh
-   # for 'promote_patience' consecutive chunks, switch to double. Optionally demote back.
-
-    t0 = time.perf_counter()
-    prec = "single"
-    x0 = None
-    best_loss = np.inf
-    weak_streak = 0
-    history = []
-
-    for k in range(1, max_chunks + 1):
-        mdl = _fit_chunk(
-            Xtr, ytr, precision=prec, solver=solver,
-            reg_lambda=reg_lambda, reg_alpha=reg_alpha,
-            max_iter=int(chunk_iters), tol=tol, x0=x0
-        )
-        loss = float(mdl.loss[0])
-        rel_improve = (best_loss - loss) / max(abs(best_loss), 1e-12)
-        best_loss = min(best_loss, loss)
-
-        history.append(("chunk", k, prec, chunk_iters, loss, rel_improve, float(mdl.nrm_gradient_loss[0]) if hasattr(mdl,"nrm_gradient_loss") else np.nan))
-
-        if rel_improve < improve_thresh:
-            weak_streak += 1
-        else:
-            weak_streak = 0
-
-        # precision switching logic
-        if prec == "single" and weak_streak >= promote_patience:
-            prec = "double"; weak_streak = 0  # promote
-        elif allow_demote and prec == "double" and rel_improve >= 5 * improve_thresh:
-            prec = "single"  # (optional) demote if double suddenly makes big progress
-
-        # stopping by gradient norm or tiny movement
-        if hasattr(mdl, "nrm_gradient_loss") and float(mdl.nrm_gradient_loss[0]) < tol:
-            break
-
-        x0 = mdl.coef  # warm start
-
-    t1 = time.perf_counter()
-    metrics = _score_model(mdl, Xte, yte)
-    return {"approach": "adaptive-precision", "time_sec": t1 - t0, **metrics, "chunks": history}
 
 
 # Grid runner
@@ -512,11 +413,11 @@ if __name__ == "__main__":
 
     # Linear/MSE with both solvers
     base_grid = {
-        "penalty": ["l2"],                 # coord supports both; sparse_cg -> L2 only (guarded above)
-        "alpha":   [0.0],         # only used by coord (elastic-net family)
+        "penalty": ["l1", "l2"],                 # coord supports both; sparse_cg -> L2 only (guarded above)
+        "alpha":   [0.0, 0.25, 0.75, 1.0],         # only used by coord (elastic-net family)
         "lambda":  [1e-2, 1e-4, 1e-6, 1e-8],           # NOTE: sparse_cg requires > 0
         "C":       [None],
-        "solver":  ["lbfgs", "coord", "sparce-"],       #  both in the same sweep
+        "solver":  ["lbfgs", "coord", "sparse-cg"],       #  both in the same sweep
         "max_iter": [5000],
         "tol":      [ 1e-2, 1e-4, 1e-6, 1e-8],
         "max_iter_single": [ 0, 50, 100, 200, 500, 800, 1000, 2000, 3000, 4000, 5000 ],
