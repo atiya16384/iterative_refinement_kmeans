@@ -20,7 +20,7 @@ OUTDIR = Path("../Results/SUMMARY_LOGPREC")
 METRICS = ["time_sec", "roc_auc", "pr_auc", "logloss"]
 
 # add solver/penalty/alpha so coord vs sparse_cg don't mismatch
-PARAM_CANDIDATES = ["lambda", "max_iter", "tol", "max_iter_single"]
+PARAM_CANDIDATES = ["lambda", "C", "max_iter", "tol", "max_iter_single"]
 PAIR_ALWAYS = ["solver", "penalty", "alpha"]
 
 APP_SINGLE = "single(f32)"
