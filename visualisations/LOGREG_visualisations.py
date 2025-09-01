@@ -114,17 +114,28 @@ def _plot_hybrid_ratio_both_baselines(df_ds, ds_name, param, metric_mean_col):
 
     def _pair(baseline_label):
         bl = d[d["approach"] == baseline_label]
-        if bl.empty: return None
+        if bl.empty:
+            return None
+    
         # match on all keys except the x-axis param
         keys = [k for k in pair_keys_all if k != param]
         m = hy.merge(bl, on=keys, suffixes=("_hy", "_bl"), how="inner")
-        if m.empty: return None
+        if m.empty:
+            return None
+    
+        # choose the x-axis column (use the hybrid side)
+        xcol = f"{param}_hy" if f"{param}_hy" in m.columns else param
+    
+        # compute ratio (hybrid / baseline)
         num = m[f"{metric_mean_col}_hy"].astype(float)
         den = m[f"{metric_mean_col}_bl"].astype(float).replace(0.0, np.nan)
-        r = (num/den).replace([np.inf, -np.inf], np.nan).dropna()
-        if r.empty: return None
-        m["ratio"] = r
-        return m.groupby(param)["ratio"].mean()
+        m["ratio"] = (num / den).replace([np.inf, -np.inf], np.nan)
+        m = m.dropna(subset=["ratio"])
+    
+        if m.empty:
+            return None
+    
+        return m.groupby(xcol)["ratio"].mean()
 
     r_single = _pair(APP_SINGLE)
     r_double = _pair(APP_DOUBLE)
