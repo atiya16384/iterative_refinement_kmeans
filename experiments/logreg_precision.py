@@ -392,7 +392,7 @@ def run_experiments(X, y,
 
     df_mean = df.groupby(group_cols, as_index=False)[metric_cols].mean()
 
-    print(df_mean.groupby(["dataset",  "penalty", "alpha", "lambda", "solver", "max_iter", "tol", "max_iter_single", "approach"])
+    print(df_mean.groupby(["dataset",  "penalty", "alpha", "C", "lambda", "solver", "max_iter", "tol", "max_iter_single", "approach"])
                           [["time_sec", "iters_single", "iters_double", "roc_auc", "pr_auc", "logloss"]].mean())
 
     return df, df_mean
@@ -406,13 +406,13 @@ if __name__ == "__main__":
     base_grid = {
         "penalty": ["l1", "l2"],                 # coord supports both; sparse_cg -> L2 only (guarded above)
         "alpha":   [0.0, 0.25, 0.75, 1.0],         # only used by coord (elastic-net family)
-        "lambda":  [1e-2, 1e-4, 1e-6, 1e-8],           # NOTE: sparse_cg requires > 0
-        "C":       [None],
+        "lambda":  [None, 1e-4, 1e-6, 1e-8],           # NOTE: sparse_cg requires > 0
+        "C":       [None, 0.01, 0.1, 1.0, 10, 100],
         "solver":  ["coord", "sparse_cg"],       #  both in the same sweep
-        "max_iter": [5000],
-        "tol":      [ 1e-2, 1e-4, 1e-6, 1e-8],
-        "max_iter_single": [ 0, 50, 100, 200, 500, 800, 1000, 2000, 3000, 4000, 5000 ],
-        "approaches": ["single", "double" "hybrid"]
+        "max_iter": [800],
+        "tol":      [ 1e-4, 1e-6, 1e-8],
+        "max_iter_single": [300, 500, 800],
+        "approaches": ["single", "double" ,"hybrid"]
     }
 
     all_df, all_df_mean = [], []
@@ -420,7 +420,7 @@ if __name__ == "__main__":
     for dataset in datasets:
         # load each dataset (100k rows)
         if dataset == "gaussian":
-            X, y = make_shifted_gaussian(m=1000_000, n=120, delta=0.5, seed=42)
+            X, y = make_shifted_gaussian(m=100_000, n=120, delta=0.5, seed=42)
         elif dataset == "uniform":
             X, y = make_uniform_binary(m=100_00, n=120, shift=0.25, seed=42)
         elif dataset == "blobs":
@@ -438,7 +438,7 @@ if __name__ == "__main__":
             X, y, grid=grid,
             dataset=dataset,
             save_path=f"../Results/{dataset}_results.csv",
-            repeats=3
+            repeats=1
         )
         all_df.append(df)
         all_df_mean.append(df_mean)
