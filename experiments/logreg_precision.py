@@ -376,56 +376,68 @@ def run_experiments(X, y,
         rows = []
 
         for vals in combos:
-            penalty, alpha, lam, C, solver, max_iter, tol, max_iter_single = vals
-            try:
-                reg_alpha  = _map_penalty_to_alpha(penalty, alpha)
-                reg_lambda = _map_C_to_lambda(C=C, reg_lambda=lam)
-
-                #  linear/MSE compatibility guard
-                if not valid_combo_mse(solver, penalty, reg_alpha, reg_lambda):
-                    continue
-
-                for approach in approaches:
-                    if approach == "single":
-                        res = approach_single(Xtr, ytr, Xte, yte,
-                                              solver=solver, reg_lambda=reg_lambda, reg_alpha=reg_alpha,
-                                              max_iter=max_iter, tol=tol)
-                    elif approach == "double":
-                        res = approach_double(Xtr, ytr, Xte, yte,
-                                              solver=solver, reg_lambda=reg_lambda, reg_alpha=reg_alpha,
-                                              max_iter=max_iter, tol=tol)
-                    elif approach == "hybrid":
-                        res = approach_hybrid(
-                            Xtr, ytr, Xte, yte,
-                            solver=solver,
-                            reg_lambda=reg_lambda, reg_alpha=reg_alpha,
-                            max_iter_single=max_iter_single,     # f32 chunk size
-                            tol_single=tol,                      # <-- correct kw
-                            max_chunks_single=max_chunks_single,
-                            grad_tol_switch=grad_tol_switch,
-                            delta_tol_switch=delta_tol_switch,
-                            max_iter_double=max_iter,            # f64 budget
-                            tol_double=tol_double                # <-- correct kw
-                        )
-                    else:
+                P = dict(zip(keys, vals))   # P["penalty"], P["alpha"], ..., P["tol_double"]
+                try:
+                    reg_alpha  = _map_penalty_to_alpha(P["penalty"], P["alpha"])
+                    reg_lambda = _map_C_to_lambda(C=P["C"], reg_lambda=P["lambda"])
+            
+                    if not valid_combo_mse(P["solver"], P["penalty"], reg_alpha, reg_lambda):
                         continue
-
-                    row = {
-                        "dataset": dataset, "repeat": rep, "approach": res["approach"],
-                        "penalty": penalty, "alpha": reg_alpha, "lambda": reg_lambda, "C": C,  # keep C too
-                        "solver": solver,
-                        "max_iter": max_iter, "max_iter_single": max_iter_single,
-                        "tol_single": tol, "tol_double": tol_double,
-                        "max_chunks_single": max_chunks_single,
-                        "grad_tol_switch": grad_tol_switch, "delta_tol_switch": delta_tol_switch,
-                        "time_sec": res["time_sec"],
-                        "iters_single": res.get("iters_single", np.nan),
-                        "iters_double": res.get("iters_double", np.nan),
-                        "roc_auc": res.get("roc_auc", np.nan),
-                        "pr_auc": res.get("pr_auc", np.nan),
-                        "logloss": res.get("logloss", np.nan),
-                    }
-                    rows.append(row)
+            
+                    for approach in approaches:
+                        if approach == "single":
+                            res = approach_single(
+                                Xtr, ytr, Xte, yte,
+                                solver=P["solver"],
+                                reg_lambda=reg_lambda, reg_alpha=reg_alpha,
+                                max_iter=P["max_iter"],
+                                tol=P["tol"]
+                            )
+                        elif approach == "double":
+                            res = approach_double(
+                                Xtr, ytr, Xte, yte,
+                                solver=P["solver"],
+                                reg_lambda=reg_lambda, reg_alpha=reg_alpha,
+                                max_iter=P["max_iter"],
+                                tol=P["tol"]
+                            )
+                        elif approach == "hybrid":
+                            res = approach_hybrid(
+                                Xtr, ytr, Xte, yte,
+                                solver=P["solver"],
+                                reg_lambda=reg_lambda, reg_alpha=reg_alpha,
+                                max_iter_single=P["max_iter_single"],   # f32 chunk size
+                                tol_single=P["tol"],                    # f32 tol
+                                max_chunks_single=P["max_chunks_single"],
+                                grad_tol_switch=P["grad_tol_switch"],
+                                delta_tol_switch=P["delta_tol_switch"],
+                                max_iter_double=P["max_iter"],          # f64 budget
+                                tol_double=P["tol_double"]              # f64 tol
+                            )
+                        else:
+                            continue
+            
+                        rows.append({
+                            "dataset": dataset, "repeat": rep, "approach": res["approach"],
+                            "penalty": P["penalty"], "alpha": reg_alpha, "lambda": reg_lambda, "C": P["C"],
+                            "solver": P["solver"],
+                            "max_iter": P["max_iter"], "max_iter_single": P["max_iter_single"],
+                            "tol_single": P["tol"], "tol_double": P["tol_double"],
+                            "max_chunks_single": P["max_chunks_single"],
+                            "grad_tol_switch": P["grad_tol_switch"], "delta_tol_switch": P["delta_tol_switch"],
+                            "time_sec": res["time_sec"],
+                            "iters_single": res.get("iters_single", np.nan),
+                            "iters_double": res.get("iters_double", np.nan),
+                            "roc_auc": res.get("roc_auc", np.nan),
+                            "pr_auc": res.get("pr_auc", np.nan),
+                            "logloss": res.get("logloss", np.nan),
+                        })
+            
+                except Exception as e:
+                    rows.append({
+                        "dataset": dataset, "repeat": rep, "approach": "ERROR",
+                        **P, "error": str(e)
+                    })
 
                     # ---- progress & self-timing ----
                     done_tasks += 1
