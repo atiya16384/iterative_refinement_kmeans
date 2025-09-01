@@ -353,7 +353,9 @@ def run_experiments(X, y,
             "approaches": ["single", "double", "hybrid", "multistage-ir", "adaptive-precision"]
         }
 
-    keys = ["penalty", "alpha", "lambda", "C", "solver", "max_iter", "tol", "max_iter_single"]
+    keys = ["penalty", "alpha", "lambda", "C", "solver", "max_iter", "tol", "max_iter_single",
+        "max_chunks_single", "grad_tol_switch", "delta_tol_switch", "tol_double"]
+
     combos = list(itertools.product(*[grid.get(k, [None]) for k in keys]))
 
     # count total tasks for progress display
@@ -393,23 +395,29 @@ def run_experiments(X, y,
                                               solver=solver, reg_lambda=reg_lambda, reg_alpha=reg_alpha,
                                               max_iter=max_iter, tol=tol)
                     elif approach == "hybrid":
-                        res = approach_hybrid(Xtr, ytr, Xte, yte,
-                                              solver=solver, reg_lambda=reg_lambda, reg_alpha=reg_alpha,
-                                              max_iter_single=max_iter_single, max_iter_double=max_iter, tol=tol)
+                        res = approach_hybrid(
+                            Xtr, ytr, Xte, yte,
+                            solver=solver,
+                            reg_lambda=reg_lambda, reg_alpha=reg_alpha,
+                            max_iter_single=max_iter_single,     # f32 chunk size
+                            tol_single=tol,                      # <-- correct kw
+                            max_chunks_single=max_chunks_single,
+                            grad_tol_switch=grad_tol_switch,
+                            delta_tol_switch=delta_tol_switch,
+                            max_iter_double=max_iter,            # f64 budget
+                            tol_double=tol_double                # <-- correct kw
+                        )
                     else:
                         continue
 
                     row = {
-                        "dataset": dataset,
-                        "repeat": rep,
-                        "approach": res["approach"],
-                        "penalty": penalty,
-                        "alpha": reg_alpha,
-                        "lambda": reg_lambda,
+                        "dataset": dataset, "repeat": rep, "approach": res["approach"],
+                        "penalty": penalty, "alpha": reg_alpha, "lambda": reg_lambda, "C": C,  # keep C too
                         "solver": solver,
-                        "max_iter": max_iter,
-                        "max_iter_single": max_iter_single,
-                        "tol": tol,
+                        "max_iter": max_iter, "max_iter_single": max_iter_single,
+                        "tol_single": tol, "tol_double": tol_double,
+                        "max_chunks_single": max_chunks_single,
+                        "grad_tol_switch": grad_tol_switch, "delta_tol_switch": delta_tol_switch,
                         "time_sec": res["time_sec"],
                         "iters_single": res.get("iters_single", np.nan),
                         "iters_double": res.get("iters_double", np.nan),
@@ -479,25 +487,22 @@ if __name__ == "__main__":
 
     # Linear/MSE with both solvers
     base_grid = {
-        "penalty": ["l1", "l2"],                 # coord supports both; sparse_cg -> L2 only (guarded above)
-        "alpha":   [0.0, 0.25, 0.75, 1.0],         # only used by coord (elastic-net family)
-        "lambda":  [None, 1e-4, 1e-6, 1e-8],           # NOTE: sparse_cg requires > 0
+        "penalty": ["l1", "l2"],
+        "alpha":   [0.0, 0.25, 0.75, 1.0],
+        "lambda":  [None, 1e-4, 1e-6, 1e-8],
         "C":       [None, 0.01, 0.1, 1.0, 10, 100],
-        "solver":  ["coord", "sparse_cg"],       #  both in the same sweep
+        "solver":  ["coord", "sparse_cg"],
         "max_iter": [800],
-        "tol":      [ 1e-4, 1e-6, 1e-8],
+        "tol":      [1e-4, 1e-6, 1e-8],
         "max_iter_single": [300, 500, 800],
-        "approaches": ["single", "double" ,"hybrid"]
-        
-        # --- NEW knobs (optional to sweep) ---
-        "max_chunks_single": [20],             # cap on number of f32 chunks
-        "grad_tol_switch":  [3e-4],            # promote if grad-norm below this
-        "delta_tol_switch": [1e-6],            # or if parameter change is tiny
-        "tol_double":       [1e-6],            # polish tolerance
+        # hybrid-specific knobs (sweep or set singletons)
+        "max_chunks_single": [20],
+        "grad_tol_switch":  [3e-4],
+        "delta_tol_switch": [1e-6],
+        "tol_double":       [1e-6],
         "approaches": ["single", "double", "hybrid"],
-            
-        
     }
+
 
     all_df, all_df_mean = [], []
 
