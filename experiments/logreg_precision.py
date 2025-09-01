@@ -230,27 +230,102 @@ def approach_double(Xtr, ytr, Xte, yte, *, solver="lbfgs", reg_lambda=0.01, reg_
     metrics = evaluate_linear_mse(mdl, Xte, yte)
     return {"approach": "double(f64)", "time_sec": t1 - t0, "iters_single" : 0, "iters_double": mdl.n_iter, **metrics}
 
-def approach_hybrid(Xtr, ytr, Xte, yte, *, solver="lbfgs", reg_lambda=0.01, reg_alpha=0.0,
-                    max_iter_single=200, max_iter_double=10000, tol=1e-4):
-    # Stage A: fast f32 warm start
+# def approach_hybrid(Xtr, ytr, Xte, yte, *, solver="lbfgs", reg_lambda=0.01, reg_alpha=0.0,
+#                     max_iter_single=200, max_iter_double=10000, tol=1e-4):
+#     # Stage A: fast f32 warm start
+#     t0 = time.perf_counter()
+#     mdl_f32 = train_linmod(Xtr, ytr, precision="single", solver=solver,
+#                            reg_lambda=reg_lambda, reg_alpha=reg_alpha,
+#                            max_iter=max_iter_single, tol=tol)
+#     x0 = mdl_f32.coef.astype(np.float64, copy=False)
+
+#     # Stage B: refine in f64 from warm start
+#     mdl_f64 = linmod(mod="mse", solver=solver, precision="double",
+#                      intercept=True, max_iter=max_iter_double, scaling="standardize")
+
+#     Xd = Xtr.astype(np.float64, copy=False)
+#     yd = ytr.astype(np.int32, copy=False)
+#     mdl_f64.fit(Xd, yd, reg_lambda=float(reg_lambda), reg_alpha=float(reg_alpha),  # <-- use Xd, yd
+#                 x0=x0, tol=float(tol))
+#     t1 = time.perf_counter()
+
+#     metrics = evaluate_linear_mse(mdl_f64, Xte, yte)
+#     return {"approach": "hybrid(f32→f64)", "time_sec": t1 - t0, "iters_single": mdl_f32.n_iter, "iters_double": mdl_f64.n_iter, **metrics}
+
+
+
+def approach_hybrid(
+    Xtr, ytr, Xte, yte, *,
+    solver="coord",
+    reg_lambda=1e-4, reg_alpha=0.0,
+    # --- f32 phase (do most of the work here) ---
+    max_iter_single=500,        # chunk size in f32 (re-uses your grid’s 'max_iter_single')
+    tol_single=1e-4,            # f32 internal tolerance (re-uses your grid’s 'tol' by default)
+    max_chunks_single=20,       # safety cap: total f32 iters ≤ max_iter_single * max_chunks_single
+    grad_tol_switch=3e-4,       # promote to f64 if grad-norm ≤ this
+    delta_tol_switch=1e-6,      # or if ||Δw||_2 ≤ this
+    # --- f64 polish (brief) ---
+    max_iter_double=800,        # small budget in f64 (re-uses your grid’s 'max_iter' by default)
+    tol_double=1e-6,            # tighter tol for polish
+):
+    """
+    Late-switch hybrid:
+      - Loop f32 in chunks until we're 'close enough' (by grad norm or Δw),
+      - Then do a short f64 polish from the f32 warm start.
+    Returns iters spent in each precision so you can verify most work was f32.
+    """
     t0 = time.perf_counter()
-    mdl_f32 = train_linmod(Xtr, ytr, precision="single", solver=solver,
-                           reg_lambda=reg_lambda, reg_alpha=reg_alpha,
-                           max_iter=max_iter_single, tol=tol)
-    x0 = mdl_f32.coef.astype(np.float64, copy=False)
 
-    # Stage B: refine in f64 from warm start
-    mdl_f64 = linmod(mod="mse", solver=solver, precision="double",
-                     intercept=True, max_iter=max_iter_double, scaling="standardize")
+    iters_single_total = 0
+    x_prev = None
+    last_grad = np.inf
 
-    Xd = Xtr.astype(np.float64, copy=False)
-    yd = ytr.astype(np.int32, copy=False)
-    mdl_f64.fit(Xd, yd, reg_lambda=float(reg_lambda), reg_alpha=float(reg_alpha),  # <-- use Xd, yd
-                x0=x0, tol=float(tol))
+    # --- f32 stage in chunks ---
+    for _ in range(int(max_chunks_single)):
+        mdl32 = _fit_chunk(
+            Xtr, ytr,
+            precision="single", solver=solver,
+            reg_lambda=reg_lambda, reg_alpha=reg_alpha,
+            max_iter=int(max_iter_single), tol=float(tol_single), x0=x_prev
+        )
+        iters_single_total += int(mdl32.n_iter)
+        x_curr = mdl32.coef.copy()
+
+        # movement between chunks
+        if x_prev is None:
+            delta = np.inf
+        else:
+            delta = float(np.linalg.norm(x_curr - x_prev))
+
+        # grad-norm if exposed by AOCL-DA
+        last_grad = float(getattr(mdl32, "nrm_gradient_loss", [np.inf])[0])
+
+        x_prev = x_curr
+
+        # promotion condition
+        if (last_grad <= float(grad_tol_switch)) or (delta <= float(delta_tol_switch)):
+            break
+
+    # --- short f64 polish ---
+    mdl64 = _fit_chunk(
+        Xtr, ytr,
+        precision="double", solver=solver,
+        reg_lambda=reg_lambda, reg_alpha=reg_alpha,
+        max_iter=int(max_iter_double), tol=float(tol_double), x0=x_prev
+    )
+
     t1 = time.perf_counter()
+    metrics = evaluate_linear_mse(mdl64, Xte, yte)
 
-    metrics = evaluate_linear_mse(mdl_f64, Xte, yte)
-    return {"approach": "hybrid(f32→f64)", "time_sec": t1 - t0, "iters_single": mdl_f32.n_iter, "iters_double": mdl_f64.n_iter, **metrics}
+    return {
+        "approach": "hybrid(f32→f64, late-switch)",
+        "time_sec": t1 - t0,
+        "iters_single": iters_single_total,
+        "iters_double": int(mdl64.n_iter),
+        "grad32_last": float(last_grad),
+        **metrics
+    }
+
 
 
 # Grid runner
@@ -413,6 +488,15 @@ if __name__ == "__main__":
         "tol":      [ 1e-4, 1e-6, 1e-8],
         "max_iter_single": [300, 500, 800],
         "approaches": ["single", "double" ,"hybrid"]
+        
+        # --- NEW knobs (optional to sweep) ---
+        "max_chunks_single": [20],             # cap on number of f32 chunks
+        "grad_tol_switch":  [3e-4],            # promote if grad-norm below this
+        "delta_tol_switch": [1e-6],            # or if parameter change is tiny
+        "tol_double":       [1e-6],            # polish tolerance
+        "approaches": ["single", "double", "hybrid"],
+            
+        
     }
 
     all_df, all_df_mean = [], []
