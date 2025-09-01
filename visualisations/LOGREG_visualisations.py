@@ -1,13 +1,13 @@
-# LOGREG_visualisations.py
-# Visualizations for logreg_precision.py experiments (hybrid normalized to single/double)
-
+# LOGREG_visualisations.py — verbose & linear/MSE friendly
 from pathlib import Path
 import re
 import numpy as np
 import pandas as pd
+
+import matplotlib
+matplotlib.use("Agg")          # <- save PNGs without a display
 import matplotlib.pyplot as plt
 
-# ---------------- config ----------------
 IN_FILES = [
     "../Results/uniform_results.csv",
     "../Results/gaussian_results.csv",
@@ -17,195 +17,192 @@ IN_FILES = [
 ]
 OUTDIR = Path("../Results/SUMMARY_LOGPREC")
 
-# metrics emitted by logreg_precision.py (we'll normalize these)
 METRICS = ["time_sec", "roc_auc", "pr_auc", "logloss"]
 
-# parameters we may sweep; we’ll auto-skip ones not present
-PARAM_CANDIDATES = [
-    "lambda", 
-    "max_iter", "tol", "max_iter_single"
-]
+# add solver/penalty/alpha so coord vs sparse_cg don't mismatch
+PARAM_CANDIDATES = ["lambda", "max_iter", "tol", "max_iter_single"]
+PAIR_ALWAYS = ["solver", "penalty", "alpha"]
 
-# approach labels as produced by your runner
 APP_SINGLE = "single(f32)"
 APP_DOUBLE = "double(f64)"
 APP_HYBRID = "hybrid(f32→f64)"
 
-# ---------- helpers ----------
+def _norm_approach(s):
+    if not isinstance(s, str): return s
+    t = s.strip().replace("->", "→")
+    t0 = t.lower()
+    if t0 == "single(f32)": return APP_SINGLE
+    if t0 == "double(f64)": return APP_DOUBLE
+    if t0 == "hybrid(f32→f64)": return APP_HYBRID
+    return t  # leave as-is but with the unicode arrow normalized
+
 def _order_vals(vals):
-    """Try numeric sort; otherwise keep pleasant semantic order for solvers."""
     try:
-        as_float = [float(v) for v in vals]
-        return [v for _, v in sorted(zip(as_float, vals))]
+        xs = [float(v) for v in vals]
+        return [v for _, v in sorted(zip(xs, vals))]
     except Exception:
         key = {"coord": 0, "sparse_cg": 1, "lbfgs": 2}
-        return sorted(vals, key=lambda v: key.get(str(v), 9999) if isinstance(v, str) else str(v))
+        return sorted(vals, key=lambda v: key.get(str(v), 9999))
 
 def _ensure_outdir():
     OUTDIR.mkdir(parents=True, exist_ok=True)
 
 def _read_existing(files):
     frames = []
+    print("[viz] CWD:", Path().resolve())
     for f in files:
         p = Path(f)
         if p.exists() and p.stat().st_size > 0:
+            print(f"[viz] reading {p} ({p.stat().st_size} bytes)")
             df = pd.read_csv(p)
             if not df.empty:
                 frames.append(df)
+        else:
+            print(f"[viz] missing/empty: {p}")
     if not frames:
-        raise FileNotFoundError("No non-empty results CSVs found.")
+        print("[viz] No non-empty results CSVs found.")
     return frames
 
 def _agg_mean_std(df: pd.DataFrame) -> pd.DataFrame:
-    """Aggregate mean/std over repeats, flatten MultiIndex nicely."""
     metrics_present = [m for m in METRICS if m in df.columns]
     if not metrics_present:
-        raise ValueError("None of the expected metrics are present in the data.")
+        print("[viz] None of the expected metrics in CSVs:", METRICS)
+        return pd.DataFrame()
 
-    group_cols = ["dataset", "approach"] + [c for c in PARAM_CANDIDATES if c in df.columns]
+    if "approach" in df.columns:
+        df["approach"] = df["approach"].map(_norm_approach)
+
+    group_cols = (
+        ["dataset", "approach"]
+        + [c for c in PARAM_CANDIDATES if c in df.columns]
+        + [c for c in PAIR_ALWAYS if c in df.columns]
+    )
     agg = df.groupby(group_cols, as_index=False).agg({m: ["mean", "std"] for m in metrics_present})
 
-    flat_cols = []
+    flat = []
     for col in agg.columns:
         if isinstance(col, tuple):
-            top, sub = col
-            if sub in (None, ""):
-                flat_cols.append(str(top))
-            else:
-                flat_cols.append(f"{top}_{sub}")
+            a, b = col
+            flat.append(f"{a}_{b}" if b else str(a))
         else:
-            flat_cols.append(str(col))
-    agg.columns = flat_cols
+            flat.append(str(col))
+    agg.columns = flat
     return agg
 
-# ---------- plotting ----------
 def _plot_hybrid_ratio_both_baselines(df_ds, ds_name, param, metric_mean_col):
-    """
-    Single chart with two lines:
-      - hybrid / single(f32)
-      - hybrid / double(f64)
-    Uses exact-config pairing (dataset + all params) and then averages ratios per x.
-    """
-    if param not in df_ds.columns or "approach" not in df_ds.columns or metric_mean_col not in df_ds.columns:
+    need = {param, "approach", metric_mean_col}
+    if not need.issubset(df_ds.columns):
+        print(f"[viz] {ds_name}: skip {param}/{metric_mean_col} (missing {need - set(df_ds.columns)})")
         return None
 
-    # keep all params so we can pair exactly
-    cols_keep = ["dataset", "approach", param] + [c for c in PARAM_CANDIDATES if c in df_ds.columns]
-    cols_keep = list(dict.fromkeys(cols_keep))
-    cols_keep += [metric_mean_col]
+    pair_keys_all = (
+        ["dataset", param]
+        + [c for c in PARAM_CANDIDATES if c in df_ds.columns]
+        + [c for c in PAIR_ALWAYS if c in df_ds.columns]
+    )
+    pair_keys_all = list(dict.fromkeys(pair_keys_all))
 
-    d = df_ds[cols_keep].dropna(subset=[metric_mean_col]).copy()
+    d = df_ds[pair_keys_all + [metric_mean_col, "approach"]].dropna(subset=[metric_mean_col]).copy()
     if d.empty:
+        print(f"[viz] {ds_name}: no rows after filter for {param}/{metric_mean_col}")
         return None
 
-    hy = d[d["approach"] == APP_HYBRID].copy()
+    hy = d[d["approach"] == APP_HYBRID]
     if hy.empty:
+        print(f"[viz] {ds_name}: no HYBRID rows")
         return None
 
-    def _pair_and_ratio(baseline_label):
-        bl = d[d["approach"] == baseline_label].copy()
-        if bl.empty:
-            return None
-        pair_keys = ["dataset"] + [c for c in PARAM_CANDIDATES if c in d.columns]
-        merged = hy.merge(bl, on=pair_keys, suffixes=("_hy", "_bl"), how="inner")
-        if merged.empty:
-            return None
-        num = merged[f"{metric_mean_col}_hy"].astype(float)
-        den = merged[f"{metric_mean_col}_bl"].astype(float).replace(0.0, np.nan)
-        merged["ratio"] = (num / den).replace([np.inf, -np.inf], np.nan)
-        merged = merged.dropna(subset=["ratio"])
-        if merged.empty:
-            return None
-        series = merged.groupby(param, as_index=True)["ratio"].mean()
-        return series
+    def _pair(baseline_label):
+        bl = d[d["approach"] == baseline_label]
+        if bl.empty: return None
+        # match on all keys except the x-axis param
+        keys = [k for k in pair_keys_all if k != param]
+        m = hy.merge(bl, on=keys, suffixes=("_hy", "_bl"), how="inner")
+        if m.empty: return None
+        num = m[f"{metric_mean_col}_hy"].astype(float)
+        den = m[f"{metric_mean_col}_bl"].astype(float).replace(0.0, np.nan)
+        r = (num/den).replace([np.inf, -np.inf], np.nan).dropna()
+        if r.empty: return None
+        m["ratio"] = r
+        return m.groupby(param)["ratio"].mean()
 
-    r_single = _pair_and_ratio(APP_SINGLE)
-    r_double = _pair_and_ratio(APP_DOUBLE)
+    r_single = _pair(APP_SINGLE)
+    r_double = _pair(APP_DOUBLE)
     if r_single is None and r_double is None:
+        print(f"[viz] {ds_name}: cannot pair hybrid with single/double on {param}")
         return None
 
-    # union of x values we have for either baseline, ordered nicely
     x_all = set()
     if r_single is not None: x_all |= set(r_single.index.tolist())
     if r_double is not None: x_all |= set(r_double.index.tolist())
-    x_order = _order_vals(list(x_all))
+    xs = _order_vals(list(x_all))
 
-    # plot
     fig, ax = plt.subplots(figsize=(7.6, 4.6))
-    # draw baseline parity line
-    ax.axhline(1.0, linestyle=":", linewidth=1.5, color="grey", label="baseline parity (×1.0)")
+    ax.axhline(1.0, ls=":", lw=1.5, c="grey", label="baseline parity (×1.0)")
 
-    def _plot_one(series, label, marker):
-        s = series.reindex(x_order) if series is not None else None
-        if s is None: 
-            return
+    def _line(s, label, marker):
+        if s is None: return
+        s = s.reindex(xs)
         ax.plot([str(v) for v in s.index], s.values, marker=marker, label=label)
 
-    _plot_one(r_single,  f"{APP_HYBRID} / {APP_SINGLE}  (hybrid ÷ single)", marker="o")
-    _plot_one(r_double,  f"{APP_HYBRID} / {APP_DOUBLE}  (hybrid ÷ double)", marker="s")
+    yname = re.sub("_mean$", "", metric_mean_col)
+    _line(r_single, f"{APP_HYBRID} / {APP_SINGLE}", "o")
+    _line(r_double, f"{APP_HYBRID} / {APP_DOUBLE}", "s")
+    ax.set_xlabel(param); ax.set_ylabel(f"{yname} (ratio to baseline)")
+    ax.set_title(f"{ds_name}: {yname} vs {param} — hybrid vs single & double")
+    ax.grid(True, alpha=0.25); ax.legend()
 
-    y_label_raw = re.sub("_mean$", "", metric_mean_col)
-    ax.set_xlabel(param)
-    ax.set_ylabel(f"{y_label_raw} (ratio to baseline)")
-    ax.set_title(f"{ds_name}: {y_label_raw} vs {param} — hybrid vs single & double")
-    ax.grid(True, alpha=0.25)
-    ax.legend(loc="best", fontsize=9)
-
-    out = OUTDIR / f"{ds_name}__{y_label_raw}__by_{param}__hybrid_over_single_and_double.png"
-    fig.tight_layout()
-    fig.savefig(out, dpi=150)
-    plt.close(fig)
+    out = OUTDIR / f"{ds_name}__{yname}__by_{param}__hybrid_over_single_and_double.png"
+    fig.tight_layout(); fig.savefig(out, dpi=150); plt.close(fig)
+    print("[viz] wrote:", out)
     return out
 
 def _make_all_ratio_plots_for_dataset(ds_df, ds_name):
     paths = []
     metric_mean_cols = [f"{m}_mean" for m in METRICS if f"{m}_mean" in ds_df.columns]
     if not metric_mean_cols:
+        print(f"[viz] {ds_name}: no metric means present; cols={list(ds_df.columns)}")
         return paths
-
-    varying_params = [p for p in PARAM_CANDIDATES if p in ds_df.columns and ds_df[p].nunique() > 1]
-    for param in varying_params:
+    varying = [p for p in PARAM_CANDIDATES if p in ds_df.columns and ds_df[p].nunique() > 1]
+    print(f"[viz] {ds_name}: varying params -> {varying}")
+    for param in varying:
         for mcol in metric_mean_cols:
-            p_both = _plot_hybrid_ratio_both_baselines(ds_df, ds_name, param, mcol)
-            if p_both is not None:
-                title = f"{ds_name}: {re.sub('_mean$','', mcol)} vs {param} — hybrid vs single & double"
-                paths.append((title, p_both))
+            out = _plot_hybrid_ratio_both_baselines(ds_df, ds_name, param, mcol)
+            if out is not None: paths.append(out)
     return paths
 
-
-def _write_md(ds_name, figs):
-    md = OUTDIR / f"{ds_name}__summary.md"
-    with open(md, "w", encoding="utf-8") as f:
-        f.write(f"# {ds_name} – Hybrid speed/quality ratios\n\n")
-        f.write("All plots show **hybrid ÷ baseline** with a grey dotted line at 1.0 (baseline).\n\n")
-        for title, path in figs:
-            f.write(f"**{title}**  \n")
-            f.write(f"![{title}]({path.as_posix()})\n\n")
-    return md
-
-# ---------- main ----------
 def main():
     _ensure_outdir()
     frames = _read_existing(IN_FILES)
+    if not frames:
+        return
     df = pd.concat(frames, ignore_index=True)
 
-    # keep successful runs only
-    if "approach" in df.columns:
-        df = df[df["approach"] != "ERROR"].copy()
+    if "approach" not in df.columns:
+        print("[viz] No 'approach' column in CSVs; columns:", list(df.columns))
+        return
 
-    # aggregate mean/std over repeats & configs
+    # quick visibility on labels
+    print("[viz] approaches:", df["approach"].map(_norm_approach).value_counts().to_dict())
+
     agg = _agg_mean_std(df)
+    if agg.empty:
+        print("[viz] Aggregation empty. Check column names & METRICS.")
+        return
 
-    # per dataset
     for ds, ds_df in agg.groupby("dataset"):
-        ds_df = ds_df.copy()
-
-        # make ratio plots for every metric × varying-param
-        figs = _make_all_ratio_plots_for_dataset(ds_df, ds)
-
-        # write a simple index markdown
-        md_path = _write_md(ds, figs)
-        print(f"wrote: {md_path}")
+        print(f"[viz] dataset: {ds}, rows: {len(ds_df)}")
+        figs = _make_all_ratio_plots_for_dataset(ds_df.copy(), ds)
+        if not figs:
+            print(f"[viz] {ds}: no figures produced.")
+        else:
+            md = OUTDIR / f"{ds}__summary.md"
+            with open(md, "w", encoding="utf-8") as f:
+                f.write(f"# {ds} – Hybrid speed/quality ratios\n\n")
+                for fp in figs:
+                    f.write(f"![{fp.name}]({fp.as_posix()})\n\n")
+            print("[viz] wrote:", md)
 
 if __name__ == "__main__":
     main()
+
