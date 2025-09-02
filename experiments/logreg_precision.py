@@ -248,6 +248,12 @@ def run_experiments(X, y,
             stratify=y if stratify else None
         )
 
+        # Pre-cast once to avoid repeated astype() cost
+        Xtr32 = Xtr.astype(np.float32, copy=False)
+        Xte32 = Xte.astype(np.float32, copy=False)
+        Xtr64 = Xtr.astype(np.float64, copy=False)
+        Xte64 = Xte.astype(np.float64, copy=False)
+        
         rows = []
 
         for vals in combos:
@@ -275,13 +281,15 @@ def run_experiments(X, y,
                             max_iter=P["max_iter"], tol=P["tol"]
                         )
                     elif approach == "hybrid":
-                        res = approach_hybrid(
-                            Xtr, ytr, Xte, yte,
+                        # Use the new fast budgeted hybrid and pass pre-cast arrays
+                        res = approach_hybrid_budgeted_fast(
+                            Xtr32, ytr, Xte32, yte, Xtr64, Xte64,
                             solver=P["solver"],
-                            reg_lambda=reg_lambda, reg_alpha=reg_alpha,
-                            max_iter_single=P["max_iter_single"],    # f32 work
-                            tol_single=P["tol"],                     # f32 tol
-                            max_iter_double=P["max_iter"],           # f64 budget (small)
+                            reg_lambda=reg_lambda,
+                            reg_alpha=reg_alpha,
+                            max_iter_single=P["max_iter_single"],  # main f32 work
+                            tol_single=P["tol"],                   # f32 tol
+                            max_iter_double=P["max_iter"],         # small f64 budget
                             tol_double=P["tol_double"],
                             double_budget_frac=P["double_budget_frac"]
                         )
