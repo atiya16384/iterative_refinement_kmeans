@@ -157,71 +157,49 @@ def approach_double(Xtr, ytr, Xte, yte, *, solver="coord", reg_lambda=0.01, reg_
     metrics = evaluate_linear_mse(mdl, Xte, yte)
     return {"approach": "double(f64)", "time_sec": t1 - t0, "iters_single": 0, "iters_double": int(mdl.n_iter), **metrics}
 
-def approach_hybrid(
-    Xtr, ytr, Xte, yte, *,
+def approach_hybrid_budgeted_fast(
+    Xtr32, ytr, Xte32, yte, Xtr64, Xte64, *,
     solver="coord",
     reg_lambda=1e-4, reg_alpha=0.0,
-    # do most work here (single-precision)
-    max_iter_single=800,
+    max_iter_single=800,     # main f32 work
     tol_single=1e-4,
-    # short polish in double-precision
-    max_iter_double=None,   # if None, computed from double_budget_frac
+    max_iter_double=None,    # if None -> small fixed budget
     tol_double=1e-6,
-    double_budget_frac=0.10 # <= 10% of single-iter budget for f64
+    double_budget_frac=0.10  # 10% of single iters, hard capped by floor
 ):
-    """
-    Simple 2-stage hybrid (f32 -> short f64 polish).
-    Stage A: f32 up to max_iter_single @ tol_single
-    Stage B: f64 with small budget from f32 warm start @ tol_double
-    """
     t0 = _now()
+    y_i32 = ytr.astype(np.int32, copy=False)
 
-    # Stage A: fast f32 warm start
-    mdl_f32 = train_linmod(
-        Xtr, ytr,
-        precision="single",
-        solver=solver,
-        reg_lambda=reg_lambda,
-        reg_alpha=reg_alpha,
-        max_iter=int(max_iter_single),
-        tol=float(tol_single)
-    )
+    # Stage A: single (fast warm start)
+    mdl_f32 = linmod(mod="mse", solver=solver, precision="single",
+                     intercept=True, max_iter=int(max_iter_single), scaling="standardize")
+    mdl_f32.fit(Xtr32, y_i32,
+                reg_lambda=float(reg_lambda),
+                reg_alpha=float(reg_alpha),
+                tol=float(tol_single))
     iters_single = int(mdl_f32.n_iter)
-    x0 = mdl_f32.coef.astype(np.float64, copy=False)
 
-    # Decide tiny f64 budget if not given
+    # Stage B: tiny, fixed f64 polish
     if max_iter_double is None:
-        max_iter_double = max(20, int(round(max_iter_single * double_budget_frac)))
-    else:
-        max_iter_double = int(max_iter_double)
-        if max_iter_double > max_iter_single:
-            max_iter_double = max(int(max_iter_single * 0.25), 20)  # cap at 25% of single (≥20)
+        max_iter_double = max(10, int(round(max_iter_single * double_budget_frac)))
+        max_iter_double = min(max_iter_double, 30)  # hard cap keeps it cheap
 
-    # Stage B: brief f64 polish
-    mdl_f64 = linmod(
-        mod="mse", solver=solver, precision="double",
-        intercept=True, max_iter=max_iter_double, scaling="standardize",
-    )
-    Xd = Xtr.astype(np.float64, copy=False)
-    yd = ytr.astype(np.int32, copy=False)
-    mdl_f64.fit(
-        Xd, yd,
-        reg_lambda=float(reg_lambda),
-        reg_alpha=float(reg_alpha),
-        x0=x0,
-        tol=float(tol_double)
-    )
+    x0 = mdl_f32.coef.astype(np.float64, copy=False)
+    mdl_f64 = linmod(mod="mse", solver=solver, precision="double",
+                     intercept=True, max_iter=int(max_iter_double), scaling="standardize")
+    mdl_f64.fit(Xtr64, y_i32,
+                reg_lambda=float(reg_lambda),
+                reg_alpha=float(reg_alpha),
+                x0=x0,
+                tol=float(tol_double))
     iters_double = int(mdl_f64.n_iter)
 
     t1 = _now()
-    metrics = evaluate_linear_mse(mdl_f64, Xte, yte)
-    return {
-        "approach": "hybrid(f32→f64)",
-        "time_sec": t1 - t0,
-        "iters_single": iters_single,
-        "iters_double": iters_double,
-        **metrics
-    }
+    metrics = evaluate_linear_mse(mdl_f64, Xte64, yte)
+    return {"approach": "hybrid(f32→f64,budgeted)",
+            "time_sec": t1 - t0,
+            "iters_single": iters_single,
+            "iters_double": iters_double, **metrics}
 
 # =========================
 # Grid runner
