@@ -157,48 +157,73 @@ def approach_double(Xtr, ytr, Xte, yte, *, solver="coord", reg_lambda=0.01, reg_
     metrics = evaluate_linear_mse(mdl, Xte, yte)
     return {"approach": "double(f64)", "time_sec": t1 - t0, "iters_single": 0, "iters_double": int(mdl.n_iter), **metrics}
 
-def approach_hybrid_budgeted_fast(
-    Xtr32, ytr, Xte32, yte, Xtr64, Xte64, *,
+def approach_hybrid(
+    Xtr, ytr, Xte, yte, *,
     solver="coord",
     reg_lambda=1e-4, reg_alpha=0.0,
-    max_iter_single=800,     # main f32 work
+    max_iter=800,            # TOTAL budget (single + double)
+    max_iter_single=500,     # how much of that total to spend in f32
     tol_single=1e-4,
-    max_iter_double=None,    # if None -> small fixed budget
     tol_double=1e-6,
-    double_budget_frac=0.10  # 10% of single iters, hard capped by floor
 ):
-    t0 = _now()
-    y_i32 = ytr.astype(np.int32, copy=False)
+    """
+    Hybrid with a fixed total iteration budget:
+      - Run up to max_iter_single in single precision
+      - Then run the remaining (max_iter - max_iter_single) in double precision
+    """
+    # split the budget deterministically
+    single_budget = int(max(0, min(max_iter_single, max_iter)))
+    double_budget = int(max(0, max_iter - single_budget))
 
-    # Stage A: single (fast warm start)
-    mdl_f32 = linmod(mod="mse", solver=solver, precision="single",
-                     intercept=True, max_iter=int(max_iter_single), scaling="standardize")
-    mdl_f32.fit(Xtr32, y_i32,
-                reg_lambda=float(reg_lambda),
-                reg_alpha=float(reg_alpha),
-                tol=float(tol_single))
+    t0 = time.perf_counter()
+
+    # --- Stage A: f32 warm start ---
+    mdl_f32 = train_linmod(
+        Xtr, ytr,
+        precision="single",
+        solver=solver,
+        reg_lambda=reg_lambda,
+        reg_alpha=reg_alpha,
+        max_iter=single_budget,
+        tol=tol_single,
+    )
     iters_single = int(mdl_f32.n_iter)
-
-    # Stage B: tiny, fixed f64 polish
-    if max_iter_double is None:
-        max_iter_double = max(int(round(max_iter_single * double_budget_frac)))
-
     x0 = mdl_f32.coef.astype(np.float64, copy=False)
-    mdl_f64 = linmod(mod="mse", solver=solver, precision="double",
-                     intercept=True, max_iter=int(max_iter_double), scaling="standardize")
-    mdl_f64.fit(Xtr64, y_i32,
-                reg_lambda=float(reg_lambda),
-                reg_alpha=float(reg_alpha),
-                x0=x0,
-                tol=float(tol_double))
-    iters_double = int(mdl_f64.n_iter)
 
-    t1 = _now()
-    metrics = evaluate_linear_mse(mdl_f64, Xte64, yte)
-    return {"approach": "hybrid(f32→f64,budgeted)",
-            "time_sec": t1 - t0,
-            "iters_single": iters_single,
-            "iters_double": iters_double, **metrics}
+    # --- Stage B: f64 refinement with remaining budget ---
+    if double_budget > 0:
+        mdl_f64 = linmod(
+            mod="mse",
+            solver=solver,
+            precision="double",
+            intercept=True,
+            max_iter=double_budget,
+            scaling="standardize",
+        )
+        Xd = Xtr.astype(np.float64, copy=False)
+        yd = ytr.astype(np.int32, copy=False)
+        mdl_f64.fit(
+            Xd, yd,
+            reg_lambda=float(reg_lambda),
+            reg_alpha=float(reg_alpha),
+            x0=x0,
+            tol=float(tol_double),
+        )
+        final_model = mdl_f64
+        iters_double = int(mdl_f64.n_iter)
+    else:
+        final_model = mdl_f32
+        iters_double = 0
+
+    t1 = time.perf_counter()
+    metrics = evaluate_linear_mse(final_model, Xte, yte)
+    return {
+        "approach": "hybrid(f32→f64, fixed-total)",
+        "time_sec": t1 - t0,
+        "iters_single": iters_single,
+        "iters_double": iters_double,
+        **metrics,
+    }
 
 # =========================
 # Grid runner
@@ -218,18 +243,17 @@ def run_experiments(X, y,
             "lambda":  [1e-4, 1e-6],
             "C":       [None],
             "solver":  ["coord", "sparse_cg"],
-            "max_iter": [800],                 # also used as f64 budget in hybrid
+            "max_iter": [800],                 # TOTAL budget (single + double)
             "tol":      [1e-4, 1e-6, 1e-8],    # f32 tol (single & hybrid)
             "max_iter_single": [300, 500, 800],
             "tol_double": [1e-6],              # f64 tol for hybrid
-            "double_budget_frac": [0.10],      # used only if max_iter_double not passed
             "approaches": ["single", "double", "hybrid"],
         }
 
     keys = [
         "penalty", "alpha", "lambda", "C",
         "solver", "max_iter", "tol", "max_iter_single",
-        "tol_double", "double_budget_frac",
+        "tol_double",
     ]
     combos = list(itertools.product(*[grid.get(k, [None]) for k in keys]))
 
@@ -247,12 +271,6 @@ def run_experiments(X, y,
             stratify=y if stratify else None
         )
 
-        # Pre-cast once to avoid repeated astype() cost
-        Xtr32 = Xtr.astype(np.float32, copy=False)
-        Xte32 = Xte.astype(np.float32, copy=False)
-        Xtr64 = Xtr.astype(np.float64, copy=False)
-        Xte64 = Xte.astype(np.float64, copy=False)
-        
         rows = []
 
         for vals in combos:
@@ -280,17 +298,14 @@ def run_experiments(X, y,
                             max_iter=P["max_iter"], tol=P["tol"]
                         )
                     elif approach == "hybrid":
-                        # Use the new fast budgeted hybrid and pass pre-cast arrays
-                        res = approach_hybrid_budgeted_fast(
-                            Xtr32, ytr, Xte32, yte, Xtr64, Xte64,
+                        res = approach_hybrid(
+                            Xtr, ytr, Xte, yte,
                             solver=P["solver"],
-                            reg_lambda=reg_lambda,
-                            reg_alpha=reg_alpha,
-                            max_iter_single=P["max_iter_single"],  # main f32 work
-                            tol_single=P["tol"],                   # f32 tol
-                            max_iter_double=P["max_iter"],         # small f64 budget
+                            reg_lambda=reg_lambda, reg_alpha=reg_alpha,
+                            max_iter=P["max_iter"],               # total budget
+                            max_iter_single=P["max_iter_single"], # f32 portion
+                            tol_single=P["tol"],
                             tol_double=P["tol_double"],
-                            double_budget_frac=P["double_budget_frac"]
                         )
                     else:
                         continue
@@ -302,7 +317,6 @@ def run_experiments(X, y,
                         "solver": P["solver"],
                         "max_iter": P["max_iter"], "max_iter_single": P["max_iter_single"],
                         "tol_single": P["tol"], "tol_double": P["tol_double"],
-                        "double_budget_frac": P["double_budget_frac"],
                         "time_sec": res["time_sec"],
                         "iters_single": res.get("iters_single", np.nan),
                         "iters_double": res.get("iters_double", np.nan),
@@ -341,9 +355,9 @@ def run_experiments(X, y,
 
     # Summary
     group_cols = [
-        "dataset", "penalty", "alpha", "C",  "lambda", "solver",
+        "dataset", "penalty", "alpha", "lambda", "solver",
         "max_iter", "tol_single", "max_iter_single", "tol_double",
-        "double_budget_frac", "approach"
+        "approach"
     ]
     metric_cols = ["time_sec", "iters_single", "iters_double", "roc_auc", "pr_auc", "logloss"]
     df_mean = df.groupby(group_cols, as_index=False)[metric_cols].mean()
@@ -352,7 +366,7 @@ def run_experiments(X, y,
         df_mean.groupby([
             "dataset", "penalty", "alpha", "C", "lambda", "solver",
             "max_iter", "tol_single", "max_iter_single", "tol_double",
-            "double_budget_frac", "approach"
+            "approach"
         ]) [["time_sec", "iters_single", "iters_double", "roc_auc", "pr_auc", "logloss"]].mean()
     )
 
@@ -365,25 +379,22 @@ if __name__ == "__main__":
     datasets = ["gaussian"]  # adjust as needed
 
     base_grid = {
-        # we want the number of iterations to add up for single and double
         "penalty": ["l1", "l2"],
-        "alpha":   [None, 0.0,  0.25, 0.75, 1.0],
+        "alpha":   [0.0, 0.25, 0.75, 1.0],
         "lambda":  [None, 1e-4, 1e-6, 1e-8],
         "C":       [None, 0.01, 0.1, 1.0, 10, 100, 1000, 10000],
-        # "sparse_cg"
-        "solver":  ["coord"],
-        "max_iter": [800],                   # f64 budget in hybrid
+        "solver":  ["coord", "sparse_cg"],
+        "max_iter": [800],                   # TOTAL budget
         "tol":      [1e-4, 1e-6, 1e-8],      # f32 tol
-        "max_iter_single": [500],  # f32 work
-        "tol_double": [1e-6, 1e-8],                # f64 tol
-        "double_budget_frac": [0.10],        # used only if you don't pass max_iter_double
+        "max_iter_single": [300, 500, 800],  # f32 portion of total
+        "tol_double": [1e-6],                # f64 tol
         "approaches": ["single", "double", "hybrid"],
     }
 
     all_df, all_df_mean = [], []
     for dataset in datasets:
         if dataset == "gaussian":
-            X, y = make_shifted_gaussian(m=100_000, n=80, delta=0.5, seed=42)
+            X, y = make_shifted_gaussian(m=100_000, n=120, delta=0.5, seed=42)
         elif dataset == "uniform":
             X, y = make_uniform_binary(m=100_000, n=120, shift=0.25, seed=42)
         elif dataset == "blobs":
@@ -404,4 +415,5 @@ if __name__ == "__main__":
         )
         all_df.append(df)
         all_df_mean.append(df_mean)
+
 
