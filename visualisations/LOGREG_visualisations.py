@@ -33,7 +33,7 @@ PAIR_ALWAYS = ["solver", "penalty", "alpha"]
 
 APP_SINGLE = "single(f32)"
 APP_DOUBLE = "double(f64)"
-APP_HYBRID = "hybrid(f32→f64)"
+APP_HYBRID = "hybrid(f32→f64,budgeted)"
 
 def _norm_approach(s):
     if not isinstance(s, str):
