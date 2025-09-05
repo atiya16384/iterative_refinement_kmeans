@@ -112,109 +112,53 @@ def _agg_mean_std(df: pd.DataFrame) -> pd.DataFrame:
     agg.columns = flat
     return agg
 
-def _plot_hybrid_ratio_both_baselines(df_ds, ds_name, param, metric_mean_col):
-    need = {param, "approach", metric_mean_col}
-    # special case: if param not present (e.g. tol_double for single/double), skip
-    if param not in df_ds.columns:
-        print(f"[viz] {ds_name}: skip param={param} (not in columns)")
-        return None
-    if metric_mean_col not in df_ds.columns:
-        print(f"[viz] {ds_name}: skip metric={metric_mean_col} (not in columns)")
-        return None
+# --- add: small helper to pretty tag names ---
+def _mk_tag(penalty, solver):
+    pen = str(penalty).lower() if penalty is not None else "none"
+    sol = str(solver).lower() if solver is not None else "unspecified"
+    return f"penalty={pen}__solver={sol}"
 
-    # Keys to pair on (everything except the x-axis param)
-    pair_keys_all = (
-        ["dataset"]
-        + [c for c in PARAM_CANDIDATES if c in df_ds.columns]
-        + [c for c in PAIR_ALWAYS if c in df_ds.columns]
-    )
-    pair_keys_all = [k for k in dict.fromkeys(pair_keys_all) if k != param]
-
-    d = df_ds[pair_keys_all + [param, metric_mean_col, "approach"]].dropna(subset=[metric_mean_col]).copy()
-    if d.empty:
-        print(f"[viz] {ds_name}: no rows after filter for {param}/{metric_mean_col}")
-        return None
-
-    hy = d[d["approach"] == APP_HYBRID]
-    if hy.empty:
-        print(f"[viz] {ds_name}: no HYBRID rows")
-        return None
-
-    def _pair(baseline_label):
-        bl = d[d["approach"] == baseline_label]
-        if bl.empty:
-            return None
-        m = hy.merge(bl, on=pair_keys_all, suffixes=("_hy", "_bl"), how="inner")
-        if m.empty:
-            return None
-
-        # x-axis column could have been suffixed during merge if it was in the pair keys (it isn't here),
-        # but be defensive anyway:
-        xcol = f"{param}_hy" if f"{param}_hy" in m.columns else param
-
-        num = m[f"{metric_mean_col}_hy"].astype(float)
-        den = m[f"{metric_mean_col}_bl"].astype(float).replace(0.0, np.nan)
-        m["ratio"] = (num / den).replace([np.inf, -np.inf], np.nan)
-        m = m.dropna(subset=["ratio"])
-        if m.empty:
-            return None
-        return m.groupby(xcol)["ratio"].mean()
-
-    r_single = _pair(APP_SINGLE)
-    r_double = _pair(APP_DOUBLE)
-
-    if r_single is None and r_double is None:
-        print(f"[viz] {ds_name}: cannot pair hybrid with single/double on {param}")
-        return None
-
-    # x values
-    x_all = set()
-    if r_single is not None: x_all |= set(r_single.index.tolist())
-    if r_double is not None: x_all |= set(r_double.index.tolist())
-    xs = _order_vals(list(x_all))
-
-    fig, ax = plt.subplots(figsize=(7.6, 4.6))
-    ax.axhline(1.0, ls=":", lw=1.5, c="grey", label="baseline parity (×1.0)")
-
-    def _line(s, label, marker):
-        if s is None:
-            return
-        s = s.reindex(xs)
-        ax.plot([str(v) for v in s.index], s.values, marker=marker, label=label)
-
+# --- change signature: add tag to title/filename ---
+def _plot_hybrid_ratio_both_baselines(df_ds, ds_name, param, metric_mean_col, tag=""):
+    ...
     yname = re.sub("_mean$", "", metric_mean_col)
+    title_prefix = f"{ds_name}"
+    if tag:
+        title_prefix = f"{title_prefix} ({tag})"
     _line(r_single, f"{APP_HYBRID} / {APP_SINGLE}", "o")
     _line(r_double, f"{APP_HYBRID} / {APP_DOUBLE}", "s")
     ax.set_xlabel(param)
     ax.set_ylabel(f"{yname} (ratio to baseline)")
-    ax.set_title(f"{ds_name}: {yname} vs {param} — hybrid vs single & double")
+    ax.set_title(f"{title_prefix}: {yname} vs {param} — hybrid vs single & double")
     ax.grid(True, alpha=0.25)
     ax.legend()
 
-    out = OUTDIR / f"{ds_name}__{yname}__by_{param}__hybrid_over_single_and_double.png"
+    safe_tag = f"__{tag}" if tag else ""
+    out = OUTDIR / f"{ds_name}{safe_tag}__{yname}__by_{param}__hybrid_over_single_and_double.png"
     fig.tight_layout()
     fig.savefig(out, dpi=150)
     plt.close(fig)
     print("[viz] wrote:", out)
     return out
 
-def _make_all_ratio_plots_for_dataset(ds_df, ds_name):
+# --- change: make_all_ratio_plots_for_dataset carries a tag through ---
+def _make_all_ratio_plots_for_dataset(ds_df, ds_name, tag=""):
     paths = []
     metric_mean_cols = [f"{m}_mean" for m in METRICS if f"{m}_mean" in ds_df.columns]
     if not metric_mean_cols:
-        print(f"[viz] {ds_name}: no metric means present; cols={list(ds_df.columns)}")
+        print(f"[viz] {ds_name} {tag}: no metric means present; cols={list(ds_df.columns)}")
         return paths
 
     varying = [p for p in PARAM_CANDIDATES if p in ds_df.columns and ds_df[p].nunique() > 1]
-    print(f"[viz] {ds_name}: varying params -> {varying}")
-
+    print(f"[viz] {ds_name} {tag}: varying params -> {varying}")
     for param in varying:
         for mcol in metric_mean_cols:
-            out = _plot_hybrid_ratio_both_baselines(ds_df, ds_name, param, mcol)
+            out = _plot_hybrid_ratio_both_baselines(ds_df, ds_name, param, mcol, tag=tag)
             if out is not None:
                 paths.append(out)
     return paths
 
+# --- change main(): split by dataset, penalty, solver ---
 def main():
     _ensure_outdir()
     frames = _read_existing(IN_FILES)
@@ -226,10 +170,8 @@ def main():
         print("[viz] No 'approach' column in CSVs; columns:", list(df.columns))
         return
 
-    # normalize labels + (optionally) keep only chosen datasets
     df["approach"] = df["approach"].map(_norm_approach)
     df = _filter_datasets(df)
-
     print("[viz] approaches:", df["approach"].value_counts().to_dict())
 
     agg = _agg_mean_std(df)
@@ -238,18 +180,26 @@ def main():
         print("[viz] columns seen:", list(df.columns))
         return
 
-    for ds, ds_df in agg.groupby("dataset"):
-        print(f"[viz] dataset: {ds}, rows: {len(ds_df)}")
-        figs = _make_all_ratio_plots_for_dataset(ds_df.copy(), ds)
+    # ensure columns exist even if missing in some CSVs
+    for c in ["penalty", "solver"]:
+        if c not in agg.columns:
+            agg[c] = "unspecified"
+
+    # group by (dataset, penalty, solver) so each figure set is clean
+    for (ds, pen, sol), ds_df in agg.groupby(["dataset", "penalty", "solver"], dropna=False):
+        tag = _mk_tag(pen, sol)
+        print(f"[viz] dataset: {ds}, penalty: {pen}, solver: {sol}, rows: {len(ds_df)}")
+        figs = _make_all_ratio_plots_for_dataset(ds_df.copy(), ds, tag=tag)
         if not figs:
-            print(f"[viz] {ds}: no figures produced.")
+            print(f"[viz] {ds} ({tag}): no figures produced.")
         else:
-            md = OUTDIR / f"{ds}__summary.md"
+            md = OUTDIR / f"{ds}__{tag}__summary.md"
             with open(md, "w", encoding="utf-8") as f:
-                f.write(f"# {ds} – Hybrid speed/quality ratios\n\n")
+                f.write(f"# {ds} – {tag} – Hybrid speed/quality ratios\n\n")
                 for fp in figs:
                     f.write(f"![{fp.name}]({fp.as_posix()})\n\n")
             print("[viz] wrote:", md)
+
 
 if __name__ == "__main__":
     main()
