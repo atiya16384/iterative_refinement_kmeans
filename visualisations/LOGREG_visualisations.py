@@ -5,10 +5,9 @@ import numpy as np
 import pandas as pd
 
 import matplotlib
-matplotlib.use("Agg")          # save PNGs without a display
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-# --- INPUT CSVs ---
 IN_FILES = [
     "../Results/uniform_results.csv",
     "../Results/gaussian_results.csv",
@@ -17,32 +16,30 @@ IN_FILES = [
     "../Results/3droad_results.csv",
 ]
 
-# set to e.g. ["gaussian"] if you only want to plot that dataset
-DATASET_WHITELIST = None  # or ["gaussian"]
-
+DATASET_WHITELIST = None   # e.g. ["gaussian"]
 OUTDIR = Path("../Results/SUMMARY_LOGPREC")
 
-# Metrics expected in CSVs
 METRICS = ["time_sec", "roc_auc", "pr_auc", "logloss"]
 
-# Parameters we may use on x-axis / for pairing.
-# NOTE: use tol_single/tol_double (your CSVs) instead of tol.
 PARAM_CANDIDATES = ["lambda", "C", "max_iter", "tol_single", "tol_double", "max_iter_single"]
-# Always pair on these when possible (prevents mismatching solvers/penalties)
 PAIR_ALWAYS = ["solver", "penalty", "alpha"]
 
 APP_SINGLE = "single(f32)"
 APP_DOUBLE = "double(f64)"
-APP_HYBRID = "hybrid(f32→f64,budgeted)"
+APP_HYBRID = "hybrid(f32→f64,fixed-total)"   # canonical label we’ll use on plots
 
 def _norm_approach(s):
     if not isinstance(s, str):
         return s
     t = s.strip().replace("->", "→")
-    tl = t.lower()
-    if tl == "single(f32)": return APP_SINGLE
-    if tl == "double(f64)": return APP_DOUBLE
-    if tl == "hybrid(f32→f64)": return APP_HYBRID
+    tl = t.lower().replace(" ", "")
+    # accept several spellings
+    if tl in {"single(f32)"}:
+        return APP_SINGLE
+    if tl in {"double(f64)"}:
+        return APP_DOUBLE
+    if tl in {"hybrid(f32→f64,fixed-total)", "hybrid(f32→f64,fixedtotal)", "hybrid(f32→f64,budgeted)", "hybrid(f32→f64)"}:
+        return APP_HYBRID
     return t
 
 def _order_vals(vals):
@@ -93,7 +90,6 @@ def _agg_mean_std(df: pd.DataFrame) -> pd.DataFrame:
         + [c for c in PARAM_CANDIDATES if c in df.columns]
         + [c for c in PAIR_ALWAYS if c in df.columns]
     )
-    # drop columns that don't exist to avoid KeyErrors
     group_cols = [c for c in group_cols if c in df.columns]
     if not group_cols:
         print("[viz] No grouping columns present. Columns:", list(df.columns))
@@ -101,7 +97,6 @@ def _agg_mean_std(df: pd.DataFrame) -> pd.DataFrame:
 
     agg = df.groupby(group_cols, as_index=False).agg({m: ["mean", "std"] for m in metrics_present})
 
-    # flatten multi-index columns
     flat = []
     for col in agg.columns:
         if isinstance(col, tuple):
@@ -112,19 +107,77 @@ def _agg_mean_std(df: pd.DataFrame) -> pd.DataFrame:
     agg.columns = flat
     return agg
 
-# --- add: small helper to pretty tag names ---
 def _mk_tag(penalty, solver):
     pen = str(penalty).lower() if penalty is not None else "none"
     sol = str(solver).lower() if solver is not None else "unspecified"
     return f"penalty={pen}__solver={sol}"
 
-# --- change signature: add tag to title/filename ---
 def _plot_hybrid_ratio_both_baselines(df_ds, ds_name, param, metric_mean_col, tag=""):
-    ...
+    # sanity on cols
+    if param not in df_ds.columns:
+        print(f"[viz] {ds_name}: skip param={param} (not in columns)")
+        return None
+    if metric_mean_col not in df_ds.columns:
+        print(f"[viz] {ds_name}: skip metric={metric_mean_col} (not in columns)")
+        return None
+
+    # keys to pair on (everything except the x-axis param)
+    pair_keys_all = (
+        ["dataset"]
+        + [c for c in PARAM_CANDIDATES if c in df_ds.columns]
+        + [c for c in PAIR_ALWAYS if c in df_ds.columns]
+    )
+    pair_keys_all = [k for k in dict.fromkeys(pair_keys_all) if k != param]
+
+    d = df_ds[pair_keys_all + [param, metric_mean_col, "approach"]].dropna(subset=[metric_mean_col]).copy()
+    if d.empty:
+        print(f"[viz] {ds_name}: no rows after filter for {param}/{metric_mean_col}")
+        return None
+
+    hy = d[d["approach"] == APP_HYBRID]
+    if hy.empty:
+        print(f"[viz] {ds_name}: no HYBRID rows")
+        return None
+
+    def _pair(baseline_label):
+        bl = d[d["approach"] == baseline_label]
+        if bl.empty:
+            return None
+        m = hy.merge(bl, on=pair_keys_all, suffixes=("_hy", "_bl"), how="inner")
+        if m.empty:
+            return None
+        xcol = f"{param}_hy" if f"{param}_hy" in m.columns else param
+        num = m[f"{metric_mean_col}_hy"].astype(float)
+        den = m[f"{metric_mean_col}_bl"].astype(float).replace(0.0, np.nan)
+        m["ratio"] = (num / den).replace([np.inf, -np.inf], np.nan)
+        m = m.dropna(subset=["ratio"])
+        if m.empty:
+            return None
+        return m.groupby(xcol)["ratio"].mean()
+
+    r_single = _pair(APP_SINGLE)
+    r_double = _pair(APP_DOUBLE)
+    if r_single is None and r_double is None:
+        print(f"[viz] {ds_name}: cannot pair hybrid with single/double on {param}")
+        return None
+
+    x_all = set()
+    if r_single is not None: x_all |= set(r_single.index.tolist())
+    if r_double is not None: x_all |= set(r_double.index.tolist())
+    xs = _order_vals(list(x_all))
+
+    fig, ax = plt.subplots(figsize=(7.6, 4.6))
+    ax.axhline(1.0, ls=":", lw=1.5, c="grey", label="baseline parity (×1.0)")
+
+    # --- the helper you were missing ---
+    def _line(s, label, marker):
+        if s is None:
+            return
+        s = s.reindex(xs)
+        ax.plot([str(v) for v in s.index], s.values, marker=marker, label=label)
+
     yname = re.sub("_mean$", "", metric_mean_col)
-    title_prefix = f"{ds_name}"
-    if tag:
-        title_prefix = f"{title_prefix} ({tag})"
+    title_prefix = f"{ds_name}" + (f" ({tag})" if tag else "")
     _line(r_single, f"{APP_HYBRID} / {APP_SINGLE}", "o")
     _line(r_double, f"{APP_HYBRID} / {APP_DOUBLE}", "s")
     ax.set_xlabel(param)
@@ -141,14 +194,12 @@ def _plot_hybrid_ratio_both_baselines(df_ds, ds_name, param, metric_mean_col, ta
     print("[viz] wrote:", out)
     return out
 
-# --- change: make_all_ratio_plots_for_dataset carries a tag through ---
 def _make_all_ratio_plots_for_dataset(ds_df, ds_name, tag=""):
     paths = []
     metric_mean_cols = [f"{m}_mean" for m in METRICS if f"{m}_mean" in ds_df.columns]
     if not metric_mean_cols:
         print(f"[viz] {ds_name} {tag}: no metric means present; cols={list(ds_df.columns)}")
         return paths
-
     varying = [p for p in PARAM_CANDIDATES if p in ds_df.columns and ds_df[p].nunique() > 1]
     print(f"[viz] {ds_name} {tag}: varying params -> {varying}")
     for param in varying:
@@ -158,7 +209,6 @@ def _make_all_ratio_plots_for_dataset(ds_df, ds_name, tag=""):
                 paths.append(out)
     return paths
 
-# --- change main(): split by dataset, penalty, solver ---
 def main():
     _ensure_outdir()
     frames = _read_existing(IN_FILES)
@@ -180,12 +230,12 @@ def main():
         print("[viz] columns seen:", list(df.columns))
         return
 
-    # ensure columns exist even if missing in some CSVs
+    # make sure penalty/solver exist even if missing in some CSVs
     for c in ["penalty", "solver"]:
         if c not in agg.columns:
             agg[c] = "unspecified"
 
-    # group by (dataset, penalty, solver) so each figure set is clean
+    # split by dataset + (penalty, solver)
     for (ds, pen, sol), ds_df in agg.groupby(["dataset", "penalty", "solver"], dropna=False):
         tag = _mk_tag(pen, sol)
         print(f"[viz] dataset: {ds}, penalty: {pen}, solver: {sol}, rows: {len(ds_df)}")
@@ -199,7 +249,6 @@ def main():
                 for fp in figs:
                     f.write(f"![{fp.name}]({fp.as_posix()})\n\n")
             print("[viz] wrote:", md)
-
 
 if __name__ == "__main__":
     main()
