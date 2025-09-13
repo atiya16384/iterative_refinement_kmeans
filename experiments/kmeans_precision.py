@@ -66,6 +66,13 @@ def run_full_double(X, initial_centers, n_clusters, max_iter, tol, y_true):
     return centers, labels, iters_double_tot, iters_single_tot,  elapsed, mem_MB_double, inertia, 
 
 # Hybrid precison loop 
+import os, psutil, gc, time
+proc = psutil.Process(os.getpid())
+
+def _rss_mb():
+    return proc.memory_info().rss / 1e6
+
+# Hybrid precision loop
 def run_hybrid(
     X,
     initial_centers,
@@ -80,7 +87,7 @@ def run_hybrid(
 ):
     """
     Float32 (capped) -> Float64 refinement.
-    Optimized to cast once up-front and reuse arrays (X32/X64, init32/init64).
+    Peak memory is measured as the maximum RSS observed across both phases.
     """
 
     # Cast ONCE and reuse (avoids repeated .astype allocations)
@@ -88,6 +95,9 @@ def run_hybrid(
     X64  = np.asarray(X, dtype=np.float64)
     init32 = np.asarray(initial_centers, dtype=np.float32)
     init64 = np.asarray(initial_centers, dtype=np.float64)
+
+    # Peak memory tracker
+    peak_mb = _rss_mb()
 
     # Cap sanitization
     cap = int(max(0, min(int(single_iter_cap), int(max_iter_total))))
@@ -111,9 +121,14 @@ def run_hybrid(
         t_single = time.perf_counter() - t0
         iters_single = int(km_s.n_iter_)
         centers64 = km_s.cluster_centers_.astype(np.float64, copy=False)
+        peak_mb = max(peak_mb, _rss_mb())
 
     # ----- Phase 2: float64 refinement -----
     remaining = max(1, int(max_iter_total) - iters_single)
+
+    # (Optional memory optimization if you want: uncomment to "late-cast" and drop X32)
+    # del X32; gc.collect(); peak_mb = max(peak_mb, _rss_mb())
+
     t1 = time.perf_counter()
     km_d = KMeans(
         n_clusters=n_clusters,
@@ -125,6 +140,7 @@ def run_hybrid(
         random_state=seed,
     ).fit(X64)
     t_double = time.perf_counter() - t1
+    peak_mb = max(peak_mb, _rss_mb())
 
     # Outputs
     labels_final   = km_d.labels_
@@ -132,6 +148,8 @@ def run_hybrid(
     iters_double   = int(km_d.n_iter_)
     inertia        = evaluate_metrics(km_d.inertia_)
     total_time     = t_single + t_double
+
+    # Keep your original total for reference (optional)
     mem_MB_total   = (X32.nbytes + X64.nbytes) / 1e6
 
     return (
@@ -140,9 +158,10 @@ def run_hybrid(
         iters_single,
         iters_double,
         total_time,
-        mem_MB_total,
+        peak_mb,        # <<< NEW: true peak RSS during the run
         inertia,
     )
+
     
 # kmeans_precision.py — Experiments D, E, F (simple, sklearn-first, AOCL-compatible)
 
