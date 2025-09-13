@@ -119,12 +119,12 @@ class KMeansVisualizer:
             group_sorted = group.sort_values("Cap")
             base_val = base[(base["DatasetName"] == ds) & (base["NumClusters"] == k)]["BASE"].mean()
             group_sorted["Inertia"] = group_sorted["Inertia"] / base_val
-            plt.plot(group_sorted["Cap"], group_sorted["Inertia"], marker="o", label=f"{ds}-C{k}")
+            plt.plot(group_sorted["Cap"], group_sorted["Inertia"], marker="o")
 
         plt.title("Cap vs Inertia (Hybrid)")
         plt.xlabel("Cap (Single-precision iteration cap)")
         plt.ylabel(f"Inertia (Relative to {baseline})")
-        plt.axhline(1.0, linestyle="--", color="gray", linewidth=1, label=f"{baseline} baseline")
+        plt.axhline(1.0, linestyle="--", color="gray", linewidth=1)
         plt.grid(True)
         plt.legend()
         plt.tight_layout()
@@ -142,12 +142,12 @@ class KMeansVisualizer:
             base_val = base[(base["DatasetName"] == ds) & (base["NumClusters"] == k)]["BASE"].mean()
             group_sorted = group.sort_values("Cap")
             group_sorted["Time"] = group_sorted["Time"] / base_val
-            plt.plot(group_sorted["Cap"], group_sorted["Time"], marker="o", label=f"{ds}-C{k}")
+            plt.plot(group_sorted["Cap"], group_sorted["Time"], marker="o")
 
         plt.title("Cap vs Time (Hybrid)")
         plt.xlabel("Cap (Single-precision iteration cap)")
         plt.ylabel(f"Total Time (Relative to {baseline})")
-        plt.axhline(1.0, linestyle="--", color="gray", linewidth=1, label=f"{baseline} baseline")
+        plt.axhline(1.0, linestyle="--", color="gray", linewidth=1)
         plt.grid(True)
         plt.legend()
         plt.tight_layout()
@@ -166,13 +166,13 @@ class KMeansVisualizer:
             base_val = base[(base["DatasetName"] == ds) & (base["NumClusters"] == k)]["BASE"].mean()
             group_sorted = group.sort_values("tolerance_single")
             group_sorted["Time"] = group_sorted["Time"] / base_val
-            plt.plot(group_sorted["tolerance_single"], group_sorted["Time"], marker="o", label=f"{ds}-C{k}")
+            plt.plot(group_sorted["tolerance_single"], group_sorted["Time"], marker="o")
 
         plt.title("Tolerance vs Time (Hybrid)")
         plt.xlabel("Single-precision tolerance")
         plt.xscale("log")
         plt.ylabel(f"Total Time (Relative to {baseline})")
-        plt.axhline(1.0, linestyle="--", color="gray", linewidth=1, label=f"{baseline} baseline")
+        plt.axhline(1.0, linestyle="--", color="gray", linewidth=1)
         plt.grid(True)
         plt.legend()
         plt.tight_layout()
@@ -190,14 +190,14 @@ class KMeansVisualizer:
             base_val = base[(base["DatasetName"] == ds) & (base["NumClusters"] == k)]["BASE"].mean()
             group_sorted = group.sort_values("tolerance_single")
             group_sorted["Inertia"] = group_sorted["Inertia"] / base_val
-            plt.plot(group_sorted["tolerance_single"], group_sorted["Inertia"], marker="o", label=f"{ds}-C{k}")
+            plt.plot(group_sorted["tolerance_single"], group_sorted["Inertia"], marker="o")
 
         plt.title("Tolerance vs Inertia (Hybrid)")
         # plt.ylim(0.9999, 1.0001)
         plt.xlabel("Single-precision tolerance (log)")
         plt.xscale("log")
         plt.ylabel(f"Inertia (Relative to {baseline})")
-        plt.axhline(1.0, linestyle="--", color="gray", linewidth=1, label=f"{baseline} baseline")
+        plt.axhline(1.0, linestyle="--", color="gray", linewidth=1)
         plt.grid(True)
         plt.legend()
         plt.tight_layout()
