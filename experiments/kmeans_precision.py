@@ -1,27 +1,49 @@
-import time
+# kmeans_precision.py — baselines + hybrid with peak-RSS tracking
+import os, gc, time
 import numpy as np
-from sklearn.cluster import KMeans
-import time
-import numpy as np
+import psutil
 from sklearn.cluster import KMeans, MiniBatchKMeans
 from sklearn.metrics import pairwise_distances_argmin_min
+
+# ---------- helpers ----------
+_PROC = psutil.Process(os.getpid())
+
+def _rss_mb() -> float:
+    """Current resident memory in MB."""
+    return _PROC.memory_info().rss / 1e6
 
 def evaluate_metrics(inertia):
     return inertia
 
 
-def run_full_single(X, initial_centers, n_clusters, max_iter, tol, y_true,
-                    algorithm='lloyd', random_state=0):
-    
-    #Full single-precision run (treat as the 'single' baseline).
-    #Returns the same tuple layout as run_full_double:
-    #  centers, labels, iters_single_tot, iters_double_tot, elapsed, mem_MB, inertia
+# =========================
+#     BASELINES
+# =========================
+def run_full_single(
+    X,
+    initial_centers,
+    n_clusters,
+    max_iter,
+    tol,
+    y_true,                         # unused, kept for parity
+    algorithm="lloyd",
+    random_state=0,
+):
+    """
+    Full single-precision (float32) baseline.
 
-    # cast to float32 for memory/speed (sklearn may upcast internally on some versions)
-    X32 = np.asarray(X, dtype=np.float32)
-    init32 = np.asarray(initial_centers, dtype=np.float32)
+    Returns:
+      centers(float64), labels, iters_single_tot, iters_double_tot,
+      elapsed_time, peak_MB, inertia
+    """
+    # Allocate views
+    X32    = np.asarray(X, dtype=np.float32, copy=False)
+    init32 = np.asarray(initial_centers, dtype=np.float32, copy=False)
 
-    start_time = time.time()
+    # Include allocation peak
+    peak_mb = _rss_mb()
+
+    t0 = time.perf_counter()
     kmeans = KMeans(
         n_clusters=n_clusters,
         init=init32,
@@ -30,49 +52,68 @@ def run_full_single(X, initial_centers, n_clusters, max_iter, tol, y_true,
         tol=tol,
         algorithm=algorithm,
         random_state=random_state,
-    )
-    kmeans.fit(X32)
-    elapsed = time.time() - start_time
+    ).fit(X32)
+    elapsed = time.perf_counter() - t0
+    peak_mb = max(peak_mb, _rss_mb())
 
     iters_single_tot = int(kmeans.n_iter_)
-    iters_double_tot = 0  # full single run: no double-precision phase
-
-    labels = kmeans.labels_
-    # return centers in float64 for consistency with other paths
+    iters_double_tot = 0
+    labels  = kmeans.labels_
     centers = kmeans.cluster_centers_.astype(np.float64, copy=False)
     inertia = evaluate_metrics(kmeans.inertia_)
 
-    mem_MB_single = X32.nbytes / 1e6
+    return centers, labels, iters_single_tot, iters_double_tot, elapsed, peak_mb, inertia
 
-    print(f"This is total for single run: {iters_single_tot}")
 
-    return centers, labels, iters_single_tot, iters_double_tot, elapsed, mem_MB_single, inertia
+def run_full_double(
+    X,
+    initial_centers,
+    n_clusters,
+    max_iter,
+    tol,
+    y_true,                         # unused, kept for parity
+    algorithm="lloyd",
+    random_state=0,
+):
+    """
+    Full double-precision (float64) baseline.
 
-def run_full_double(X, initial_centers, n_clusters, max_iter, tol, y_true):
-    start_time = time.time()
-    kmeans = KMeans(n_clusters=n_clusters, init=initial_centers, n_init=1, max_iter=max_iter,tol=tol, algorithm='lloyd', random_state=0)
-    kmeans.fit(X)
-    iters_double_tot = kmeans.n_iter_
-    elapsed = time.time() - start_time
-    labels = kmeans.labels_
-    centers = kmeans.cluster_centers_
-    inertia = kmeans.inertia_
-    
-    print(f"This is total for double run: {iters_double_tot}")
+    Returns:
+      centers(float64), labels, iters_double_tot, iters_single_tot,
+      elapsed_time, peak_MB, inertia
+    """
+    # Allocate views
+    X64    = np.asarray(X, dtype=np.float64, copy=False)
+    init64 = np.asarray(initial_centers, dtype=np.float64, copy=False)
+
+    # Include allocation peak
+    peak_mb = _rss_mb()
+
+    t0 = time.perf_counter()
+    kmeans = KMeans(
+        n_clusters=n_clusters,
+        init=init64,
+        n_init=1,
+        max_iter=max_iter,
+        tol=tol,
+        algorithm=algorithm,
+        random_state=random_state,
+    ).fit(X64)
+    elapsed = time.perf_counter() - t0
+    peak_mb = max(peak_mb, _rss_mb())
+
+    iters_double_tot = int(kmeans.n_iter_)
     iters_single_tot = 0
+    labels  = kmeans.labels_
+    centers = kmeans.cluster_centers_
+    inertia = evaluate_metrics(kmeans.inertia_)
 
-    inertia = evaluate_metrics(inertia)
-    mem_MB_double = X.astype(np.float64).nbytes / 1e6
-    return centers, labels, iters_double_tot, iters_single_tot,  elapsed, mem_MB_double, inertia, 
+    return centers, labels, iters_double_tot, iters_single_tot, elapsed, peak_mb, inertia
 
-# Hybrid precison loop 
-import os, psutil, gc, time
-proc = psutil.Process(os.getpid())
 
-def _rss_mb():
-    return proc.memory_info().rss / 1e6
-
-# Hybrid precision loop
+# =========================
+#        HYBRID
+# =========================
 def run_hybrid(
     X,
     initial_centers,
@@ -81,28 +122,38 @@ def run_hybrid(
     tol_single,
     tol_double,
     single_iter_cap,
-    y_true,                      # unused, kept for signature parity
+    y_true,                         # unused, kept for parity
     seed=0,
     algorithm="lloyd",
+    late_cast=False,                # True => free X32 then allocate X64 at switch (lower peak)
 ):
     """
     Float32 (capped) -> Float64 refinement.
-    Peak memory is measured as the maximum RSS observed across both phases.
+
+    Measures true peak RSS across both phases.
+    If late_cast=True, we only keep X32 during Phase-A; right before Phase-B we
+    free X32 and allocate X64. This reduces peak RAM to ~double baseline
+    without changing results.
+
+    Returns:
+      labels_final, centers_final, iters_single, iters_double,
+      total_time, peak_MB, inertia
     """
+    # ---- allocate views & inits ----
+    X32    = np.asarray(X, dtype=np.float32, copy=False)
+    init32 = np.asarray(initial_centers, dtype=np.float32, copy=False)
+    init64 = np.asarray(initial_centers, dtype=np.float64, copy=False)
 
-    # Cast ONCE and reuse (avoids repeated .astype allocations)
-    X32  = np.asarray(X, dtype=np.float32)
-    X64  = np.asarray(X, dtype=np.float64)
-    init32 = np.asarray(initial_centers, dtype=np.float32)
-    init64 = np.asarray(initial_centers, dtype=np.float64)
+    # If not late-casting, allocate X64 up-front (higher peak, simpler switch)
+    X64 = None if late_cast else np.asarray(X, dtype=np.float64, copy=False)
 
-    # Peak memory tracker
+    # Include allocation peak
     peak_mb = _rss_mb()
 
-    # Cap sanitization
+    # ---- cap sanitization ----
     cap = int(max(0, min(int(single_iter_cap), int(max_iter_total))))
 
-    # ----- Phase 1: float32 (optional if cap > 0) -----
+    # ---- Phase A: float32 ----
     iters_single = 0
     t_single = 0.0
     centers64 = init64
@@ -123,16 +174,22 @@ def run_hybrid(
         centers64 = km_s.cluster_centers_.astype(np.float64, copy=False)
         peak_mb = max(peak_mb, _rss_mb())
 
-    # ----- Phase 2: float64 refinement -----
+    # ---- Phase B prep ----
     remaining = max(1, int(max_iter_total) - iters_single)
 
-    # (Optional memory optimization if you want: uncomment to "late-cast" and drop X32)
-    # del X32; gc.collect(); peak_mb = max(peak_mb, _rss_mb())
+    if late_cast:
+        # Free single-precision view before allocating double to lower peak
+        del X32
+        gc.collect()
+        peak_mb = max(peak_mb, _rss_mb())             # capture post-free
+        X64 = np.asarray(X, dtype=np.float64, copy=False)
+        peak_mb = max(peak_mb, _rss_mb())             # capture allocation peak
 
+    # ---- Phase B: float64 ----
     t1 = time.perf_counter()
     km_d = KMeans(
         n_clusters=n_clusters,
-        init=centers64,          # warm-start via init array (legal)
+        init=centers64,      # warm-start from Phase A
         n_init=1,
         max_iter=remaining,
         tol=tol_double,
@@ -142,15 +199,12 @@ def run_hybrid(
     t_double = time.perf_counter() - t1
     peak_mb = max(peak_mb, _rss_mb())
 
-    # Outputs
+    # ---- outputs ----
     labels_final   = km_d.labels_
     centers_final  = km_d.cluster_centers_
     iters_double   = int(km_d.n_iter_)
     inertia        = evaluate_metrics(km_d.inertia_)
     total_time     = t_single + t_double
-
-    # Keep your original total for reference (optional)
-    mem_MB_total   = (X32.nbytes + X64.nbytes) / 1e6
 
     return (
         labels_final,
@@ -158,7 +212,7 @@ def run_hybrid(
         iters_single,
         iters_double,
         total_time,
-        peak_mb,        # <<< NEW: true peak RSS during the run
+        peak_mb,            # true peak RSS for the run
         inertia,
     )
 
