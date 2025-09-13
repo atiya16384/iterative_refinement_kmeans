@@ -6,6 +6,7 @@ import numpy as np
 from sklearn.decomposition import PCA
 from sklearn.metrics import pairwise_distances_argmin
 import matplotlib.cm as cm
+from matplotlib.ticker import FormatStrFormatter
 
 
 class KMeansVisualizer:
@@ -609,6 +610,7 @@ if __name__ == "__main__":
     
     vis.plot_cap_vs_memtraffic(df_A)  # relative to Double baseline
     
+
 
 
 
