@@ -204,6 +204,82 @@ class KMeansVisualizer:
         plt.savefig(self.output_dir / f"tolerance_vs_inertia_hybrid_vs_{baseline.lower()}.png")
         plt.close()
 
+    def plot_cap_vs_peakmem(self, df, baseline: str = "Double"):
+        df_hybrid = df[df["Suite"] == "Hybrid"]
+        if df_hybrid.empty or "PeakMB" not in df.columns:
+            print("No Hybrid rows or PeakMB column missing; skipping peak-memory plot.")
+            return
+    
+        group_cols = ["DatasetName", "NumClusters", "Cap"]
+        df_grouped = df_hybrid.groupby(group_cols)[["PeakMB"]].mean().reset_index()
+    
+        plt.figure(figsize=(7, 5))
+        base = self._baseline_mean(df, ["DatasetName", "NumClusters"], "PeakMB", baseline)
+        for (ds, k), group in df_grouped.groupby(["DatasetName", "NumClusters"]):
+            base_val = base[(base["DatasetName"] == ds) & (base["NumClusters"] == k)]["BASE"].mean()
+            if not np.isfinite(base_val) or base_val == 0:
+                continue
+            g = group.sort_values("Cap").copy()
+            g["PeakMB_rel"] = g["PeakMB"] / base_val
+            plt.plot(g["Cap"], g["PeakMB_rel"], marker="o", label=f"{ds}-C{k}")
+    
+        plt.title("Cap vs Peak Memory (Hybrid)")
+        plt.xlabel("Cap (Single-precision iteration cap)")
+        plt.ylabel(f"Peak Memory (Relative to {baseline})")
+        plt.axhline(1.0, ls="--", c="gray", lw=1, label=f"{baseline} baseline")
+        plt.grid(True, ls="--", alpha=0.5)
+        plt.legend()
+        plt.tight_layout()
+        plt.savefig(self.output_dir / f"cap_vs_peakmem_hybrid_vs_{baseline.lower()}.png")
+        plt.close()
+
+    def plot_cap_vs_memtraffic(self, df, baseline_double_label: str = "Double"):
+        required = {"ItersSingle", "ItersDouble", "Suite", "DatasetName", "NumClusters", "Cap"}
+        if not required.issubset(df.columns):
+            print("Missing columns for memory-traffic plot; need ItersSingle / ItersDouble / Suite / DatasetName / NumClusters / Cap.")
+            return
+    
+        # total iterations per run
+        df = df.copy()
+        df["TotalIter"] = df["ItersSingle"].fillna(0).astype(float) + df["ItersDouble"].fillna(0).astype(float)
+    
+        # Baseline double iterations per (dataset, k)
+        base_iter = (
+            df[df["Suite"] == baseline_double_label]
+            .groupby(["DatasetName", "NumClusters"], as_index=False)["TotalIter"]
+            .mean()
+            .rename(columns={"TotalIter": "Tdouble"})
+        )
+    
+        # Hybrid rows with (C, T)
+        hyb = df[df["Suite"] == "Hybrid"].copy()
+        if hyb.empty:
+            print("No Hybrid rows; skipping memory-traffic plot.")
+            return
+        hyb = hyb.merge(base_iter, on=["DatasetName", "NumClusters"], how="inner")
+        hyb = hyb[np.isfinite(hyb["Tdouble"]) & (hyb["Tdouble"] > 0)].copy()
+    
+        hyb["C"] = hyb["ItersSingle"].fillna(0).astype(float)
+        hyb["T"] = hyb["TotalIter"].astype(float)
+        # TrafficRel = (T - 0.5*C) / Tdouble
+        hyb["TrafficRel"] = (hyb["T"] - 0.5 * hyb["C"]) / hyb["Tdouble"]
+    
+        # Plot one line per dataset/k
+        plt.figure(figsize=(7, 5))
+        for (ds, k), g in hyb.groupby(["DatasetName", "NumClusters"]):
+            g = g.sort_values("Cap")
+            plt.plot(g["Cap"], g["TrafficRel"], marker="o", label=f"{ds}-C{k}", alpha=0.9)
+    
+        plt.title("Cap vs Estimated Memory Traffic (Hybrid)")
+        plt.xlabel("Cap (Single-precision iteration cap)")
+        plt.ylabel("Traffic (Relative to Double)")
+        plt.axhline(1.0, ls="--", c="gray", lw=1, label="Double baseline")
+        plt.grid(True, ls="--", alpha=0.5)
+        plt.legend()
+        plt.tight_layout()
+        plt.savefig(self.output_dir / "cap_vs_memtraffic_hybrid_vs_double.png")
+        plt.close()
+
     def _cap_fraction_column(self, df: pd.DataFrame) -> pd.Series:
         """
         Return a Series with the cap fraction in [0,1].
@@ -480,6 +556,13 @@ if __name__ == "__main__":
     vis.plot_expD(df_D)
     vis.plot_expE(df_E)
     vis.plot_expF(df_F)
+        # Memory plots (A/C style datasets)
+    vis.plot_cap_vs_peakmem(df_A, baseline="Double")
+    vis.plot_cap_vs_peakmem(df_A, baseline="Single")   # optional
+    
+    vis.plot_cap_vs_memtraffic(df_A)  # relative to Double baseline
+    
+
 
 
 
