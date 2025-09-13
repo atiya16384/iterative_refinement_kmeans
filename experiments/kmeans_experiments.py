@@ -1,159 +1,199 @@
 from visualisations.kmeans_visualisations import KMeansVisualizer
-from experiments.kmeans_precision import run_full_single, run_full_double, run_hybrid, run_expD_adaptive_sklearn, run_expE_minibatch_then_full,run_expF_percluster_mixed
-import numpy as np
-import time
+from experiments.kmeans_precision import (
+    run_full_single, run_full_double, run_hybrid,
+    run_expD_adaptive_sklearn, run_expE_minibatch_then_full, run_expF_percluster_mixed
+)
 import numpy as np
 from math import ceil
 
 def run_experiment_A(ds_name, X, y_true, n_clusters, initial_centers, config):
+    """
+    Columns produced (A):
+      DatasetName, DatasetSize, NumClusters, Mode, Cap, tolerance_single,
+      ItersSingle, ItersDouble, Suite, Time, PeakMB, Inertia
+    """
     rows_A = []
-    n_samples = len(X)
+    n_samples = int(len(X))
 
     max_iter = int(config["max_iter_A"])
     tol_fixed_A = float(config["tol_fixed_A"])
     cap_grid = list(config["cap_grid"])
     n_repeats = int(config["n_repeats"])
+    algorithm = str(config.get("algorithm", "lloyd"))
+    late_cast = bool(config.get("late_cast", False))
 
     for cap in cap_grid:
         for rep in range(n_repeats):
-            # Single baseline (full single, same total budget)
-            c_s, l_s, it_s_s, it_d_s, t_s, mem_s, J_s = run_full_single(
-                X, initial_centers, n_clusters, max_iter, tol_fixed_A, y_true
+            # --- Single baseline (float32) ---
+            c_s, l_s, it_s_s, it_d_s, t_s, peak_s, J_s = run_full_single(
+                X, initial_centers, n_clusters, max_iter, tol_fixed_A, y_true,
+                algorithm=algorithm, random_state=rep
             )
-            rows_A.append([
-                ds_name, n_samples, n_clusters, "A", cap, tol_fixed_A,
-                it_s_s, it_d_s, "Single", t_s, mem_s, J_s
-            ])
+            rows_A.append({
+                "DatasetName": ds_name, "DatasetSize": n_samples, "NumClusters": n_clusters,
+                "Mode": "A", "Cap": int(cap), "tolerance_single": tol_fixed_A,
+                "ItersSingle": it_s_s, "ItersDouble": it_d_s, "Suite": "Single",
+                "Time": t_s, "PeakMB": peak_s, "Inertia": J_s,
+            })
 
-            # Double baseline (full double, same total budget)
-            c_d, l_d, it_d, it_s, t_d, mem_d, J_d = run_full_double(
-                X, initial_centers, n_clusters, max_iter, tol_fixed_A, y_true
+            # --- Double baseline (float64) ---
+            c_d, l_d, it_d, it_s, t_d, peak_d, J_d = run_full_double(
+                X, initial_centers, n_clusters, max_iter, tol_fixed_A, y_true,
+                algorithm=algorithm, random_state=rep
             )
-            rows_A.append([
-                ds_name, n_samples, n_clusters, "A", cap, tol_fixed_A,
-                it_s, it_d, "Double", t_d, mem_d, J_d
-            ])
+            rows_A.append({
+                "DatasetName": ds_name, "DatasetSize": n_samples, "NumClusters": n_clusters,
+                "Mode": "A", "Cap": int(cap), "tolerance_single": tol_fixed_A,
+                "ItersSingle": it_s, "ItersDouble": it_d, "Suite": "Double",
+                "Time": t_d, "PeakMB": peak_d, "Inertia": J_d,
+            })
 
-            # Hybrid with this cap
-            labels_h, centers_h, it_s_h, it_d_h, t_h, mem_h, J_h = run_hybrid(
+            # --- Hybrid (cap) ---
+            labels_h, centers_h, it_s_h, it_d_h, t_h, peak_h, J_h = run_hybrid(
                 X, initial_centers, n_clusters,
                 max_iter_total=max_iter,
                 single_iter_cap=int(cap),
                 tol_single=tol_fixed_A,
                 tol_double=tol_fixed_A,
                 y_true=y_true,
-                seed=rep
+                seed=rep,
+                algorithm=algorithm,
+                late_cast=late_cast,
             )
-            rows_A.append([
-                ds_name, n_samples, n_clusters, "A", cap, tol_fixed_A,
-                it_s_h, it_d_h, "Hybrid", t_h, mem_h, J_h
-            ])
+            rows_A.append({
+                "DatasetName": ds_name, "DatasetSize": n_samples, "NumClusters": n_clusters,
+                "Mode": "A", "Cap": int(cap), "tolerance_single": tol_fixed_A,
+                "ItersSingle": it_s_h, "ItersDouble": it_d_h, "Suite": "Hybrid",
+                "Time": t_h, "PeakMB": peak_h, "Inertia": J_h,
+            })
     return rows_A
 
+
 def run_experiment_B(ds_name, X, y_true, n_clusters, initial_centers, config):
+    """
+    Columns produced (B):
+      DatasetName, DatasetSize, NumClusters, Mode, tolerance_single,
+      ItersSingle, ItersDouble, Suite, Time, PeakMB, Inertia
+    """
     rows_B = []
-    n_samples = len(X)
+    n_samples = int(len(X))
 
     max_iter_B      = int(config["max_iter_B"])
     tol_double_B    = float(config["tol_double_B"])
     tol_single_grid = list(config["tol_single_grid"])
     n_repeats       = int(config["n_repeats"])
+    algorithm       = str(config.get("algorithm", "lloyd"))
+    late_cast       = bool(config.get("late_cast", False))
 
     for tol_s in tol_single_grid:
         tol_s = float(tol_s)
         for rep in range(n_repeats):
-            # Single baseline at this tol_s
-            c_s, l_s, it_s_s, it_d_s, t_s, mem_s, J_s = run_full_single(
-                X, initial_centers, n_clusters, max_iter_B, tol_s, y_true
+            # --- Single baseline at tol_s ---
+            c_s, l_s, it_s_s, it_d_s, t_s, peak_s, J_s = run_full_single(
+                X, initial_centers, n_clusters, max_iter_B, tol_s, y_true,
+                algorithm=algorithm, random_state=rep
             )
-            rows_B.append([
-                ds_name, n_samples, n_clusters, "B", tol_s,
-                it_s_s, it_d_s, "Single", t_s, mem_s, J_s
-            ])
+            rows_B.append({
+                "DatasetName": ds_name, "DatasetSize": n_samples, "NumClusters": n_clusters,
+                "Mode": "B", "tolerance_single": tol_s,
+                "ItersSingle": it_s_s, "ItersDouble": it_d_s, "Suite": "Single",
+                "Time": t_s, "PeakMB": peak_s, "Inertia": J_s,
+            })
 
-            # Double baseline at fixed tol_double_B
-            c_d, l_d, it_d, it_s, t_d, mem_d, J_d = run_full_double(
-                X, initial_centers, n_clusters, max_iter_B, tol_double_B, y_true
+            # --- Double baseline at tol_double_B ---
+            c_d, l_d, it_d, it_s, t_d, peak_d, J_d = run_full_double(
+                X, initial_centers, n_clusters, max_iter_B, tol_double_B, y_true,
+                algorithm=algorithm, random_state=rep
             )
-            rows_B.append([
-                ds_name, n_samples, n_clusters, "B", tol_s,
-                it_s, it_d, "Double", t_d, mem_d, J_d
-            ])
+            rows_B.append({
+                "DatasetName": ds_name, "DatasetSize": n_samples, "NumClusters": n_clusters,
+                "Mode": "B", "tolerance_single": tol_s,
+                "ItersSingle": it_s, "ItersDouble": it_d, "Suite": "Double",
+                "Time": t_d, "PeakMB": peak_d, "Inertia": J_d,
+            })
 
-            # Hybrid uses tol_s for single phase, tol_double_B for double
-            labels_h, centers_h, it_s_h, it_d_h, t_h, mem_h, J_h = run_hybrid(
+            # --- Hybrid: tol_s for Phase A, tol_double_B for Phase B ---
+            labels_h, centers_h, it_s_h, it_d_h, t_h, peak_h, J_h = run_hybrid(
                 X, initial_centers, n_clusters,
                 max_iter_total=max_iter_B,
-                single_iter_cap=max_iter_B,   # no early switch cap in B
+                single_iter_cap=max_iter_B,    # no early cap; tol drives stopping
                 tol_single=tol_s,
                 tol_double=tol_double_B,
                 y_true=y_true,
-                seed=rep
+                seed=rep,
+                algorithm=algorithm,
+                late_cast=late_cast,
             )
-            rows_B.append([
-                ds_name, n_samples, n_clusters, "B", tol_s,
-                it_s_h, it_d_h, "Hybrid", t_h, mem_h, J_h
-            ])
+            rows_B.append({
+                "DatasetName": ds_name, "DatasetSize": n_samples, "NumClusters": n_clusters,
+                "Mode": "B", "tolerance_single": tol_s,
+                "ItersSingle": it_s_h, "ItersDouble": it_d_h, "Suite": "Hybrid",
+                "Time": t_h, "PeakMB": peak_h, "Inertia": J_h,
+            })
     return rows_B
-
 
 def run_experiment_C(ds_name, X, y_true, n_clusters, initial_centers, config):
     """
-    Exp-C: sweep cap as a fraction of max_iter and compare Hybrid vs
-           both baselines: Single and Double (each run once per repeat).
-
-    Expected config keys:
-      - max_iter_C: int
-      - tol_fixed_C: float
-      - cap_percentages: iterable of floats in [0,1], e.g. [0.0, 0.2, 0.4, 0.6, 0.8]
-      - n_repeats: int
+    Columns produced (C):
+      DatasetName, DatasetSize, NumClusters, Mode, Cap, tolerance_single,
+      ItersSingle, ItersDouble, Suite, Time, PeakMB, Inertia
     """
     rows_C = []
-    n_samples = len(X)
+    n_samples = int(len(X))
 
     max_iter_C       = int(config["max_iter_C"])
     tol_fixed_C      = float(config["tol_fixed_C"])
     cap_percentages  = list(config.get("cap_percentages", [0.0, 0.2, 0.4, 0.6, 0.8]))
     n_repeats        = int(config.get("n_repeats", 1))
+    algorithm        = str(config.get("algorithm", "lloyd"))
+    late_cast        = bool(config.get("late_cast", False))
 
     for rep in range(n_repeats):
-        # -------- Baselines (run once per repeat) --------
-        # Single baseline (full single at tol_fixed_C)
-        c_s, l_s, it_s_s, it_d_s, t_s, mem_s, J_s = run_full_single(
-            X, initial_centers, n_clusters, max_iter_C, tol_fixed_C, y_true
+        # ---- baselines once per repeat ----
+        c_s, l_s, it_s_s, it_d_s, t_s, peak_s, J_s = run_full_single(
+            X, initial_centers, n_clusters, max_iter_C, tol_fixed_C, y_true,
+            algorithm=algorithm, random_state=rep
         )
-        rows_C.append([
-            ds_name, n_samples, n_clusters, "C", "full", tol_fixed_C,
-            it_s_s, it_d_s, "Single", t_s, mem_s, J_s
-        ])
+        rows_C.append({
+            "DatasetName": ds_name, "DatasetSize": n_samples, "NumClusters": n_clusters,
+            "Mode": "C", "Cap": "full", "tolerance_single": tol_fixed_C,
+            "ItersSingle": it_s_s, "ItersDouble": it_d_s, "Suite": "Single",
+            "Time": t_s, "PeakMB": peak_s, "Inertia": J_s,
+        })
 
-        # Double baseline (full double at tol_fixed_C)
-        c_d, l_d, it_d_d, it_s_d, t_d, mem_d, J_d = run_full_double(
-            X, initial_centers, n_clusters, max_iter_C, tol_fixed_C, y_true
+        c_d, l_d, it_d_d, it_s_d, t_d, peak_d, J_d = run_full_double(
+            X, initial_centers, n_clusters, max_iter_C, tol_fixed_C, y_true,
+            algorithm=algorithm, random_state=rep
         )
-        rows_C.append([
-            ds_name, n_samples, n_clusters, "C", "full", tol_fixed_C,
-            it_s_d, it_d_d, "Double", t_d, mem_d, J_d
-        ])
+        rows_C.append({
+            "DatasetName": ds_name, "DatasetSize": n_samples, "NumClusters": n_clusters,
+            "Mode": "C", "Cap": "full", "tolerance_single": tol_fixed_C,
+            "ItersSingle": it_s_d, "ItersDouble": it_d_d, "Suite": "Double",
+            "Time": t_d, "PeakMB": peak_d, "Inertia": J_d,
+        })
 
-        # -------- Hybrid sweep over cap fractions --------
+        # ---- hybrid sweep over cap fractions ----
         for pct in cap_percentages:
             pct = float(pct)
             single_cap = int(ceil(max_iter_C * pct))
 
-            labels_h, centers_h, it_s_h, it_d_h, t_h, mem_h, J_h = run_hybrid(
+            labels_h, centers_h, it_s_h, it_d_h, t_h, peak_h, J_h = run_hybrid(
                 X, initial_centers, n_clusters,
                 max_iter_total=max_iter_C,
                 single_iter_cap=single_cap,
                 tol_single=tol_fixed_C,
                 tol_double=tol_fixed_C,
                 y_true=y_true,
-                seed=rep
+                seed=rep,
+                algorithm=algorithm,
+                late_cast=late_cast,
             )
-            rows_C.append([
-                ds_name, n_samples, n_clusters, "C", pct, tol_fixed_C,
-                it_s_h, it_d_h, "Hybrid", t_h, mem_h, J_h
-            ])
+            rows_C.append({
+                "DatasetName": ds_name, "DatasetSize": n_samples, "NumClusters": n_clusters,
+                "Mode": "C", "Cap": pct, "tolerance_single": tol_fixed_C,
+                "ItersSingle": it_s_h, "ItersDouble": it_d_h, "Suite": "Hybrid",
+                "Time": t_h, "PeakMB": peak_h, "Inertia": J_h,
+            })
 
             # Optional PCA snapshot (first repeat only)
             if rep == 0:
@@ -165,6 +205,7 @@ def run_experiment_C(ds_name, X, y_true, n_clusters, initial_centers, config):
                 )
 
     return rows_C
+
     
 def run_experiment_D(ds_name, X, y_true, n_clusters, initial_centers, config):
     """
@@ -351,6 +392,7 @@ def run_experiment_F(ds_name, X, y_true, n_clusters, initial_centers, config):
                     "MixedPerCluster", res["elapsed_time"], res["mem_MB"], res["inertia"]
                 ])
     return rows_F
+
 
 
 
