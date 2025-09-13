@@ -112,47 +112,94 @@ class KMeansVisualizer:
         df_hybrid = df[df["Suite"] == "Hybrid"]
         group_cols = ["DatasetName", "NumClusters", "Cap"]
         df_grouped = df_hybrid.groupby(group_cols)[["Inertia"]].mean().reset_index()
-
-        plt.figure(figsize=(7, 5))
+    
+        fig, ax = plt.subplots(figsize=(7, 5))
         base = self._baseline_mean(df, ["DatasetName", "NumClusters"], "Inertia", baseline)
+    
+        ymins, ymaxs = [], []
+        plotted = False
         for (ds, k), group in df_grouped.groupby(["DatasetName", "NumClusters"]):
             group_sorted = group.sort_values("Cap")
             base_val = base[(base["DatasetName"] == ds) & (base["NumClusters"] == k)]["BASE"].mean()
-            group_sorted["Inertia"] = group_sorted["Inertia"] / base_val
-            plt.plot(group_sorted["Cap"], group_sorted["Inertia"], marker="o")
-
-        plt.title("Cap vs Inertia (Hybrid)")
-        plt.xlabel("Cap (Single-precision iteration cap)")
-        plt.ylabel(f"Inertia (Relative to {baseline})")
-        plt.axhline(1.0, linestyle="--", color="gray", linewidth=1)
-        plt.grid(True)
-        plt.legend()
-        plt.tight_layout()
-        plt.savefig(self.output_dir / f"cap_vs_inertia_hybrid_vs_{baseline.lower()}.png")
-        plt.close()
-
+            if not np.isfinite(base_val) or base_val == 0:
+                continue
+            rel = group_sorted["Inertia"] / base_val
+            ax.plot(group_sorted["Cap"], rel, marker="o", label=f"{ds}-C{k}")
+            ymins.append(rel.min()); ymaxs.append(rel.max())
+            plotted = True
+    
+        ax.set_title("Cap vs Inertia (Hybrid)")
+        ax.set_xlabel("Cap (Single-precision iteration cap)")
+        ax.set_ylabel(f"Inertia (Relative to {baseline})")
+        ax.axhline(1.0, linestyle="--", color="gray", linewidth=1)
+    
+        # Friendly y-axis: no offset; fixed decimals; zoom around 1.0
+        ax.ticklabel_format(axis="y", style="plain", useOffset=False)
+        ax.yaxis.set_major_formatter(FormatStrFormatter("%.5f"))
+        if ymins and ymaxs:
+            lo, hi = float(min(ymins)), float(max(ymaxs))
+            span = max(hi - lo, 1e-6)
+            pad = max(0.05 * span, 1e-6)
+            # If values are very close to 1, center around 1 for readability
+            if 0.9 < lo < 1.1 and 0.9 < hi < 1.1:
+                mid_pad = max(abs(1 - lo), abs(hi - 1))
+                pad = max(pad, 0.5 * mid_pad)
+                ax.set_ylim(1 - (mid_pad + pad), 1 + (mid_pad + pad))
+            else:
+                ax.set_ylim(lo - pad, hi + pad)
+    
+        ax.grid(True, ls="--", alpha=0.6)
+        if plotted:
+            ax.legend()
+        fig.tight_layout()
+        fig.savefig(self.output_dir / f"cap_vs_inertia_hybrid_vs_{baseline.lower()}.png", dpi=200)
+        plt.close(fig)
+    
     def plot_cap_vs_time(self, df, baseline: str = "Double"):
         df_hybrid = df[df["Suite"] == "Hybrid"]
         group_cols = ["DatasetName", "NumClusters", "Cap"]
         df_grouped = df_hybrid.groupby(group_cols)[["Time"]].mean().reset_index()
-
-        plt.figure(figsize=(7, 5))
+    
+        fig, ax = plt.subplots(figsize=(7, 5))
         base = self._baseline_mean(df, ["DatasetName", "NumClusters"], "Time", baseline)
+    
+        ymins, ymaxs = [], []
+        plotted = False
         for (ds, k), group in df_grouped.groupby(["DatasetName", "NumClusters"]):
             base_val = base[(base["DatasetName"] == ds) & (base["NumClusters"] == k)]["BASE"].mean()
+            if not np.isfinite(base_val) or base_val == 0:
+                continue
             group_sorted = group.sort_values("Cap")
-            group_sorted["Time"] = group_sorted["Time"] / base_val
-            plt.plot(group_sorted["Cap"], group_sorted["Time"], marker="o")
-
-        plt.title("Cap vs Time (Hybrid)")
-        plt.xlabel("Cap (Single-precision iteration cap)")
-        plt.ylabel(f"Total Time (Relative to {baseline})")
-        plt.axhline(1.0, linestyle="--", color="gray", linewidth=1)
-        plt.grid(True)
-        plt.legend()
-        plt.tight_layout()
-        plt.savefig(self.output_dir / f"cap_vs_time_hybrid_vs_{baseline.lower()}.png")
-        plt.close()
+            rel = group_sorted["Time"] / base_val
+            ax.plot(group_sorted["Cap"], rel, marker="o", label=f"{ds}-C{k}")
+            ymins.append(rel.min()); ymaxs.append(rel.max())
+            plotted = True
+    
+        ax.set_title("Cap vs Time (Hybrid)")
+        ax.set_xlabel("Cap (Single-precision iteration cap)")
+        ax.set_ylabel(f"Total Time (Relative to {baseline})")
+        ax.axhline(1.0, linestyle="--", color="gray", linewidth=1)
+    
+        # Friendly y-axis formatting (plain numbers; gentle zoom if near 1)
+        ax.ticklabel_format(axis="y", style="plain", useOffset=False)
+        ax.yaxis.set_major_formatter(FormatStrFormatter("%.4f"))
+        if ymins and ymaxs:
+            lo, hi = float(min(ymins)), float(max(ymaxs))
+            span = max(hi - lo, 1e-6)
+            pad = max(0.05 * span, 1e-6)
+            if 0.9 < lo < 1.1 and 0.9 < hi < 1.1:
+                mid_pad = max(abs(1 - lo), abs(hi - 1))
+                pad = max(pad, 0.5 * mid_pad)
+                ax.set_ylim(1 - (mid_pad + pad), 1 + (mid_pad + pad))
+            else:
+                ax.set_ylim(lo - pad, hi + pad)
+    
+        ax.grid(True, ls="--", alpha=0.6)
+        if plotted:
+            ax.legend()
+        fig.tight_layout()
+        fig.savefig(self.output_dir / f"cap_vs_time_hybrid_vs_{baseline.lower()}.png", dpi=200)
+        plt.close(fig)
 
     # ---------------------- B: tolerance sweeps ----------------------
     def plot_tolerance_vs_time(self, df, baseline: str = "Double"):
@@ -562,6 +609,7 @@ if __name__ == "__main__":
     
     vis.plot_cap_vs_memtraffic(df_A)  # relative to Double baseline
     
+
 
 
 
