@@ -65,29 +65,31 @@ def run_full_single(
     return centers, labels, iters_single_tot, iters_double_tot, elapsed, peak_mb, inertia
 
 
+
 def run_full_double(
     X,
     initial_centers,
     n_clusters,
     max_iter,
     tol,
-    y_true,                         # unused, kept for parity
-    algorithm="lloyd",
-    random_state=0,
+    y_true,                 # unused, kept for parity
+    algorithm="lloyd",      # <-- add this
+    random_state=0,         # <-- and this (matches your callers)
 ):
-    """
-    Full double-precision (float64) baseline.
+    import time, numpy as np
+    from sklearn.cluster import KMeans
 
-    Returns:
-      centers(float64), labels, iters_double_tot, iters_single_tot,
-      elapsed_time, peak_MB, inertia
-    """
-    # Allocate views
-    X64    = np.asarray(X, dtype=np.float64, copy=False)
-    init64 = np.asarray(initial_centers, dtype=np.float64, copy=False)
+    # allocate views (portable: don't use copy= kw)
+    X64    = np.array(X, dtype=np.float64, copy=False)
+    init64 = np.array(initial_centers, dtype=np.float64, copy=False)
 
-    # Include allocation peak
-    peak_mb = _rss_mb()
+    # peak RSS (optional; remove if you only want array-size)
+    try:
+        import psutil, os
+        _proc = psutil.Process(os.getpid())
+        peak_mb = _proc.memory_info().rss / 1e6
+    except Exception:
+        peak_mb = X64.nbytes / 1e6  # fallback
 
     t0 = time.perf_counter()
     kmeans = KMeans(
@@ -96,11 +98,16 @@ def run_full_double(
         n_init=1,
         max_iter=max_iter,
         tol=tol,
-        algorithm=algorithm,
+        algorithm=algorithm,     # <-- use the kw
         random_state=random_state,
     ).fit(X64)
     elapsed = time.perf_counter() - t0
-    peak_mb = max(peak_mb, _rss_mb())
+
+    # update peak if psutil is available
+    try:
+        peak_mb = max(peak_mb, _proc.memory_info().rss / 1e6)
+    except Exception:
+        pass
 
     iters_double_tot = int(kmeans.n_iter_)
     iters_single_tot = 0
@@ -109,7 +116,6 @@ def run_full_double(
     inertia = evaluate_metrics(kmeans.inertia_)
 
     return centers, labels, iters_double_tot, iters_single_tot, elapsed, peak_mb, inertia
-
 
 # =========================
 #        HYBRID
