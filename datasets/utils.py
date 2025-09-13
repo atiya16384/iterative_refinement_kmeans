@@ -49,18 +49,22 @@ real_datasets = {
 } 
 
 columns_A = [
-    'DatasetName', 'DatasetSize', 'NumClusters', 
-    'Mode', 'Cap', 'tolerance_single', 'iter_single', 'iter_double', 'Suite',
-    'Time', 'Memory_MB', 'Inertia'
+    "DatasetName", "DatasetSize", "NumClusters",
+    "Mode", "Cap", "tolerance_single",
+    "ItersSingle", "ItersDouble", "Suite",
+    "Time", "PeakMB", "Inertia"
 ]
 
 columns_B = [
-    'DatasetName', 'DatasetSize', 'NumClusters',
-    'Mode', 'tolerance_single', 'iter_single', 'iter_double', 'Suite',
-    'Time', 'Memory_MB',  'Inertia'
+    "DatasetName", "DatasetSize", "NumClusters",
+    "Mode", "tolerance_single",
+    "ItersSingle", "ItersDouble", "Suite",
+    "Time", "PeakMB", "Inertia"
 ]
 
-columns_C = columns_A  # since it's same structure as A
+# Experiment C has same structure as A
+columns_C = columns_A
+
 
 columns_D = [
   "DatasetName","DatasetSize","NumClusters","Experiment",
@@ -95,6 +99,7 @@ enet_columns_B = [
     "iter_single", "iter_double", "Suite",
     "Time", "Memory_MB", "R2", "MSE",
 ]
+
 
 
 
