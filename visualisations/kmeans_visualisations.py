@@ -83,6 +83,54 @@ class KMeansVisualizer:
             .rename(columns={value_col: "BASE"})
         )
 
+
+    def _cohort_base(self, df, metric, baseline="Double"):
+    """Per (DatasetName, NumClusters) baseline means for `metric`."""
+    return (
+        df[df["Suite"] == baseline]
+        .groupby(["DatasetName", "NumClusters"], as_index=False)[metric]
+        .mean()
+        .rename(columns={metric: "BASE"})
+    )
+
+    def _prep_hybrid_double_share(self, df, metric, share_col="ShareDouble"):
+        """
+        Returns tidy dataframe with columns:
+          DatasetName, NumClusters, X, Rel
+        where X is ItersDouble or ShareDouble for Hybrid only,
+        and Rel = metric / Double(BASE) per cohort.
+        """
+        use_cols = {"DatasetName","NumClusters","Suite",metric,"ItersDouble","ItersSingle","TotalIter","Cap","tolerance_single"}
+        missing = [c for c in use_cols if c not in df.columns]
+        if missing:
+            raise KeyError(f"Missing required columns: {missing}")
+    
+        # compute ShareDouble if not present
+        df = df.copy()
+        if share_col == "ShareDouble":
+            # robust compute if column isn't already there
+            if "ShareDouble" not in df.columns:
+                tot = (df["ItersSingle"].fillna(0).astype(float) + df["ItersDouble"].fillna(0).astype(float))
+                df["ShareDouble"] = df["ItersDouble"].fillna(0).astype(float) / np.where(tot>0, tot, np.nan)
+    
+        # baselines
+        base = self._baseline_mean(df, ["DatasetName","NumClusters"], metric, baseline_suite="Double")
+    
+        # hybrid rows -> normalize
+        hyb = df[df["Suite"] == "Hybrid"].copy()
+        hyb = hyb.merge(base, on=["DatasetName","NumClusters"], how="inner")
+        hyb = hyb[np.isfinite(hyb["BASE"]) & (hyb["BASE"] != 0)].copy()
+    
+        if share_col == "ShareDouble":
+            hyb["X"] = hyb["ShareDouble"].astype(float)
+        elif share_col == "ItersDouble":
+            hyb["X"] = hyb["ItersDouble"].astype(float)
+        else:
+            raise ValueError("share_col must be 'ShareDouble' or 'ItersDouble'")
+    
+        hyb["Rel"] = hyb[metric] / hyb["BASE"]
+        return hyb[["DatasetName","NumClusters","X","Rel","Cap","tolerance_single"]]
+
     # ---------------------- generic plots ----------------------
     def plot_with_ci(self, df, x_col, y_col, hue_col, title, xlabel, ylabel, filename):
         plt.figure(figsize=(8, 6))
@@ -107,6 +155,124 @@ class KMeansVisualizer:
         plt.savefig(self.output_dir / filename)
         plt.close()
         print(f"Saved boxplot to {self.output_dir / filename}")
+
+    def plot_A_doublework_vs_time(self, df, use_share=True, baseline="Double"):
+        if df.empty: return
+        metric = "Time"
+        share_col = "ShareDouble" if use_share else "ItersDouble"
+        hyb = self._prep_hybrid_double_share(df[df["Mode"]=="A"], metric, share_col=share_col)
+        if hyb.empty: return
+    
+        fig, ax = plt.subplots(figsize=(7,5))
+        for (ds,k), g in hyb.groupby(["DatasetName","NumClusters"]):
+            g = g.sort_values("X")
+            ax.plot(g["X"], g["Rel"], marker="o", label=f"{ds}-C{k}", alpha=0.9)
+        ax.axhline(1.0, ls="--", c="gray", lw=1, label=f"{baseline} baseline")
+        ax.set_title(f"Experiment A: {'ShareDouble' if use_share else 'ItersDouble'} vs Time (Hybrid)")
+        ax.set_xlabel("Share of iterations done in Double" if use_share else "Remaining Double iterations")
+        ax.set_ylabel(f"Time (Relative to {baseline})")
+        ax.grid(True, ls="--", alpha=0.6)
+        ax.legend()
+        fig.tight_layout()
+        fig.savefig(self.output_dir / f"expA_doublework_vs_time_{'share' if use_share else 'iters'}.png", dpi=200)
+        plt.close(fig)
+
+    def plot_A_doublework_vs_inertia(self, df, use_share=True, baseline="Double"):
+        if df.empty: return
+        metric = "Inertia"
+        share_col = "ShareDouble" if use_share else "ItersDouble"
+        hyb = self._prep_hybrid_double_share(df[df["Mode"]=="A"], metric, share_col=share_col)
+        if hyb.empty: return
+    
+        fig, ax = plt.subplots(figsize=(7,5))
+        for (ds,k), g in hyb.groupby(["DatasetName","NumClusters"]):
+            g = g.sort_values("X")
+            ax.plot(g["X"], g["Rel"], marker="o", label=f"{ds}-C{k}", alpha=0.9)
+        ax.axhline(1.0, ls="--", c="gray", lw=1, label=f"{baseline} baseline")
+        ax.set_title(f"Experiment A: {'ShareDouble' if use_share else 'ItersDouble'} vs Inertia (Hybrid)")
+        ax.set_xlabel("Share of iterations done in Double" if use_share else "Remaining Double iterations")
+        ax.set_ylabel(f"Inertia (Relative to {baseline})")
+        ax.grid(True, ls="--", alpha=0.6)
+        ax.legend()
+        fig.tight_layout()
+        fig.savefig(self.output_dir / f"expA_doublework_vs_inertia_{'share' if use_share else 'iters'}.png", dpi=200)
+        plt.close(fig)
+
+
+    def plot_B_doublework_vs_time(self, df, use_share=True, baseline="Double"):
+        metric = "Time"
+        share_col = "ShareDouble" if use_share else "ItersDouble"
+        hyb = self._prep_hybrid_double_share(df[df["Mode"]=="B"], metric, share_col=share_col)
+        if hyb.empty: return
+        fig, ax = plt.subplots(figsize=(7,5))
+        for (ds,k), g in hyb.groupby(["DatasetName","NumClusters"]):
+            g = g.sort_values("X")
+            ax.plot(g["X"], g["Rel"], marker="o", label=f"{ds}-C{k}", alpha=0.9)
+        ax.axhline(1.0, ls="--", c="gray", lw=1)
+        ax.set_title(f"Experiment B: {'ShareDouble' if use_share else 'ItersDouble'} vs Time (Hybrid)")
+        ax.set_xlabel("Share of iterations done in Double" if use_share else "Remaining Double iterations")
+        ax.set_ylabel(f"Time (Relative to {baseline})")
+        ax.grid(True, ls="--", alpha=0.6)
+        ax.legend(); fig.tight_layout()
+        fig.savefig(self.output_dir / f"expB_doublework_vs_time_{'share' if use_share else 'iters'}.png", dpi=200)
+        plt.close(fig)
+    
+    def plot_B_doublework_vs_inertia(self, df, use_share=True, baseline="Double"):
+        metric = "Inertia"
+        share_col = "ShareDouble" if use_share else "ItersDouble"
+        hyb = self._prep_hybrid_double_share(df[df["Mode"]=="B"], metric, share_col=share_col)
+        if hyb.empty: return
+        fig, ax = plt.subplots(figsize=(7,5))
+        for (ds,k), g in hyb.groupby(["DatasetName","NumClusters"]):
+            g = g.sort_values("X")
+            ax.plot(g["X"], g["Rel"], marker="o", label=f"{ds}-C{k}", alpha=0.9)
+        ax.axhline(1.0, ls="--", c="gray", lw=1)
+        ax.set_title(f"Experiment B: {'ShareDouble' if use_share else 'ItersDouble'} vs Inertia (Hybrid)")
+        ax.set_xlabel("Share of iterations done in Double" if use_share else "Remaining Double iterations")
+        ax.set_ylabel(f"Inertia (Relative to {baseline})")
+        ax.grid(True, ls="--", alpha=0.6)
+        ax.legend(); fig.tight_layout()
+        fig.savefig(self.output_dir / f"expB_doublework_vs_inertia_{'share' if use_share else 'iters'}.png", dpi=200)
+        plt.close(fig)
+
+
+    def plot_C_doublework_vs_time(self, df, use_share=True, baseline="Double"):
+        metric = "Time"
+        share_col = "ShareDouble" if use_share else "ItersDouble"
+        hyb = self._prep_hybrid_double_share(df[df["Mode"]=="C"], metric, share_col=share_col)
+        if hyb.empty: return
+        fig, ax = plt.subplots(figsize=(7,5))
+        for (ds,k), g in hyb.groupby(["DatasetName","NumClusters"]):
+            g = g.sort_values("X")
+            ax.plot(g["X"], g["Rel"], marker="o", label=f"{ds}-C{k}", alpha=0.9)
+        ax.axhline(1.0, ls="--", c="gray", lw=1)
+        ax.set_title(f"Experiment C: {'ShareDouble' if use_share else 'ItersDouble'} vs Time (Hybrid)")
+        ax.set_xlabel("Share of iterations done in Double" if use_share else "Remaining Double iterations")
+        ax.set_ylabel(f"Time (Relative to {baseline})")
+        ax.grid(True, ls="--", alpha=0.6)
+        ax.legend(); fig.tight_layout()
+        fig.savefig(self.output_dir / f"expC_doublework_vs_time_{'share' if use_share else 'iters'}.png", dpi=200)
+        plt.close(fig)
+    
+    def plot_C_doublework_vs_inertia(self, df, use_share=True, baseline="Double"):
+        metric = "Inertia"
+        share_col = "ShareDouble" if use_share else "ItersDouble"
+        hyb = self._prep_hybrid_double_share(df[df["Mode"]=="C"], metric, share_col=share_col)
+        if hyb.empty: return
+        fig, ax = plt.subplots(figsize=(7,5))
+        for (ds,k), g in hyb.groupby(["DatasetName","NumClusters"]):
+            g = g.sort_values("X")
+            ax.plot(g["X"], g["Rel"], marker="o", label=f"{ds}-C{k}", alpha=0.9)
+        ax.axhline(1.0, ls="--", c="gray", lw=1)
+        ax.set_title(f"Experiment C: {'ShareDouble' if use_share else 'ItersDouble'} vs Inertia (Hybrid)")
+        ax.set_xlabel("Share of iterations done in Double" if use_share else "Remaining Double iterations")
+        ax.set_ylabel(f"Inertia (Relative to {baseline})")
+        ax.grid(True, ls="--", alpha=0.6)
+        ax.legend(); fig.tight_layout()
+        fig.savefig(self.output_dir / f"expC_doublework_vs_inertia_{'share' if use_share else 'iters'}.png", dpi=200)
+        plt.close(fig)
+
+
 
     # ---------------------- A/C: Cap sweeps ----------------------
     def plot_hybrid_cap_vs_inertia(self, df, baseline: str = "Double"):
@@ -647,7 +813,24 @@ if __name__ == "__main__":
     vis.plot_cap_vs_peakmem(df_A, baseline="Single")   # optional
     
     vis.plot_cap_vs_memtraffic(df_A)  # relative to Double baseline
+
+ # ------------------ NEW Double-work plots ------------------
+    # Experiment A
+    vis.plot_A_doublework_vs_time(df_A, use_share=True)     # X = ShareDouble
+    vis.plot_A_doublework_vs_inertia(df_A, use_share=True)
+    vis.plot_A_doublework_vs_time(df_A, use_share=False)    # X = ItersDouble
+    vis.plot_A_doublework_vs_inertia(df_A, use_share=False)
+
+    # Experiment B
+    vis.plot_B_doublework_vs_time(df_B, use_share=True)
+    vis.plot_B_doublework_vs_inertia(df_B, use_share=True)
+
+    # Experiment C
+    vis.plot_C_doublework_vs_time(df_C, use_share=True)
+    vis.plot_C_doublework_vs_inertia(df_C, use_share=True)
+
     
+
 
 
 
