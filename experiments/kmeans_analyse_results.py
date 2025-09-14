@@ -1,16 +1,23 @@
 # kmeans_analyse_results.py
 from pathlib import Path
+import numpy as np
 import pandas as pd
 
-# =========================
-# Helpers: metric aliasing
-# =========================
+# Stats
+try:
+    from scipy.stats import ttest_rel, ttest_ind, wilcoxon
+    _HAVE_SCIPY = True
+except Exception:
+    _HAVE_SCIPY = False
 
-# Logical -> acceptable column names in CSVs
+# =========================================================
+# Metric aliasing (logical -> actual CSV column candidates)
+# =========================================================
 METRIC_ALIASES = {
-    "PeakMB":  ["PeakMB", "Peak_MB", "RSS_Peak_MB"],
+    "PeakMB":  ["PeakMB", "Memory_MB", "Peak_MB", "RSS_Peak_MB"],
     "Time":    ["Time"],
     "Inertia": ["Inertia"],
+    # TrafficRel is derived (no alias)
 }
 
 def _resolve_metrics_present(df: pd.DataFrame, desired=("Time", "Inertia", "PeakMB")):
@@ -29,19 +36,19 @@ def _resolve_metrics_present(df: pd.DataFrame, desired=("Time", "Inertia", "Peak
     return tuple(present), alias_map
 
 
-# =============================
-# Helpers: traffic derivation
-# =============================
-
+# ==========================================
+# Derived metric: estimated memory traffic
+# ==========================================
 def _maybe_add_trafficrel(df: pd.DataFrame) -> pd.DataFrame:
     """
     Add TrafficRel (estimated memory traffic relative to Double) if we have
     the needed columns. Model:
         traffic_abs ≈ TotalIter - 0.5 * ItersSingle
     because a float32 iteration moves ~half as many bytes as float64.
-    We normalize by the cohort's Double TotalIter.
+    We normalize by the cohort's Double TotalIter (median).
 
-    Cohort keys: (DatasetName, NumClusters, Mode [, tolerance_single]).
+    Cohort keys used for normalization:
+        (DatasetName, NumClusters, Mode [, tolerance_single])
     """
     need = {"ItersSingle", "ItersDouble", "Suite", "DatasetName", "NumClusters", "Mode"}
     if not need.issubset(df.columns):
@@ -66,7 +73,7 @@ def _maybe_add_trafficrel(df: pd.DataFrame) -> pd.DataFrame:
 
     # Double-equivalent traffic for each row
     d["TrafficAbs"] = d["TotalIter"] - 0.5 * d["ItersSingle"]
-    # Relative to the *matching* Double cohort
+    # Relative to the *matching* Double cohort (can be NaN for non-matching cohorts)
     d["TrafficRel"] = d["TrafficAbs"] / d["Tdouble"]
 
     return d
@@ -75,32 +82,15 @@ def _maybe_add_trafficrel(df: pd.DataFrame) -> pd.DataFrame:
 # ======================
 # Markdown export helper
 # ======================
-
-def _export_simple(per_ds_df: pd.DataFrame, outstem: Path) -> None:
-    """
-    Write one tidy (long) table to <outstem>.md
-    """
+def _export_md(per_df: pd.DataFrame, outstem: Path) -> None:
     outstem.parent.mkdir(parents=True, exist_ok=True)
-
-    # Preferred column order (use only those present)
-    lead = [
-        "DatasetName", "DatasetSize", "NumClusters",
-        "metric", "baseline", "compare_suite",
-        "baseline_value", "compare_value",
-        "Rel", "Improvement_%", "n_pairs"
-    ]
-    lead = [c for c in lead if c in per_ds_df.columns]
-    rest = [c for c in per_ds_df.columns if c not in lead]
-    tbl = per_ds_df[lead + rest]
-
     with open(outstem.with_suffix(".md"), "w", encoding="utf-8") as f:
-        f.write(tbl.to_markdown(index=False))
+        f.write(per_df.to_markdown(index=False))
 
 
 # =========================
 # Schema / Peek utilities
 # =========================
-
 def peek_csv_fields(
     csv_file: str,
     expected_metrics=("Time", "Inertia", "PeakMB"),  # logical names
@@ -109,8 +99,7 @@ def peek_csv_fields(
     sample_rows=None,
 ):
     """
-    Print & return schema info so we only analyze what's present.
-    Also derives TrafficRel if possible (non-destructive if not).
+    Print & return schema info; also derives TrafficRel if possible.
     """
     kw = {}
     if sample_rows is not None:
@@ -120,7 +109,6 @@ def peek_csv_fields(
     df = _maybe_add_trafficrel(df)
 
     metrics_present, alias_map = _resolve_metrics_present(df, expected_metrics)
-    # If TrafficRel is available, include it
     if "TrafficRel" in df.columns:
         metrics_present = tuple(list(metrics_present) + ["TrafficRel"])
 
@@ -144,12 +132,15 @@ def peek_csv_fields(
 
     print("  metrics found (logical):", metrics_present or "(none of expected)")
     if metrics_present and "Suite" in df.columns:
+        alias_for_print = dict(alias_map)
+        alias_for_print["TrafficRel"] = "TrafficRel"
         for logical in metrics_present:
-            col = logical if logical == "TrafficRel" else alias_map.get(logical, logical)
+            col = alias_for_print.get(logical, logical)
             cnt = df.groupby("Suite")[col].apply(lambda s: s.notna().sum()).to_dict()
             print(f"  non-null by Suite for {logical}[{col}]:", cnt)
 
     return {
+        "df": df,  # include for reuse if you want
         "columns": cols,
         "present_keys": present_keys,
         "suites_present": suites_present,
@@ -159,10 +150,25 @@ def peek_csv_fields(
     }
 
 
-# ===========================
-# Core analysis (per-dataset)
-# ===========================
+# ===========================================
+# Utility: find a repeat column for pairing
+# ===========================================
+_REPEAT_CANDIDATES = ["Repeat", "repeat", "rep", "seed", "random_state", "RandomState"]
 
+def _find_repeat_col(df: pd.DataFrame):
+    for c in _repeat_candidates_with_index(df):
+        if c in df.columns:
+            return c
+    return None
+
+def _repeat_candidates_with_index(df: pd.DataFrame):
+    # Also allow "index within cohort" pairing if a column named "RunIdx" exists
+    return _REPEAT_CANDIDATES + ["RunIdx"]
+
+
+# =======================================================
+# Core analysis (comparisons + statistical validation)
+# =======================================================
 def analyze_experiment_per_dataset(
     csv_file: str,
     metrics=("Time", "Inertia", "PeakMB", "TrafficRel"),  # logical names
@@ -172,22 +178,20 @@ def analyze_experiment_per_dataset(
     label=None,
 ):
     """
-    For each dataset (DatasetName/Szie, NumClusters):
-      - average repeats within the dataset per Suite,
-      - compare each baseline vs each compare_suite for every metric present,
-      - return a tidy table with generic value columns to avoid NaNs.
-
-    Notes:
-      - Handles PeakMB vs Memory_MB via METRIC_ALIASES.
-      - Derives TrafficRel if ItersSingle/ItersDouble are available.
-      - Baseline comparisons are cohort-matched implicitly by grouping per dataset.
+    For each dataset (DatasetName/Size, NumClusters):
+      - average repeats per Suite for the "comparisons" table,
+      - compute statistical tests on paired repeats when possible:
+          * Paired t-test (fallback to Welch t-test if not pairable)
+          * Wilcoxon signed-rank (only if paired and >= 5 pairs)
+          * Cohen's d (paired; mean(diff)/std(diff))
+    Returns dict with written paths.
     """
-    df = pd.read_csv(csv_file)
-    if df.empty:
+    df_raw = pd.read_csv(csv_file)
+    if df_raw.empty:
         return {"_note": "empty file"}
 
     # Derive TrafficRel if possible
-    df = _maybe_add_trafficrel(df)
+    df = _maybe_add_trafficrel(df_raw)
 
     # Group keys (prefer DatasetName; fall back to DatasetSize)
     base_keys = ["DatasetName", "NumClusters"]
@@ -196,18 +200,15 @@ def analyze_experiment_per_dataset(
         if not base_keys:
             return {"_note": "no suitable grouping columns (DatasetName/DatasetSize, NumClusters)"}
 
-    # Resolve which desired metrics exist *in this file*
-    desired_no_traffic = [m for m in metrics if m != "TrafficRel"]
-    metrics_present, alias_map = _resolve_metrics_present(df, desired_no_traffic)
-
-    # Add TrafficRel if present and requested
+    # Resolve metrics present
+    desired_no_tr = [m for m in metrics if m != "TrafficRel"]
+    metrics_present, alias_map = _resolve_metrics_present(df, desired_no_tr)
     if "TrafficRel" in df.columns and "TrafficRel" in metrics:
         metrics_present = tuple(list(metrics_present) + ["TrafficRel"])
-
     if not metrics_present:
         return {"_note": "no desired metrics present"}
 
-    # Suites to compare (only those that actually appear)
+    # Suites present
     compare_suites = [compare_suite] if isinstance(compare_suite, str) else list(compare_suite)
     suites_in_file = set(df["Suite"].unique().tolist()) if "Suite" in df.columns else set()
     suites_present = [s for s in compare_suites if s in suites_in_file]
@@ -217,9 +218,8 @@ def analyze_experiment_per_dataset(
     outdir = Path(outdir)
     stem_label = label or Path(csv_file).stem
 
-    all_rows = []
-
-    # Work per dataset
+    # ---------- Build the "comparisons" table (mean per suite) ----------
+    comp_rows = []
     for ds_keys, sub in df.groupby(base_keys, as_index=False):
         ds_row = ds_keys.iloc[0].to_dict() if isinstance(ds_keys, pd.DataFrame) else dict(zip(base_keys, ds_keys))
         suites_here = set(sub["Suite"].unique().tolist())
@@ -231,7 +231,6 @@ def analyze_experiment_per_dataset(
             if col not in sub.columns:
                 continue
 
-            # average repeats within this dataset per Suite
             per_suite = (
                 sub.groupby(["Suite"], as_index=False)[col]
                    .mean()
@@ -239,51 +238,191 @@ def analyze_experiment_per_dataset(
             )
 
             for baseline in baselines:
-                if baseline not in suites_here:
+                if baseline not in suites_here or baseline not in per_suite.index:
                     continue
-
                 for cs in suites_present:
-                    if cs == baseline or cs not in suites_here:
-                        continue
-                    if baseline not in per_suite.index or cs not in per_suite.index:
+                    if cs == baseline or cs not in suites_here or cs not in per_suite.index:
                         continue
 
                     b_val = float(per_suite.loc[baseline])
                     c_val = float(per_suite.loc[cs])
-                    if not pd.notna(b_val) or not pd.notna(c_val) or b_val == 0:
+                    if not np.isfinite(b_val) or not np.isfinite(c_val) or b_val == 0:
                         continue
 
                     rel = c_val / b_val
                     imp = (b_val - c_val) / b_val * 100.0
 
-                    row = {
+                    comp_rows.append({
                         **ds_row,
-                        "metric": logical_metric,        # logical name (PeakMB/Time/Inertia/TrafficRel)
+                        "metric": logical_metric,
                         "baseline": baseline,
                         "compare_suite": cs,
                         "baseline_value": b_val,
                         "compare_value": c_val,
                         "Rel": rel,
                         "Improvement_%": imp,
-                        # approx. pair count: number of baseline rows for this dataset & metric
                         "n_pairs": int(sub[sub["Suite"] == baseline][col].shape[0]),
-                    }
-                    all_rows.append(row)
+                    })
 
-    if not all_rows:
+    if comp_rows:
+        comp_df = pd.DataFrame(comp_rows)
+        _export_md(comp_df, outdir / f"{stem_label}__all_comparisons")
+    else:
+        comp_df = pd.DataFrame()
+
+    # ---------- Statistical validation table ----------
+    stats_rows = []
+    # Cohort granularity for pairing: include optional columns if present
+    optional_keys = []
+    for cand in ["Mode", "Cap", "tolerance_single"]:
+        if cand in df.columns:
+            optional_keys.append(cand)
+    cohort_keys = base_keys + optional_keys
+
+    repeat_col = _find_repeat_col(df)
+
+    for ds_keys, sub in df.groupby(cohort_keys, as_index=False):
+        if isinstance(ds_keys, pd.DataFrame):
+            ds_row_base = ds_keys.iloc[0].to_dict()
+        else:
+            ds_row_base = dict(zip(cohort_keys, ds_keys))
+
+        suites_here = set(sub["Suite"].unique().tolist())
+        for baseline in baselines:
+            if baseline not in suites_here:
+                continue
+            for cs in suites_present:
+                if cs == baseline or cs not in suites_here:
+                    continue
+
+                for logical_metric in metrics_present:
+                    col = logical_metric if logical_metric == "TrafficRel" else alias_map.get(logical_metric, logical_metric)
+                    if col not in sub.columns:
+                        continue
+
+                    a = sub[sub["Suite"] == baseline][[col] + ([repeat_col] if repeat_col else [])].dropna(subset=[col]).copy()
+                    b = sub[sub["Suite"] == cs][[col] + ([repeat_col] if repeat_col else [])].dropna(subset=[col]).copy()
+
+                    if a.empty or b.empty:
+                        continue
+
+                    # Pair runs if a repeat column exists; else fall back to unpaired
+                    paired = False
+                    x = y = None
+                    if repeat_col and repeat_col in a.columns and repeat_col in b.columns:
+                        merged = pd.merge(a, b, on=repeat_col, how="inner", suffixes=("_base", "_cmp"))
+                        x = merged[f"{col}_base"].to_numpy()
+                        y = merged[f"{col}_cmp"].to_numpy()
+                        # keep only finite
+                        mask = np.isfinite(x) & np.isfinite(y)
+                        x, y = x[mask], y[mask]
+                        paired = (len(x) >= 2)   # need >=2 for stable stats and effect size
+                    else:
+                        # align by order if counts match and >1 (soft-pair); else unpaired
+                        if len(a) == len(b) and len(a) >= 2:
+                            x = a[col].to_numpy()
+                            y = b[col].to_numpy()
+                            mask = np.isfinite(x) & np.isfinite(y)
+                            x, y = x[mask], y[mask]
+                            paired = (len(x) >= 2)
+                        else:
+                            paired = False
+
+                    # Compute summary %
+                    # lower is better for all our metrics (Time, PeakMB, TrafficRel, Inertia in practice)
+                    mean_base = float(np.nanmean(a[col])) if len(a) else np.nan
+                    mean_cmp  = float(np.nanmean(b[col])) if len(b) else np.nan
+                    rel = (mean_cmp / mean_base) if (np.isfinite(mean_base) and mean_base != 0) else np.nan
+                    impr = ((mean_base - mean_cmp) / mean_base * 100.0) if (np.isfinite(mean_base) and mean_base != 0) else np.nan
+
+                    # Stats
+                    t_stat = np.nan
+                    t_p    = np.nan
+                    w_stat = np.nan
+                    w_p    = np.nan
+                    cohend = np.nan
+                    test_used = "paired" if paired else "unpaired"
+
+                    if _HAVE_SCIPY:
+                        try:
+                            if paired:
+                                # paired t-test
+                                res = ttest_rel(x, y, nan_policy="omit")
+                                t_stat, t_p = float(res.statistic), float(res.pvalue)
+
+                                # Wilcoxon (requires at least 5 pairs and non-all-equal diff)
+                                diffs = y - x
+                                if len(diffs) >= 5 and not np.allclose(diffs, diffs[0]):
+                                    try:
+                                        w = wilcoxon(diffs, zero_method="wilcox", correction=False, alternative="two-sided", mode="auto")
+                                        w_stat, w_p = float(w.statistic), float(w.pvalue)
+                                    except Exception:
+                                        w_stat, w_p = np.nan, np.nan
+
+                                # Cohen's d for paired (mean of differences / std of differences)
+                                if len(diffs) >= 2 and np.nanstd(diffs, ddof=1) > 0:
+                                    cohend = float(np.nanmean(diffs) / np.nanstd(diffs, ddof=1))
+                            else:
+                                # Welch's t-test (unpaired)
+                                res = ttest_ind(
+                                    a[col].to_numpy(), b[col].to_numpy(),
+                                    equal_var=False, nan_policy="omit"
+                                )
+                                t_stat, t_p = float(res.statistic), float(res.pvalue)
+                                test_used = "welch"
+                        except Exception:
+                            pass
+
+                    stats_rows.append({
+                        **ds_row_base,
+                        "metric": logical_metric,
+                        "baseline": baseline,
+                        "compare_suite": cs,
+                        "mean_baseline": mean_base,
+                        "mean_compare":  mean_cmp,
+                        "Rel": rel,
+                        "Improvement_%": impr,
+                        "paired_mode": test_used,
+                        "n_base": int(len(a)),
+                        "n_cmp":  int(len(b)),
+                        "t_stat": t_stat,
+                        "t_p":    t_p,
+                        "wilcoxon_stat": w_stat,
+                        "wilcoxon_p":    w_p,
+                        "cohens_d": cohend,
+                    })
+
+    if stats_rows:
+        stats_df = pd.DataFrame(stats_rows)
+
+        # Order columns for readability
+        lead = [
+            *cohort_keys, "metric", "baseline", "compare_suite",
+            "mean_baseline", "mean_compare", "Rel", "Improvement_%",
+            "paired_mode", "n_base", "n_cmp",
+            "t_stat", "t_p", "wilcoxon_stat", "wilcoxon_p", "cohens_d",
+        ]
+        lead = [c for c in lead if c in stats_df.columns] + [c for c in stats_df.columns if c not in lead]
+
+        stats_df = stats_df[lead]
+        _export_md(stats_df, outdir / f"{stem_label}__stats")
+    else:
+        stats_df = pd.DataFrame()
+
+    written = []
+    if not comp_df.empty:
+        written.append(str(outdir / f"{stem_label}__all_comparisons.md"))
+    if not stats_df.empty:
+        written.append(str(outdir / f"{stem_label}__stats.md"))
+
+    if not written:
         return {"_note": "nothing written (no comparable suites/metrics)"}
-
-    out_df = pd.DataFrame(all_rows)
-    outstem = outdir / f"{stem_label}__all_comparisons"
-    _export_simple(out_df, outstem)
-
-    return {"written": [str(outstem)]}
+    return {"written": written}
 
 
-# =================
+# ================
 # Run all CSVs
-# =================
-
+# ================
 if __name__ == "__main__":
     csv_files = [
         "../Results/hybrid_kmeans_Results_expA.csv",
@@ -296,7 +435,7 @@ if __name__ == "__main__":
 
     desired_compares = ("Hybrid", "Adaptive", "MiniBatch+Full", "MixedPerCluster")
     desired_baselines = ("Double", "Single")
-    desired_metrics = ("Time", "Inertia", "PeakMB")  # TrafficRel will be added if derivable
+    desired_metrics = ("Time", "Inertia", "PeakMB")  # TrafficRel added if derivable
 
     for f in csv_files:
         p = Path(f)
@@ -304,16 +443,14 @@ if __name__ == "__main__":
             print(f"[skip] {f} missing or empty")
             continue
 
-        # 1) Inspect fields present in this CSV
         info = peek_csv_fields(
             f,
-            expected_metrics=desired_metrics,                 # NOTE: PeakMB (not Memory_MB)
+            expected_metrics=desired_metrics,
             candidate_compare=desired_compares,
             candidate_baselines=desired_baselines,
-            sample_rows=None,  # set an int if files are huge
+            sample_rows=None,
         )
 
-        # 2) Skip if essentials are missing
         if not info["metrics_present"]:
             print(f"[skip] {f}: none of expected metrics {desired_metrics} (or TrafficRel) found")
             continue
@@ -324,7 +461,6 @@ if __name__ == "__main__":
             print(f"[skip] {f}: none of desired baselines {desired_baselines} found in Suite column")
             continue
 
-        # 3) Analyze using ONLY what's present in this file
         print(f"\n==== ANALYZE {f} ====")
         res = analyze_experiment_per_dataset(
             f,
@@ -334,11 +470,9 @@ if __name__ == "__main__":
             outdir="../Results/SUMMARY",
             label=Path(f).stem,
         )
-        note = res.get("_note")
-        if note:
-            print(note)
+        if "_note" in res:
+            print(res["_note"])
         else:
             for path in res["written"]:
-                print("  wrote:", path + ".md")
-
+                print("  wrote:", path)
 
