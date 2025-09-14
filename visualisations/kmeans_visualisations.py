@@ -280,42 +280,72 @@ class KMeansVisualizer:
         plt.tight_layout()
         plt.savefig(self.output_dir / f"cap_vs_peakmem_hybrid_vs_{baseline.lower()}.png")
         plt.close()
-
     def plot_cap_vs_memtraffic(self, df, baseline_double_label: str = "Double"):
-        required = {"ItersSingle", "ItersDouble", "Suite", "DatasetName", "NumClusters", "Cap"}
-        if not required.issubset(df.columns):
-            print("Missing columns for memory-traffic plot; need ItersSingle / ItersDouble / Suite / DatasetName / NumClusters / Cap.")
+    """
+        Cap vs Estimated Memory Traffic (Hybrid), relative to Double.
+        TrafficRel = (T - 0.5*C) / Tdouble, where:
+            C = ItersSingle (float32 iters)
+            T = ItersSingle + ItersDouble (total iters actually run)
+            Tdouble = median Double TotalIter for the *same cohort*.
+        Cohort keys: DatasetName, NumClusters, Mode, tolerance_single (if present).
+        """
+        import numpy as np
+        import pandas as pd
+        import matplotlib.pyplot as plt
+    
+        need = {"ItersSingle","ItersDouble","Suite","DatasetName","NumClusters","Cap","Mode"}
+        if not need.issubset(df.columns):
+            print("Missing columns for memory-traffic plot; need", need)
             return
     
-        # total iterations per run
-        df = df.copy()
-        df["TotalIter"] = df["ItersSingle"].fillna(0).astype(float) + df["ItersDouble"].fillna(0).astype(float)
+        d = df.copy()
     
-        # Baseline double iterations per (dataset, k)
-        base_iter = (
-            df[df["Suite"] == baseline_double_label]
-            .groupby(["DatasetName", "NumClusters"], as_index=False)["TotalIter"]
-            .mean()
-            .rename(columns={"TotalIter": "Tdouble"})
-        )
+        # ---- (1) keep only A/C (or choose what you want explicitly)
+        d = d[d["Mode"].isin(["A","C"])].copy()
     
-        # Hybrid rows with (C, T)
-        hyb = df[df["Suite"] == "Hybrid"].copy()
+        # ---- (2) total iterations per run
+        d["ItersSingle"] = d["ItersSingle"].fillna(0).astype(float)
+        d["ItersDouble"] = d["ItersDouble"].fillna(0).astype(float)
+        d["TotalIter"]   = d["ItersSingle"] + d["ItersDouble"]
+    
+        # ---- (3) cohort keys: include tolerance if present (A uses fixed tol but safe)
+        cohort_keys = ["DatasetName","NumClusters","Mode"]
+        if "tolerance_single" in d.columns:
+            cohort_keys.append("tolerance_single")
+    
+        # ---- (4) Double baseline Tdouble (median per cohort)
+        dbl = d[d["Suite"] == baseline_double_label].copy()
+        if dbl.empty:
+            print("No Double rows; skipping memory-traffic plot.")
+            return
+        # median across repeats (and across cap duplicates in A/C)
+        base = (dbl.groupby(cohort_keys, as_index=False)["TotalIter"]
+                   .median()
+                   .rename(columns={"TotalIter":"Tdouble"}))
+    
+        # ---- (5) Hybrid rows; aggregate repeats per (cohort + Cap)
+        hyb = d[d["Suite"] == "Hybrid"].copy()
         if hyb.empty:
             print("No Hybrid rows; skipping memory-traffic plot.")
             return
-        hyb = hyb.merge(base_iter, on=["DatasetName", "NumClusters"], how="inner")
-        hyb = hyb[np.isfinite(hyb["Tdouble"]) & (hyb["Tdouble"] > 0)].copy()
     
-        hyb["C"] = hyb["ItersSingle"].fillna(0).astype(float)
-        hyb["T"] = hyb["TotalIter"].astype(float)
-        # TrafficRel = (T - 0.5*C) / Tdouble
-        hyb["TrafficRel"] = (hyb["T"] - 0.5 * hyb["C"]) / hyb["Tdouble"]
+        # mean across repeats at each Cap (you can use median if you prefer)
+        agg_keys = cohort_keys + ["Cap"]
+        hybG = (hyb.groupby(agg_keys, as_index=False)[["ItersSingle","TotalIter"]]
+                    .mean()
+                    .rename(columns={"ItersSingle":"C","TotalIter":"T"}))
     
-        # Plot one line per dataset/k
-        plt.figure(figsize=(7, 5))
-        for (ds, k), g in hyb.groupby(["DatasetName", "NumClusters"]):
-            g = g.sort_values("Cap")
+        # attach matching Tdouble
+        hybM = hybG.merge(base, on=cohort_keys, how="inner")
+        hybM = hybM[np.isfinite(hybM["Tdouble"]) & (hybM["Tdouble"] > 0)].copy()
+    
+        # ---- (6) traffic model: f32 iteration = 0.5 of f64 iteration
+        hybM["TrafficRel"] = (hybM["T"] - 0.5 * hybM["C"]) / hybM["Tdouble"]
+    
+        # ---- (7) plot one line per dataset/k (combine cohorts with same tol/mode implicitly)
+        plt.figure(figsize=(7,5))
+        for (ds, k), g in hybM.groupby(["DatasetName","NumClusters"]):
+            g = g.sort_values("Cap", key=lambda s: pd.to_numeric(s, errors="coerce"))
             plt.plot(g["Cap"], g["TrafficRel"], marker="o", label=f"{ds}-C{k}", alpha=0.9)
     
         plt.title("Cap vs Estimated Memory Traffic (Hybrid)")
@@ -325,8 +355,15 @@ class KMeansVisualizer:
         plt.grid(True, ls="--", alpha=0.5)
         plt.legend()
         plt.tight_layout()
-        plt.savefig(self.output_dir / "cap_vs_memtraffic_hybrid_vs_double.png")
+        plt.savefig(self.output_dir / "cap_vs_memtraffic_hybrid_vs_double.png", dpi=200)
         plt.close()
+    
+        # Optional sanity check: if any cap==0 is far from 1.0, print the cohorts
+        bad0 = hybM[(hybM["Cap"].astype(float)==0) & (np.abs(hybM["TrafficRel"]-1.0)>0.1)]
+        if not bad0.empty:
+            print(" Sanity check: cap=0 far from 1.0 for cohorts:")
+            print(bad0[cohort_keys + ["TrafficRel"]].drop_duplicates().to_string(index=False))
+    
 
     def _cap_fraction_column(self, df: pd.DataFrame) -> pd.Series:
         """
@@ -610,6 +647,7 @@ if __name__ == "__main__":
     
     vis.plot_cap_vs_memtraffic(df_A)  # relative to Double baseline
     
+
 
 
 
