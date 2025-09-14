@@ -764,21 +764,19 @@ if __name__ == "__main__":
     vis.plot_cap_vs_memtraffic(df_A)  # relative to Double baseline
 
  # ------------------ NEW Double-work plots ------------------
-    # Experiment A
-    vis.plot_A_doublework_vs_time(df_A, use_share=True)     # X = ShareDouble
-    vis.plot_A_doublework_vs_inertia(df_A, use_share=True)
-    vis.plot_A_doublework_vs_time(df_A, use_share=False)    # X = ItersDouble
-    vis.plot_A_doublework_vs_inertia(df_A, use_share=False)
-
-    # Experiment B
-    vis.plot_B_doublework_vs_time(df_B, use_share=True)
-    vis.plot_B_doublework_vs_inertia(df_B, use_share=True)
-
-    # Experiment C
-    vis.plot_C_doublework_vs_time(df_C, use_share=True)
-    vis.plot_C_doublework_vs_inertia(df_C, use_share=True)
+    # --- A/B/C: Remaining double iterations on X; relative to Single baseline ---
+    vis.plot_A_doublework_vs_time_vs_single(df_A)
+    vis.plot_A_doublework_vs_inertia_vs_single(df_A)
+    
+    vis.plot_B_doublework_vs_time_vs_single(df_B)
+    vis.plot_B_doublework_vs_inertia_vs_single(df_B)
+    
+    vis.plot_C_doublework_vs_time_vs_single(df_C)
+    vis.plot_C_doublework_vs_inertia_vs_single(df_C)
+    
 
     
+
 
 
 
