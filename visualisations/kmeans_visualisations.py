@@ -83,15 +83,13 @@ class KMeansVisualizer:
             .rename(columns={value_col: "BASE"})
         )
 
-
     def _cohort_base(self, df, metric, baseline="Double"):
-    """Per (DatasetName, NumClusters) baseline means for `metric`."""
-    return (
-        df[df["Suite"] == baseline]
-        .groupby(["DatasetName", "NumClusters"], as_index=False)[metric]
-        .mean()
-        .rename(columns={metric: "BASE"})
-    )
+        return (
+            df[df["Suite"] == baseline]
+            .groupby(["DatasetName", "NumClusters"], as_index=False)[metric]
+            .mean()
+            .rename(columns={metric: "BASE"})
+        )
 
     def _prep_hybrid_double_share(self, df, metric, share_col="ShareDouble"):
         """
