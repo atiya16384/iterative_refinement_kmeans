@@ -8,7 +8,7 @@ import pandas as pd
 
 # Logical -> acceptable column names in CSVs
 METRIC_ALIASES = {
-    "PeakMB":  ["PeakMB", "Memory_MB", "Peak_MB", "RSS_Peak_MB"],
+    "PeakMB":  ["PeakMB", "Peak_MB", "RSS_Peak_MB"],
     "Time":    ["Time"],
     "Inertia": ["Inertia"],
 }
