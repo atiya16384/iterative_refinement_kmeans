@@ -82,13 +82,14 @@ class KMeansVisualizer:
             .rename(columns={value_col: "BASE"})
         )
 
-    def _cohort_base(self, df, metric, baseline="Double"):
-    return (
-        df[df["Suite"] == baseline]
-        .groupby(["DatasetName", "NumClusters"], as_index=False)[metric]
-        .mean()
-        .rename(columns={metric: "BASE"})
-    )
+   def _cohort_base(self, df, metric, baseline="Double"):
+        return (
+            df[df["Suite"] == baseline]
+            .groupby(["DatasetName", "NumClusters"], as_index=False)[metric]
+            .mean()
+            .rename(columns={metric: "BASE"})
+        )
+
     
     def _prep_hybrid_double_share(
         self,
@@ -198,23 +199,29 @@ class KMeansVisualizer:
         plt.close(fig)
     
     # ---- thin wrappers you already call ----
-    def plot_A_doublework_vs_time(self, df, use_share=True, baseline="Double"):
-        self._plot_doublework_generic(df, mode="A", metric="Time", use_share=use_share, baseline=baseline)
+    def plot_A_doublework_vs_time_vs_single(self, df):
+        self._plot_doublework_generic(df, mode="A", metric="Time",
+                                      use_share=False, baseline="Single")
     
-    def plot_A_doublework_vs_inertia(self, df, use_share=True, baseline="Double"):
-        self._plot_doublework_generic(df, mode="A", metric="Inertia", use_share=use_share, baseline=baseline)
+    def plot_A_doublework_vs_inertia_vs_single(self, df):
+        self._plot_doublework_generic(df, mode="A", metric="Inertia",
+                                      use_share=False, baseline="Single")
     
-    def plot_B_doublework_vs_time(self, df, use_share=True, baseline="Double"):
-        self._plot_doublework_generic(df, mode="B", metric="Time", use_share=use_share, baseline=baseline)
+    def plot_B_doublework_vs_time_vs_single(self, df):
+        self._plot_doublework_generic(df, mode="B", metric="Time",
+                                      use_share=False, baseline="Single")
     
-    def plot_B_doublework_vs_inertia(self, df, use_share=True, baseline="Double"):
-        self._plot_doublework_generic(df, mode="B", metric="Inertia", use_share=use_share, baseline=baseline)
+    def plot_B_doublework_vs_inertia_vs_single(self, df):
+        self._plot_doublework_generic(df, mode="B", metric="Inertia",
+                                      use_share=False, baseline="Single")
     
-    def plot_C_doublework_vs_time(self, df, use_share=True, baseline="Double"):
-        self._plot_doublework_generic(df, mode="C", metric="Time", use_share=use_share, baseline=baseline)
+    def plot_C_doublework_vs_time_vs_single(self, df):
+        self._plot_doublework_generic(df, mode="C", metric="Time",
+                                      use_share=False, baseline="Single")
     
-    def plot_C_doublework_vs_inertia(self, df, use_share=True, baseline="Double"):
-        self._plot_doublework_generic(df, mode="C", metric="Inertia", use_share=use_share, baseline=baseline)
+    def plot_C_doublework_vs_inertia_vs_single(self, df):
+        self._plot_doublework_generic(df, mode="C", metric="Inertia",
+                                      use_share=False, baseline="Single")
 
     # ---------------------- A/C: Cap sweeps ----------------------
     def plot_hybrid_cap_vs_inertia(self, df, baseline: str = "Double"):
@@ -772,6 +779,7 @@ if __name__ == "__main__":
     vis.plot_C_doublework_vs_inertia(df_C, use_share=True)
 
     
+
 
 
 
