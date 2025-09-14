@@ -91,43 +91,25 @@ class KMeansVisualizer:
             .rename(columns={metric: "BASE"})
         )
 
-    def _prep_hybrid_double_share(self, df, metric, share_col="ShareDouble"):
-        """
-        Returns tidy dataframe with columns:
-          DatasetName, NumClusters, X, Rel
-        where X is ItersDouble or ShareDouble for Hybrid only,
-        and Rel = metric / Double(BASE) per cohort.
-        """
-        use_cols = {"DatasetName","NumClusters","Suite",metric,"ItersDouble","ItersSingle","TotalIter","Cap","tolerance_single"}
-        missing = [c for c in use_cols if c not in df.columns]
+    def _prep_hybrid_double_share(self, df: pd.DataFrame, metric: str, share_col="ShareDouble"):
+        required = {"ItersSingle", "ItersDouble", metric}
+        missing = required - set(df.columns)
         if missing:
             raise KeyError(f"Missing required columns: {missing}")
     
-        # compute ShareDouble if not present
-        df = df.copy()
-        if share_col == "ShareDouble":
-            # robust compute if column isn't already there
-            if "ShareDouble" not in df.columns:
-                tot = (df["ItersSingle"].fillna(0).astype(float) + df["ItersDouble"].fillna(0).astype(float))
-                df["ShareDouble"] = df["ItersDouble"].fillna(0).astype(float) / np.where(tot>0, tot, np.nan)
+        d = df.copy()
+        # Compute total iterations if not already present
+        if "TotalIter" not in d.columns:
+            d["TotalIter"] = d["ItersSingle"].fillna(0).astype(float) + d["ItersDouble"].fillna(0).astype(float)
     
-        # baselines
-        base = self._baseline_mean(df, ["DatasetName","NumClusters"], metric, baseline_suite="Double")
+        # Compute share of double iterations
+        d[share_col] = d["ItersDouble"].astype(float) / d["TotalIter"].replace(0, np.nan)
     
-        # hybrid rows -> normalize
-        hyb = df[df["Suite"] == "Hybrid"].copy()
-        hyb = hyb.merge(base, on=["DatasetName","NumClusters"], how="inner")
-        hyb = hyb[np.isfinite(hyb["BASE"]) & (hyb["BASE"] != 0)].copy()
-    
-        if share_col == "ShareDouble":
-            hyb["X"] = hyb["ShareDouble"].astype(float)
-        elif share_col == "ItersDouble":
-            hyb["X"] = hyb["ItersDouble"].astype(float)
-        else:
-            raise ValueError("share_col must be 'ShareDouble' or 'ItersDouble'")
-    
-        hyb["Rel"] = hyb[metric] / hyb["BASE"]
-        return hyb[["DatasetName","NumClusters","X","Rel","Cap","tolerance_single"]]
+        # Group to average across repeats
+        grp_cols = ["DatasetName", "NumClusters", share_col]
+        dG = d.groupby(grp_cols, as_index=False)[metric].mean()
+        return dG
+
 
     # ---------------------- generic plots ----------------------
     def plot_with_ci(self, df, x_col, y_col, hue_col, title, xlabel, ylabel, filename):
@@ -828,6 +810,7 @@ if __name__ == "__main__":
     vis.plot_C_doublework_vs_inertia(df_C, use_share=True)
 
     
+
 
 
 
