@@ -475,4 +475,3 @@ if __name__ == "__main__":
         else:
             for path in res["written"]:
                 print("  wrote:", path)
-
