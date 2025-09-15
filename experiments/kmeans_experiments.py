@@ -244,62 +244,56 @@ def run_experiment_C(ds_name, X, y_true, n_clusters, initial_centers, config):
 
     return rows_C
 
-    
-def run_experiment_D(ds_name, X, y_true, n_clusters, initial_centers, config):
+    def run_experiment_D(ds_name, X, y_true, n_clusters, initial_centers, config):
     """
     Experiment D — Adaptive Hybrid (global switch)
-      • Baselines: full Single and full Double (same max_iter & tol)
-      • Variant : repeated f32 bursts (size = chunk_single) until stall → finish in f64
-    We sweep over a grid of `chunk_single` values so the plots show curves rather than a dot.
+      Baselines: full Single and full Double (same max_iter & tol)
+      Variant  : f32 bursts of size chunk_single until stall → finish in f64
     """
-
     rows_D = []
     n_samples = len(X)
 
-    # --- config (with safe defaults) ---
-    reps                  = int(config.get("n_repeats", 1))
-    max_iter              = int(config.get("max_iter_D", 300))
-    tol_double_baseline   = float(config.get("tol_double_baseline_D", 1e-6))
+    reps                = int(config.get("n_repeats", 1))
+    max_iter            = int(config.get("max_iter_D", 300))
+    tol_double_baseline = float(config.get("tol_double_baseline_D", 1e-6))
+    chunk_grid          = list(config.get("chunk_single_grid_D", [5, 10, 25, 50, 100, 150, 200]))
 
-    # sweep this:
-    chunk_grid            = list(config.get("chunk_single_grid_D", [5, 10, 25, 50, 100, 150, 200]))
-
-    # adaptive knobs (kept fixed across the sweep, but you can make them grids too)
-    improve_threshold     = float(config.get("improve_threshold_D", 1e-3))
-    shift_tol             = float(config.get("shift_tol_D", 1e-3))
-    stability_threshold   = float(config.get("stability_threshold_D", 0.02))
+    # adaptive knobs (fixed across sweep)
+    improve_threshold   = float(config.get("improve_threshold_D", 1e-3))
+    shift_tol           = float(config.get("shift_tol_D", 1e-3))
+    stability_threshold = float(config.get("stability_threshold_D", 0.02))
 
     for rep in range(reps):
         for ch in chunk_grid:
-            # ---------- Baseline: full SINGLE (duplicate per `ch` so plotting/joining is easy) ----------
-            c_s, l_s, it_s_s, it_d_s, t_s, mem_s, J_s = run_full_single(
+            # -------- Baseline: SINGLE --------
+            c_s, l_s, it_s_s, it_d_s, t_s, peak_s, J_s = run_full_single(
                 X, initial_centers, n_clusters, max_iter, tol_double_baseline, y_true
             )
             rows_D.append([
-                ds_name, n_samples, n_clusters,          # DatasetName, DatasetSize, NumClusters
-                "D",                                     # Experiment label
-                ch, improve_threshold, shift_tol, stability_threshold,  # params we used
-                it_s_s, it_d_s,                          # iter_single, iter_double
-                "Single",                                # Suite
-                t_s, mem_s, J_s,                         # Time, Memory_MB, Inertia
-                rep                                      # repeat id (optional)
+                ds_name, n_samples, n_clusters,
+                "D",                       # Mode
+                int(ch), improve_threshold, shift_tol, stability_threshold,
+                it_s_s, it_d_s,
+                "Single",
+                t_s, peak_s, J_s,
+                rep
             ])
 
-            # ---------- Baseline: full DOUBLE ----------
-            c_d, l_d, it_d, it_s, t_d, mem_d, J_d = run_full_double(
+            # -------- Baseline: DOUBLE --------
+            c_d, l_d, it_d, it_s, t_d, peak_d, J_d = run_full_double(
                 X, initial_centers, n_clusters, max_iter, tol_double_baseline, y_true
             )
             rows_D.append([
                 ds_name, n_samples, n_clusters,
                 "D",
-                ch, improve_threshold, shift_tol, stability_threshold,
+                int(ch), improve_threshold, shift_tol, stability_threshold,
                 it_s, it_d,
                 "Double",
-                t_d, mem_d, J_d,
+                t_d, peak_d, J_d,
                 rep
             ])
 
-            # ---------- Variant: Adaptive (f32 bursts → f64 finish) ----------
+            # -------- Variant: ADAPTIVE (f32 bursts → f64 finish) --------
             res = run_expD_adaptive_sklearn(
                 X, initial_centers, n_clusters,
                 max_iter=max_iter,
@@ -312,7 +306,7 @@ def run_experiment_D(ds_name, X, y_true, n_clusters, initial_centers, config):
             rows_D.append([
                 ds_name, n_samples, n_clusters,
                 "D",
-                ch, improve_threshold, shift_tol, stability_threshold,
+                int(ch), improve_threshold, shift_tol, stability_threshold,
                 res["iters_single"], res["iters_double"],
                 "Adaptive",
                 res["elapsed_time"], res["mem_MB"], res["inertia"],
@@ -321,98 +315,107 @@ def run_experiment_D(ds_name, X, y_true, n_clusters, initial_centers, config):
 
     return rows_D
 
+
 def run_experiment_E(ds_name, X, y_true, n_clusters, initial_centers, config):
+    """
+    Experiment E — MiniBatch then Full (budget = MB_Iter + RefineIter)
+    """
     rows_E = []
     n = len(X)
-    reps = int(config["n_repeats"])
+    reps = int(config.get("n_repeats", 1))
 
-    mb_iter_grid = config.get("E_mb_iter_grid", [config["mb_iter_E"]])
-    batch_grid   = config.get("E_batch_grid",   [config["mb_batch_E"]])
-    refine_grid  = config.get("E_refine_grid",  [config["max_refine_iter_E"]])
-    tol_double_baseline = float(config["tol_double_baseline_E"])
+    mb_iter_grid = list(config.get("E_mb_iter_grid",   [config["mb_iter_E"]]))
+    batch_grid   = list(config.get("E_batch_grid",     [config["mb_batch_E"]]))
+    refine_grid  = list(config.get("E_refine_grid",    [config["max_refine_iter_E"]]))
+    tol_double_baseline = float(config.get("tol_double_baseline_E"))
 
     for rep in range(reps):
         for mb_iter in mb_iter_grid:
             for mb_batch in batch_grid:
                 for refine_iter in refine_grid:
-                    budget = mb_iter + refine_iter
+                    budget = int(mb_iter) + int(refine_iter)
 
-                    # Baseline: pure single with same total budget
-                    c_s, l_s, it_s_s, it_d_s, t_s, mem_s, J_s = run_full_single(
+                    # --- Baseline: SINGLE (same budget)
+                    c_s, l_s, it_s_s, it_d_s, t_s, peak_s, J_s = run_full_single(
                         X, initial_centers, n_clusters, budget, tol_double_baseline, y_true
                     )
                     rows_E.append([
                         ds_name, n, n_clusters, "E",
-                        mb_iter, mb_batch, refine_iter,
+                        int(mb_iter), int(mb_batch), int(refine_iter),
                         it_s_s, it_d_s,
-                        "Single", t_s, mem_s, J_s
+                        "Single", t_s, peak_s, J_s, rep
                     ])
 
-                    # Baseline: pure double with same total budget
-                    c_d, l_d, it_d, it_s, t, mem, J = run_full_double(
+                    # --- Baseline: DOUBLE (same budget)
+                    c_d, l_d, it_d, it_s, t_d, peak_d, J_d = run_full_double(
                         X, initial_centers, n_clusters, budget, tol_double_baseline, y_true
                     )
                     rows_E.append([
                         ds_name, n, n_clusters, "E",
-                        mb_iter, mb_batch, refine_iter,
+                        int(mb_iter), int(mb_batch), int(refine_iter),
                         it_s, it_d,
-                        "Double", t, mem, J
+                        "Double", t_d, peak_d, J_d, rep
                     ])
 
-                    # Variant: MiniBatch -> Full
+                    # --- Variant: MiniBatch → Full
                     res = run_expE_minibatch_then_full(
                         X, initial_centers, n_clusters,
-                        mb_iter=mb_iter, mb_batch=mb_batch, max_refine_iter=refine_iter,
+                        mb_iter=int(mb_iter), mb_batch=int(mb_batch),
+                        max_refine_iter=int(refine_iter),
                         seed=rep
                     )
                     rows_E.append([
                         ds_name, n, n_clusters, "E",
-                        mb_iter, mb_batch, refine_iter,
+                        int(mb_iter), int(mb_batch), int(refine_iter),
                         res["iters_single"], res["iters_double"],
-                        "MiniBatch+Full", res["elapsed_time"], res["mem_MB"], res["inertia"]
+                        "MiniBatch+Full", res["elapsed_time"], res["mem_MB"], res["inertia"], rep
                     ])
     return rows_E
 
-
 def run_experiment_F(ds_name, X, y_true, n_clusters, initial_centers, config):
+    """
+    Experiment F — Per-cluster mixed precision
+    """
     rows_F = []
     n = len(X)
-    reps = int(config["n_repeats"])
+    reps = int(config.get("n_repeats", 1))
 
     max_iter_total = int(config["max_iter_F"])
     tol_double     = float(config["tol_double_F"])
     freeze_stable  = bool(config["freeze_stable_F"])
     freeze_patience= int(config["freeze_patience_F"])
 
-    cap_grid       = config.get("F_cap_grid",       [config["single_iter_cap_F"]])
-    tol_single_grid= config.get("F_tol_single_grid",[config["tol_single_F"]])
+    cap_grid        = list(config.get("F_cap_grid",        [config["single_iter_cap_F"]]))
+    tol_single_grid = list(config.get("F_tol_single_grid", [config["tol_single_F"]]))
 
     for rep in range(reps):
         for single_iter_cap in cap_grid:
             for tol_single in tol_single_grid:
-                # Baseline: pure double with same total budget
-                # Baseline: pure single with same total budget
-                c_s, l_s, it_s_s, it_d_s, t_s, mem_s, J_s = run_full_single(
+                # --- Baseline: SINGLE (same total budget)
+                c_s, l_s, it_s_s, it_d_s, t_s, peak_s, J_s = run_full_single(
                     X, initial_centers, n_clusters, max_iter_total, tol_double, y_true
                 )
                 rows_F.append([
                     ds_name, n, n_clusters, "F",
-                    tol_single, tol_double, single_iter_cap, freeze_stable, freeze_patience,
+                    float(tol_single), float(tol_double), int(single_iter_cap),
+                    bool(freeze_stable), int(freeze_patience),
                     it_s_s, it_d_s,
-                    "Single", t_s, mem_s, J_s
+                    "Single", t_s, peak_s, J_s, rep
                 ])
 
-                c_d, l_d, it_d, it_s, t, mem, J = run_full_double(
+                # --- Baseline: DOUBLE (same total budget)
+                c_d, l_d, it_d, it_s, t_d, peak_d, J_d = run_full_double(
                     X, initial_centers, n_clusters, max_iter_total, tol_double, y_true
                 )
                 rows_F.append([
                     ds_name, n, n_clusters, "F",
-                    tol_single, tol_double, single_iter_cap, freeze_stable, freeze_patience,
+                    float(tol_single), float(tol_double), int(single_iter_cap),
+                    bool(freeze_stable), int(freeze_patience),
                     it_s, it_d,
-                    "Double", t, mem, J
+                    "Double", t_d, peak_d, J_d, rep
                 ])
 
-                # Variant: per‑cluster mixed precision
+                # --- Variant: per-cluster mixed precision
                 res = run_expF_percluster_mixed(
                     X, initial_centers,
                     max_iter_total=max_iter_total,
@@ -425,20 +428,11 @@ def run_experiment_F(ds_name, X, y_true, n_clusters, initial_centers, config):
                 )
                 rows_F.append([
                     ds_name, n, n_clusters, "F",
-                    tol_single, tol_double, single_iter_cap, freeze_stable, freeze_patience,
+                    float(tol_single), float(tol_double), int(single_iter_cap),
+                    bool(freeze_stable), int(freeze_patience),
                     res["iters_single"], res["iters_double"],
-                    "MixedPerCluster", res["elapsed_time"], res["mem_MB"], res["inertia"]
+                    "MixedPerCluster", res["elapsed_time"], res["mem_MB"], res["inertia"], rep
                 ])
     return rows_F
-
-
-
-
-
-
-
-
-
-
 
 
