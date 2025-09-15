@@ -711,62 +711,59 @@ class KMeansVisualizer:
         plt.close(fig)
 
 
-    def _plot_memtraffic_vs_x(self, df, xcol, mode_label: str, cohort_extra_keys=None):
-        """
-        Plot estimated memory traffic for Hybrid relative to Double:
-          TrafficRel = (T - 0.5*C) / Tdouble
-          C = mean(ItersSingle) at (dataset,k, xcol, cohort)
-          T = mean(TotalIter)  at (dataset,k, xcol, cohort)
-          Tdouble = median TotalIter for Double in the same cohort (dataset,k, Mode, extra-keys)
+   def _plot_memtraffic_vs_x(self, df, xcol, mode_label: str, cohort_extra_keys=None):
+        # 1) normalize names and ensure Mode exists
+        d = self._normalize_iter_cols(df)      # maps iters_single/iters_double -> ItersSingle/ItersDouble
+        d = self._ensure_mode(d, mode_label)   # adds constant Mode if missing
     
-        cohort_extra_keys: list of keys that are fixed for this sweep (e.g. ['RefineIter'], or ['tol_single']).
-        """
-        need = {"Suite","DatasetName","NumClusters","ItersSingle","ItersDouble","Mode", xcol}
-        if not need.issubset(df.columns):
-            print(f"Missing columns for traffic plot; need {need}")
+        # 2) only the basics are required now
+        need_basic = {"Suite", "DatasetName", "NumClusters", xcol}
+        if not need_basic.issubset(d.columns):
+            missing = need_basic - set(d.columns)
+            print(f"Missing columns for traffic plot; need {need_basic} (missing: {missing})")
             return
     
-        d = df.copy()
+        # 3) totals
         d["ItersSingle"] = d["ItersSingle"].fillna(0).astype(float)
         d["ItersDouble"] = d["ItersDouble"].fillna(0).astype(float)
         d["TotalIter"]   = d["ItersSingle"] + d["ItersDouble"]
     
-        # cohorts: (dataset, k, mode, [extras...])
-        cohort_keys = ["DatasetName","NumClusters","Mode"]
+        # 4) cohorts (dataset, k, mode, plus any fixed knobs)
+        cohort_keys = ["DatasetName", "NumClusters", "Mode"]
         if cohort_extra_keys:
-            for c in cohort_extra_keys:
-                if c in d.columns:
-                    cohort_keys.append(c)
+            for k in cohort_extra_keys:
+                if k in d.columns and k not in cohort_keys:
+                    cohort_keys.append(k)
     
-        # Tdouble from Double baseline (median per cohort)
+        # 5) Double baseline (median TotalIter per cohort)
         dbl = d[(d["Suite"] == "Double") & (d["Mode"] == mode_label)]
         if dbl.empty:
-            print("No Double rows for traffic baseline.")
+            print("No Double rows for traffic baseline in this cohort; skipping.")
             return
         base = (dbl.groupby(cohort_keys, as_index=False)["TotalIter"]
-                  .median().rename(columns={"TotalIter":"Tdouble"}))
+                  .median().rename(columns={"TotalIter": "Tdouble"}))
     
-        # Hybrid rows: aggregate by cohort + xcol
+        # 6) Hybrid aggregation (mean per cohort + x)
         hyb = d[(d["Suite"] == "Hybrid") & (d["Mode"] == mode_label)]
         if hyb.empty:
-            print("No Hybrid rows for traffic plot.")
+            print("No Hybrid rows for traffic plot in this cohort; skipping.")
             return
         agg_keys = cohort_keys + [xcol]
-        hybG = (hyb.groupby(agg_keys, as_index=False)[["ItersSingle","TotalIter"]]
-                   .mean().rename(columns={"ItersSingle":"C","TotalIter":"T"}))
+        hybG = (hyb.groupby(agg_keys, as_index=False)[["ItersSingle", "TotalIter"]]
+                  .mean().rename(columns={"ItersSingle": "C", "TotalIter": "T"}))
     
-        # attach Tdouble
         hybM = hybG.merge(base, on=cohort_keys, how="inner")
         hybM = hybM[np.isfinite(hybM["Tdouble"]) & (hybM["Tdouble"] > 0)]
         if hybM.empty:
-            print("After merging baseline, traffic table is empty.")
+            print("Traffic table empty after merging baseline; skipping.")
             return
     
-        hybM["TrafficRel"] = (hybM["T"] - 0.5*hybM["C"]) / hybM["Tdouble"]
+        # 7) traffic model
+        hybM["TrafficRel"] = (hybM["T"] - 0.5 * hybM["C"]) / hybM["Tdouble"]
     
-        # Plot one line per (dataset,k)
-        fig, ax = plt.subplots(figsize=(7,5))
-        for (ds,k), g in hybM.groupby(["DatasetName","NumClusters"]):
+        # 8) plot
+        fig, ax = plt.subplots(figsize=(7, 5))
+        for (ds, k), g in hybM.groupby(["DatasetName", "NumClusters"]):
             g = g.sort_values(xcol, key=lambda s: pd.to_numeric(s, errors="coerce"))
             ax.plot(g[xcol], g["TrafficRel"], marker="o", label=f"{ds}-C{k}", alpha=0.9)
     
@@ -775,7 +772,10 @@ class KMeansVisualizer:
         ax.set_xlabel(xcol)
         ax.set_ylabel("Traffic (Relative to Double)")
         ax.grid(True, ls="--", alpha=0.6)
-        ax.legend()
+        # only show legend if we actually drew labeled artists
+        handles, labels = ax.get_legend_handles_labels()
+        if labels:
+            ax.legend()
         fig.tight_layout()
         fig.savefig(self.output_dir / f"exp{mode_label}_{xcol}_vs_memtraffic_hybrid_vs_double.png", dpi=200)
         plt.close(fig)
@@ -1010,6 +1010,7 @@ if __name__ == "__main__":
     
 
     
+
 
 
 
