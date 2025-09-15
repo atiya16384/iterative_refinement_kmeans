@@ -504,7 +504,17 @@ class KMeansVisualizer:
         raise KeyError("Need a 'Cap' fraction column or ('single_iter_cap' & 'max_iter[_C]') to compute it.")
 
     # ---------------------- C: cap-as-fraction plots ----------------------
-    def plot_cap_percentage_vs_inertia(self, df, baseline: str = "Double"):
+    # ---------------------- C: cap-as-fraction plots ----------------------
+    def plot_cap_percentage_vs_inertia(
+        self,
+        df,
+        baseline: str = "Double",
+        xlim: tuple | None = None,   # e.g., (0.0, 0.8)
+        ylim: tuple | None = None,   # e.g., (-2.0, 3.0)
+        clip_x_at_zero: bool = True, # start x at 0 even if autoscale would show negatives
+        pad_frac: float = 0.05       # padding used for auto limits if xlim/ylim not provided
+    ):
+    
         # Hybrid rows only; compute/normalize cap fraction
         df_h = df[df["Suite"] == "Hybrid"].copy()
         if df_h.empty:
@@ -530,23 +540,51 @@ class KMeansVisualizer:
         if dfM.empty:
             print(f"No valid {baseline} baseline to normalize; skipping inertia plot.")
             return
+    
         dfM["RelInertia"] = dfM["Inertia"] / dfM["BASE"]
     
-        plt.figure(figsize=(7, 5))
+        fig, ax = plt.subplots(figsize=(7, 5))
         for (ds, k), g in dfM.groupby(["DatasetName", "NumClusters"]):
             g = g.sort_values("CapFrac")
-            plt.plot(g["CapFrac"], g["RelInertia"], marker="o", label=f"{ds}-C{k}", alpha=0.9)
+            ax.plot(g["CapFrac"], g["RelInertia"], marker="o", label=f"{ds}-C{k}", alpha=0.9)
     
+        # Title/labels/legend/grid
+        ax.set_title("Cap (fraction) vs Final Inertia (Hybrid)")
+        ax.set_xlabel("Cap (fraction of max_iter)")
+        ax.set_ylabel(f"Inertia (Relative to {baseline})")
+        ax.axhline(1.0, linestyle="--", color="gray", linewidth=1, label=f"{baseline} baseline")
+        ax.grid(True, ls="--", alpha=0.5)
+        ax.legend()
     
-        plt.title("Cap (fraction) vs Final Inertia (Hybrid)")
-        plt.xlabel("Cap (fraction of max_iter)")
-        plt.ylabel(f"Inertia (Relative to {baseline})")
-        plt.axhline(1.0, linestyle="--", color="gray", linewidth=1, label=f"{baseline} baseline")
-        plt.grid(True, ls="--", alpha=0.5)
-        plt.legend()
-        plt.tight_layout()
-        plt.savefig(self.output_dir / f"exp_C_cap_percentage_vs_inertia_vs_{baseline.lower()}.png")
-        plt.close()
+        # ----- Axis control -----
+        # X limits
+        if xlim is not None:
+            ax.set_xlim(*xlim)
+        else:
+            xmin = 0.0 if clip_x_at_zero else float(dfM["CapFrac"].min())
+            xmax = float(dfM["CapFrac"].max())
+            if xmax <= xmin:  # degenerate case; give a small span
+                xmax = xmin + 1e-6
+            span = xmax - xmin
+            ax.set_xlim(xmin, xmax + pad_frac * span)
+            # remove default margins that can show negative ticks
+            ax.set_xmargin(0)
+    
+        # Y limits
+        if ylim is not None:
+            ax.set_ylim(*ylim)
+        else:
+            ymin = float(dfM["RelInertia"].min())
+            ymax = float(dfM["RelInertia"].max())
+            if ymax <= ymin:
+                ymax = ymin + 1e-6
+            yspan = ymax - ymin
+            ax.set_ylim(ymin - pad_frac * yspan, ymax + pad_frac * yspan)
+    
+        fig.tight_layout()
+        fig.savefig(self.output_dir / f"exp_C_cap_percentage_vs_inertia_vs_{baseline.lower()}.png", dpi=200)
+        plt.close(fig)
+
 
     def plot_cap_percentage_vs_time(self, df, baseline: str = "Double"):
         df_h = df[df["Suite"] == "Hybrid"].copy()
@@ -776,6 +814,7 @@ if __name__ == "__main__":
     
 
     
+
 
 
 
