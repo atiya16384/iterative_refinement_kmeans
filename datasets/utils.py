@@ -65,18 +65,24 @@ columns_B = [
 # Experiment C has same structure as A
 columns_C = columns_A
 
-
 columns_D = [
-  "DatasetName","DatasetSize","NumClusters","Experiment",
-  "chunk_single","improve_threshold","shift_tol","stability_threshold",
-  "iter_single","iter_double","Suite","Time","Memory_MB","Inertia","Repeat"
+    "DatasetName","DatasetSize","NumClusters","Mode",
+    "chunk_single","improve_threshold","shift_tol","stability_threshold",
+    "ItersSingle","ItersDouble","Suite","Time","PeakMB","Inertia","Repeat"
 ]
 
 columns_E = [
-    "DatasetName", "DatasetSize", "NumClusters", "Mode", "MB_Iter", "MB_Batch", "RefineIter", "iter_single", "iter_double", "Suite", "Time", "Memory_MB", "Inertia"]
+    "DatasetName","DatasetSize","NumClusters","Mode",
+    "MB_Iter","MB_Batch","RefineIter",
+    "ItersSingle","ItersDouble","Suite","Time","PeakMB","Inertia","Repeat"
+]
 
 columns_F = [
-    "DatasetName", "DatasetSize", "NumClusters", "Mode", "tol_single", "tol_double", "single_iter_cap", "freeze_stable", "freeze_patience", "iter_single", "iter_double", "Suite", "Time", "Memory_MB", "Inertia"]
+    "DatasetName","DatasetSize","NumClusters","Mode",
+    "tol_single","tol_double","single_iter_cap","freeze_stable","freeze_patience",
+    "ItersSingle","ItersDouble","Suite","Time","PeakMB","Inertia","Repeat"
+]
+
 
 
 # utils.py
@@ -98,6 +104,7 @@ enet_columns_B = [
     "iter_single", "iter_double", "Suite",
     "Time", "Memory_MB", "R2", "MSE",
 ]
+
 
 
 
