@@ -169,6 +169,48 @@ class KMeansVisualizer:
         print(f"Saved boxplot to {self.output_dir / filename}")
 
 
+    def _normalize_iter_cols(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Return a copy of df that guarantees the presence of:
+          - ItersSingle
+          - ItersDouble
+        If canonical names are missing, try common alternatives.
+        """
+        d = df.copy()
+        # map alternatives -> canonical
+        alt_map = {
+            "ItersSingle": ["iters_single", "it_single", "iters_f32", "IterSingle", "ItersF32"],
+            "ItersDouble": ["iters_double", "it_double", "iters_f64", "IterDouble", "ItersF64"],
+        }
+        for want, alts in alt_map.items():
+            if want not in d.columns:
+                for a in alts:
+                    if a in d.columns:
+                        d[want] = d[a]
+                        break
+        # if still missing, create zeros (prevents crashes; will just skip plots if all zeros)
+        if "ItersSingle" not in d.columns:
+            d["ItersSingle"] = 0.0
+        if "ItersDouble" not in d.columns:
+            d["ItersDouble"] = 0.0
+        return d
+    
+    
+    def _ensure_mode(self, df: pd.DataFrame, mode_label: str) -> pd.DataFrame:
+        """
+        Ensure a 'Mode' column exists. If missing, create it with a constant value.
+        """
+        d = df.copy()
+        if "Mode" not in d.columns:
+            # try to adopt an alternative if present
+            for alt in ["mode", "Experiment", "Exp", "exp"]:
+                if alt in d.columns:
+                    d["Mode"] = d[alt]
+                    break
+        if "Mode" not in d.columns:
+            d["Mode"] = mode_label
+        return d
+
 
     def _plot_doublework_generic(self, df, mode, metric, use_share=True, baseline="Double"):
         if df.empty:
@@ -629,44 +671,44 @@ class KMeansVisualizer:
     Plot PeakMB (Hybrid) / PeakMB (baseline_suite) vs xcol, one line per (DatasetName, NumClusters).
     keys = ['DatasetName','NumClusters', xcol, ...] used for grouping/merging means.
     """
-    need = {"Suite", "DatasetName", "NumClusters", xcol, "PeakMB"}
-    if not need.issubset(df.columns):
-        print(f"Missing columns for peak-mem plot; need {need}")
-        return
-
-    # Hybrid mean per (dataset, k, x)
-    hyb = (df[df["Suite"] == "Hybrid"]
-            .groupby(keys, as_index=False)["PeakMB"].mean()
-            .rename(columns={"PeakMB": "VAR"}))
-    if hyb.empty:
-        print("No Hybrid rows for peak-mem plot.")
-        return
-
-    # Baseline mean per (dataset, k) — constant baseline
-    base = (df[df["Suite"] == baseline_suite]
-            .groupby(["DatasetName","NumClusters"], as_index=False)["PeakMB"].mean()
-            .rename(columns={"PeakMB":"BASE"}))
-    out = hyb.merge(base, on=["DatasetName","NumClusters"], how="inner")
-    out = out[np.isfinite(out["BASE"]) & (out["BASE"] != 0)]
-    if out.empty:
-        print("No valid baseline for peak-mem plot.")
-        return
-    out["Rel"] = out["VAR"] / out["BASE"]
-
-    fig, ax = plt.subplots(figsize=(7,5))
-    for (ds,k), g in out.groupby(["DatasetName","NumClusters"]):
-        g = g.sort_values(xcol, key=lambda s: pd.to_numeric(s, errors="coerce"))
-        ax.plot(g[xcol], g["Rel"], marker="o", label=f"{ds}-C{k}", alpha=0.9)
-
-    ax.axhline(1.0, ls="--", c="gray", lw=1, label=f"{baseline_suite} baseline")
-    ax.set_title(title)
-    ax.set_xlabel(xcol)
-    ax.set_ylabel(f"Peak Memory / {baseline_suite}")
-    ax.grid(True, ls="--", alpha=0.6)
-    ax.legend()
-    fig.tight_layout()
-    fig.savefig(self.output_dir / outfile, dpi=200)
-    plt.close(fig)
+        need = {"Suite", "DatasetName", "NumClusters", xcol, "PeakMB"}
+        if not need.issubset(df.columns):
+            print(f"Missing columns for peak-mem plot; need {need}")
+            return
+    
+        # Hybrid mean per (dataset, k, x)
+        hyb = (df[df["Suite"] == "Hybrid"]
+                .groupby(keys, as_index=False)["PeakMB"].mean()
+                .rename(columns={"PeakMB": "VAR"}))
+        if hyb.empty:
+            print("No Hybrid rows for peak-mem plot.")
+            return
+    
+        # Baseline mean per (dataset, k) — constant baseline
+        base = (df[df["Suite"] == baseline_suite]
+                .groupby(["DatasetName","NumClusters"], as_index=False)["PeakMB"].mean()
+                .rename(columns={"PeakMB":"BASE"}))
+        out = hyb.merge(base, on=["DatasetName","NumClusters"], how="inner")
+        out = out[np.isfinite(out["BASE"]) & (out["BASE"] != 0)]
+        if out.empty:
+            print("No valid baseline for peak-mem plot.")
+            return
+        out["Rel"] = out["VAR"] / out["BASE"]
+    
+        fig, ax = plt.subplots(figsize=(7,5))
+        for (ds,k), g in out.groupby(["DatasetName","NumClusters"]):
+            g = g.sort_values(xcol, key=lambda s: pd.to_numeric(s, errors="coerce"))
+            ax.plot(g[xcol], g["Rel"], marker="o", label=f"{ds}-C{k}", alpha=0.9)
+    
+        ax.axhline(1.0, ls="--", c="gray", lw=1, label=f"{baseline_suite} baseline")
+        ax.set_title(title)
+        ax.set_xlabel(xcol)
+        ax.set_ylabel(f"Peak Memory / {baseline_suite}")
+        ax.grid(True, ls="--", alpha=0.6)
+        ax.legend()
+        fig.tight_layout()
+        fig.savefig(self.output_dir / outfile, dpi=200)
+        plt.close(fig)
 
 
     def _plot_memtraffic_vs_x(self, df, xcol, mode_label: str, cohort_extra_keys=None):
@@ -741,139 +783,38 @@ class KMeansVisualizer:
 
     # ---------------------- D/E/F plots (produce both baselines internally) ----------------------
     def plot_expD(self, df_D: pd.DataFrame) -> None:
+        df_D = self._ensure_mode(df_D, "D")
         keys = ["DatasetName", "NumClusters", "chunk_single"]
-        for base in ("Double", "Single"):
-            relT = self._rel(df_D, keys, "Time", baseline_suite=base)
-            relJ = self._rel(df_D, keys, "Inertia", baseline_suite=base)
-            self._clean_line(
-                relT, "chunk_single",
-                f"Experiment D: Chunk vs Relative Time (baseline={base})",
-                "Time / Baseline",
-                self.output_dir / f"expD_chunk_vs_time_vs_{base.lower()}.png",
-                baseline_label=base,
-            )
-            self._clean_line(
-                relJ, "chunk_single",
-                f"Experiment D: Chunk vs Relative Inertia (baseline={base})",
-                "Inertia / Baseline",
-                self.output_dir / f"expD_chunk_vs_inertia_vs_{base.lower()}.png",
-                baseline_label=base,
-            )
-
-    def plot_expE(self, df_E: pd.DataFrame) -> None:
-        # Fix batch size (if present) to the most common value; fix RefineIter to mode
-        if "MB_Batch" in df_E.columns and not df_E["MB_Batch"].empty:
-            batch_fix = df_E["MB_Batch"].mode().iat[0]
-            df_E = df_E[df_E["MB_Batch"] == batch_fix].copy()
-        else:
-            batch_fix = None
-        refine_fix = int(df_E["RefineIter"].mode().iat[0])
-        df_use = df_E[df_E["RefineIter"] == refine_fix].copy()
-
-        keys = ["DatasetName", "NumClusters", "MB_Iter", "RefineIter"]
-        suffix = f"(Refine={refine_fix}" + (f", Batch={batch_fix})" if batch_fix is not None else ")")
-
-        for base in ("Double", "Single"):
-            relT = self._rel(df_use, keys, "Time", baseline_suite=base)
-            relJ = self._rel(df_use, keys, "Inertia", baseline_suite=base)
-            self._clean_line(
-                relT, "MB_Iter",
-                f"Experiment E: MB_Iter vs Relative Time {suffix} (baseline={base})",
-                "Time / Baseline",
-                self.output_dir / f"expE_mbiter_vs_time_vs_{base.lower()}.png",
-                baseline_label=base,
-            )
-            self._clean_line(
-                relJ, "MB_Iter",
-                f"Experiment E: MB_Iter vs Relative Inertia {suffix} (baseline={base})",
-                "Inertia / Baseline",
-                self.output_dir / f"expE_mbiter_vs_inertia_vs_{base.lower()}.png",
-                baseline_label=base,
-            )
-
-    def plot_expF(self, df_F: pd.DataFrame, use_log_for_tol: bool = True) -> None:
-        tol_fix = float(df_F["tol_single"].mode().iat[0])
-        sub_cap = df_F[np.isclose(df_F["tol_single"], tol_fix)].copy()
-        cap_fix = int(df_F["single_iter_cap"].mode().iat[0])
-        sub_tol = df_F[df_F["single_iter_cap"] == cap_fix].copy()
-
-        for base in ("Double", "Single"):
-            # (a) Cap sweep at fixed tol
-            keys_cap = ["DatasetName", "NumClusters", "single_iter_cap", "tol_single"]
-            relT_cap = self._rel(sub_cap, keys_cap, "Time", baseline_suite=base)
-            relJ_cap = self._rel(sub_cap, keys_cap, "Inertia", baseline_suite=base)
-            self._clean_line(
-                relT_cap, "single_iter_cap",
-                f"Experiment F: Cap vs Relative Time (tol={tol_fix:g}, base={base})",
-                "Time / Baseline",
-                self.output_dir / f"expF_cap_vs_time_vs_{base.lower()}.png",
-                baseline_label=base,
-            )
-            self._clean_line(
-                relJ_cap, "single_iter_cap",
-                f"Experiment F: Cap vs Relative Inertia (tol={tol_fix:g}, base={base})",
-                "Inertia / Baseline",
-                self.output_dir / f"expF_cap_vs_inertia_vs_{base.lower()}.png",
-                baseline_label=base,
-            )
-
-            # (b) tol sweep at fixed cap
-            keys_tol = ["DatasetName", "NumClusters", "tol_single", "single_iter_cap"]
-            relT_tol = self._rel(sub_tol, keys_tol, "Time", baseline_suite=base)
-            relJ_tol = self._rel(sub_tol, keys_tol, "Inertia", baseline_suite=base)
-            self._clean_line(
-                relT_tol.sort_values("tol_single"),
-                "tol_single",
-                f"Experiment F: tol_single vs Relative Time (cap={cap_fix}, base={base})",
-                "Time / Baseline",
-                self.output_dir / f"expF_tol_vs_time_vs_{base.lower()}.png",
-                logx=use_log_for_tol,
-                baseline_label=base,
-            )
-            self._clean_line(
-                relJ_tol.sort_values("tol_single"),
-                "tol_single",
-                f"Experiment F: tol_single vs Relative Inertia (cap={cap_fix}, base={base})",
-                "Inertia / Baseline",
-                self.output_dir / f"expF_tol_vs_inertia_vs_{base.lower()}.png",
-                logx=use_log_for_tol,
-                baseline_label=base,
-            )
-
-
-    def plot_expD(self, df_D: pd.DataFrame) -> None:
-        keys = ["DatasetName", "NumClusters", "chunk_single"]
-        for base in ("Double", "Single"):
-            relT = self._rel(df_D, keys, "Time", baseline_suite=base)
-            relJ = self._rel(df_D, keys, "Inertia", baseline_suite=base)
-            self._clean_line(
-                relT, "chunk_single",
-                f"Experiment D: Chunk vs Relative Time (baseline={base})",
-                "Time / Baseline",
-                self.output_dir / f"expD_chunk_vs_time_vs_{base.lower()}.png",
-                baseline_label=base,
-            )
-            self._clean_line(
-                relJ, "chunk_single",
-                f"Experiment D: Chunk vs Relative Inertia (baseline={base})",
-                "Inertia / Baseline",
-                self.output_dir / f"expD_chunk_vs_inertia_vs_{base.lower()}.png",
-                baseline_label=base,
-            )
     
-        # ---- NEW: Peak memory (relative to Double) ----
+        for base in ("Double", "Single"):
+            relT = self._rel(df_D, keys, "Time", baseline_suite=base)
+            relJ = self._rel(df_D, keys, "Inertia", baseline_suite=base)
+            self._clean_line(relT, "chunk_single",
+                             f"Experiment D: Chunk vs Relative Time (baseline={base})",
+                             "Time / Baseline",
+                             self.output_dir / f"expD_chunk_vs_time_vs_{base.lower()}.png",
+                             baseline_label=base)
+            self._clean_line(relJ, "chunk_single",
+                             f"Experiment D: Chunk vs Relative Inertia (baseline={base})",
+                             "Inertia / Baseline",
+                             self.output_dir / f"expD_chunk_vs_inertia_vs_{base.lower()}.png",
+                             baseline_label=base)
+    
+        # Peak memory (Hybrid / Double)
         if "PeakMB" in df_D.columns:
             self._plot_rel_peakmem_line(
                 df_D, keys, "chunk_single", "Double",
                 "Experiment D: chunk_single vs Peak Memory (Hybrid / Double)",
-                "expD_chunk_vs_peakmem_vs_double.png",
+                "expD_chunk_vs_peakmem_vs_double.png"
             )
     
-        # ---- NEW: Estimated memory traffic (relative to Double) ----
+        # Estimated memory traffic (Hybrid vs Double)
         self._plot_memtraffic_vs_x(df_D, xcol="chunk_single", mode_label="D", cohort_extra_keys=None)
-    
+
 
     def plot_expE(self, df_E: pd.DataFrame) -> None:
+        df_E = self._ensure_mode(df_E, "E")
+    
         # Fix batch size (if present) to the most common value; fix RefineIter to mode
         if "MB_Batch" in df_E.columns and not df_E["MB_Batch"].empty:
             batch_fix = df_E["MB_Batch"].mode().iat[0]
@@ -889,95 +830,81 @@ class KMeansVisualizer:
         for base in ("Double", "Single"):
             relT = self._rel(df_use, keys, "Time", baseline_suite=base)
             relJ = self._rel(df_use, keys, "Inertia", baseline_suite=base)
-            self._clean_line(
-                relT, "MB_Iter",
-                f"Experiment E: MB_Iter vs Relative Time {suffix} (baseline={base})",
-                "Time / Baseline",
-                self.output_dir / f"expE_mbiter_vs_time_vs_{base.lower()}.png",
-                baseline_label=base,
-            )
-            self._clean_line(
-                relJ, "MB_Iter",
-                f"Experiment E: MB_Iter vs Relative Inertia {suffix} (baseline={base})",
-                "Inertia / Baseline",
-                self.output_dir / f"expE_mbiter_vs_inertia_vs_{base.lower()}.png",
-                baseline_label=base,
-            )
+            self._clean_line(relT, "MB_Iter",
+                             f"Experiment E: MB_Iter vs Relative Time {suffix} (baseline={base})",
+                             "Time / Baseline",
+                             self.output_dir / f"expE_mbiter_vs_time_vs_{base.lower()}.png",
+                             baseline_label=base)
+            self._clean_line(relJ, "MB_Iter",
+                             f"Experiment E: MB_Iter vs Relative Inertia {suffix} (baseline={base})",
+                             "Inertia / Baseline",
+                             self.output_dir / f"expE_mbiter_vs_inertia_vs_{base.lower()}.png",
+                             baseline_label=base)
     
-        # ---- NEW: Peak memory (relative to Double) ----
+        # Peak memory (Hybrid / Double)
         if "PeakMB" in df_use.columns:
             self._plot_rel_peakmem_line(
                 df_use, keys, "MB_Iter", "Double",
                 f"Experiment E: MB_Iter vs Peak Memory {suffix} (Hybrid / Double)",
-                "expE_mbiter_vs_peakmem_vs_double.png",
+                "expE_mbiter_vs_peakmem_vs_double.png"
             )
     
-        # ---- NEW: Estimated memory traffic (relative to Double) ----
+        # Estimated memory traffic; cohort keys must include RefineIter (+ Batch if fixed)
         extra_keys = ["RefineIter"]
         if batch_fix is not None and "MB_Batch" in df_use.columns:
             extra_keys.append("MB_Batch")
         self._plot_memtraffic_vs_x(df_use, xcol="MB_Iter", mode_label="E", cohort_extra_keys=extra_keys)
+
+
+    def plot_expF(self, df_F: pd.DataFrame, use_log_for_tol: bool = True) -> None:
+        df_F = self._ensure_mode(df_F, "F")
     
-    
-        def plot_expF(self, df_F: pd.DataFrame, use_log_for_tol: bool = True) -> None:
         tol_fix = float(df_F["tol_single"].mode().iat[0])
-        sub_cap = df_F[np.isclose(df_F["tol_single"], tol_fix)].copy()
+        sub_cap = df_F[np.isclose(df_F["tol_single"], tol_fix)].copy()          # cap sweep at fixed tol
         cap_fix = int(df_F["single_iter_cap"].mode().iat[0])
-        sub_tol = df_F[df_F["single_iter_cap"] == cap_fix].copy()
+        sub_tol = df_F[df_F["single_iter_cap"] == cap_fix].copy()               # tol sweep at fixed cap
     
         for base in ("Double", "Single"):
             # (a) Cap sweep at fixed tol
             keys_cap = ["DatasetName", "NumClusters", "single_iter_cap", "tol_single"]
             relT_cap = self._rel(sub_cap, keys_cap, "Time", baseline_suite=base)
             relJ_cap = self._rel(sub_cap, keys_cap, "Inertia", baseline_suite=base)
-            self._clean_line(
-                relT_cap, "single_iter_cap",
-                f"Experiment F: Cap vs Relative Time (tol={tol_fix:g}, base={base})",
-                "Time / Baseline",
-                self.output_dir / f"expF_cap_vs_time_vs_{base.lower()}.png",
-                baseline_label=base,
-            )
-            self._clean_line(
-                relJ_cap, "single_iter_cap",
-                f"Experiment F: Cap vs Relative Inertia (tol={tol_fix:g}, base={base})",
-                "Inertia / Baseline",
-                self.output_dir / f"expF_cap_vs_inertia_vs_{base.lower()}.png",
-                baseline_label=base,
-            )
+            self._clean_line(relT_cap, "single_iter_cap",
+                             f"Experiment F: Cap vs Relative Time (tol={tol_fix:g}, base={base})",
+                             "Time / Baseline",
+                             self.output_dir / f"expF_cap_vs_time_vs_{base.lower()}.png",
+                             baseline_label=base)
+            self._clean_line(relJ_cap, "single_iter_cap",
+                             f"Experiment F: Cap vs Relative Inertia (tol={tol_fix:g}, base={base})",
+                             "Inertia / Baseline",
+                             self.output_dir / f"expF_cap_vs_inertia_vs_{base.lower()}.png",
+                             baseline_label=base)
     
             # (b) tol sweep at fixed cap
             keys_tol = ["DatasetName", "NumClusters", "tol_single", "single_iter_cap"]
             relT_tol = self._rel(sub_tol, keys_tol, "Time", baseline_suite=base)
             relJ_tol = self._rel(sub_tol, keys_tol, "Inertia", baseline_suite=base)
-            self._clean_line(
-                relT_tol.sort_values("tol_single"),
-                "tol_single",
-                f"Experiment F: tol_single vs Relative Time (cap={cap_fix}, base={base})",
-                "Time / Baseline",
-                self.output_dir / f"expF_tol_vs_time_vs_{base.lower()}.png",
-                logx=use_log_for_tol,
-                baseline_label=base,
-            )
-            self._clean_line(
-                relJ_tol.sort_values("tol_single"),
-                "tol_single",
-                f"Experiment F: tol_single vs Relative Inertia (cap={cap_fix}, base={base})",
-                "Inertia / Baseline",
-                self.output_dir / f"expF_tol_vs_inertia_vs_{base.lower()}.png",
-                logx=use_log_for_tol,
-                baseline_label=base,
-            )
+            self._clean_line(relT_tol.sort_values("tol_single"), "tol_single",
+                             f"Experiment F: tol_single vs Relative Time (cap={cap_fix}, base={base})",
+                             "Time / Baseline",
+                             self.output_dir / f"expF_tol_vs_time_vs_{base.lower()}.png",
+                             logx=use_log_for_tol,
+                             baseline_label=base)
+            self._clean_line(relJ_tol.sort_values("tol_single"), "tol_single",
+                             f"Experiment F: tol_single vs Relative Inertia (cap={cap_fix}, base={base})",
+                             "Inertia / Baseline",
+                             self.output_dir / f"expF_tol_vs_inertia_vs_{base.lower()}.png",
+                             logx=use_log_for_tol,
+                             baseline_label=base)
     
-        # ---- NEW: Peak memory (relative to Double) ----
+        # Peak memory (Hybrid / Double)
         if "PeakMB" in df_F.columns:
-            # (a) Cap sweep at fixed tol
             self._plot_rel_peakmem_line(
                 sub_cap, ["DatasetName","NumClusters","single_iter_cap","tol_single"],
                 "single_iter_cap", "Double",
                 f"Experiment F: Cap vs Peak Memory (tol={tol_fix:g}) (Hybrid / Double)",
                 "expF_cap_vs_peakmem_vs_double.png",
             )
-            # (b) tol sweep at fixed cap
             self._plot_rel_peakmem_line(
                 sub_tol, ["DatasetName","NumClusters","tol_single","single_iter_cap"],
                 "tol_single", "Double",
@@ -985,14 +912,16 @@ class KMeansVisualizer:
                 "expF_tol_vs_peakmem_vs_double.png",
             )
     
-        # ---- NEW: Estimated memory traffic (relative to Double) ----
-        # (a) Cap sweep at fixed tol: cohort must include tol_single
+        # Estimated memory traffic
         self._plot_memtraffic_vs_x(sub_cap, xcol="single_iter_cap", mode_label="F",
                                    cohort_extra_keys=["tol_single"])
-        # (b) tol sweep at fixed cap: cohort must include single_iter_cap
         self._plot_memtraffic_vs_x(sub_tol, xcol="tol_single", mode_label="F",
                                    cohort_extra_keys=["single_iter_cap"])
+    
+    
+        
 
+    
     # ---------------------- cluster visual aids ----------------------
     @staticmethod
     def pca_2d_view(X_full, centers_full, resolution=300, random_state=0):
@@ -1081,6 +1010,7 @@ if __name__ == "__main__":
     
 
     
+
 
 
 
